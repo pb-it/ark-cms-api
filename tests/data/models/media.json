@@ -1,0 +1,17 @@
+{
+	"name": "media",
+	"options": {
+		"increments": true,
+		"timestamps": true
+	},
+	"attributes": [
+		{
+			"name": "url",
+			"dataType": "url"
+		},
+		{
+			"name": "file",
+			"dataType": "base64"
+		}
+	]
+}

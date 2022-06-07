@@ -1,0 +1,37 @@
+{
+    "name": "9gag",
+    "options": {
+        "increments": true,
+        "timestamps": true
+    },
+    "attributes": [
+        {
+            "name": "Title",
+            "dataType": "string"
+        },
+        {
+            "name": "url",
+            "dataType": "url"
+        },
+        {
+            "name": "thumbnail",
+            "dataType": "base64"
+        }
+    ],
+    "defaults": {
+        "paneltype": "MediaPanel",
+        "thumbnail": "thumbnail",
+        "view": {
+            "format": "16/9",
+            "width": 320,
+            "height": 180,
+            "details": "none",
+            "display": "",
+            "float": ""
+        }
+    },
+    "actions": {
+        "prepare": "",
+        "check": "var url = data.url;\nif (url) {\n    var surl;\n    if (url.startsWith(\"http://\")) {\n        surl = url.substring(7);\n    } else if (url.startsWith(\"https://\")) {\n        surl = url.substring(8);\n    } else {\n        surl = url;\n    }\n\n\tif (surl.startsWith(\"9gag.com/gag/\")) {\n\t\tvar id = surl.substring(13, 21);\n\t\tdata.thumbnail = \"https://img-9gag-fun.9cache.com/photo/\" + id + \"_700b.jpg\";\n\t}\n}\nreturn Promise.resolve(data);"
+    }
+}

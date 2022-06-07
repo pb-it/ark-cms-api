@@ -1,2 +1,5 @@
 # wing-cms-api
-backend
+
+npm update
+
+npm test
