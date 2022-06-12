@@ -1,7 +1,6 @@
 const Logger = require('../logger');
 const Registry = require('./registry');
 const VersionController = require('./versioncontroller');
-const ProfileController = require('./profilecontroller');
 const Shelf = require('../model/shelf');
 
 class Controller {
@@ -50,8 +49,6 @@ class Controller {
 
             var versionController = new VersionController(this._registry);
             await versionController.verify();
-
-            this._profileController = new ProfileController(this._registry);
 
             this._shelf = new Shelf(this._knex);
             await this._shelf.init();
@@ -112,14 +109,31 @@ class Controller {
 
         var profilesRouter = express.Router();
         profilesRouter.get('/', async function (req, res) {
-            var profiles = await this._profileController.getProfiles();
+            var profiles;
+            var str = await this._registry.get('profiles');
+            if (str)
+                profiles = JSON.parse(str);
             res.json(profiles);
         }.bind(this));
         profilesRouter.put('/', async function (req, res) {
-            var result = await this._profileController.setProfiles(req.body)
+            var result = await this._registry.upsert('profiles', JSON.stringify(req.body));
             res.json(result);
         }.bind(this));
         app.use('/profiles', profilesRouter);
+
+        var bookmarksRouter = express.Router();
+        bookmarksRouter.get('/', async function (req, res) {
+            var bookmarks;
+            var str = await this._registry.get('bookmarks');
+            if (str)
+                bookmarks = JSON.parse(str);
+            res.json(bookmarks);
+        }.bind(this));
+        bookmarksRouter.put('/', async function (req, res) {
+            var result = await this._registry.upsert('bookmarks', JSON.stringify(req.body));
+            res.json(result);
+        }.bind(this));
+        app.use('/bookmarks', bookmarksRouter);
 
         var modelsRouter = express.Router();
         modelsRouter.get('/', function (req, res) {
