@@ -1,4 +1,3 @@
-
 const Logger = require('../logger');
 const Model = require('./model');
 
