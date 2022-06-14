@@ -79,21 +79,22 @@ class Controller {
             res.json(info);
         }.bind(this));
         systemRouter.use('/log', express.static('log.txt'));
+        systemRouter.get('/update', function (req, res) {
+            Logger.info(`Updating`);
+            require("child_process").exec('git pull', function (err, stdout, stderr) {
+                if (err) {
+                    console.error(`exec error: ${err}`);
+                    return;
+                }
+                console.log(stdout);
+                this.restart();
+            }.bind(this));
+            res.send("updating..");
+        }.bind(this));
         systemRouter.get('/restart', function (req, res) {
-            setTimeout(function () {
-                Logger.info(`Restarting`);
-                //INFO: pm2 will restart process
-                /*process.on("exit", function () {
-                    require("child_process").spawn(process.argv.shift(), process.argv, {
-                        cwd: process.cwd(),
-                        detached: true,
-                        stdio: "inherit"
-                    });
-                });*/
-                process.exit();
-            }, 1000);
+            this.restart();
             res.send("restarting..");
-        });
+        }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
             try {
                 Logger.info(`Reloading models`);
@@ -230,6 +231,21 @@ class Controller {
     teardown() {
         this._svr.close();
         this._knex.destroy();
+    }
+
+    restart() {
+        Logger.info(`Restarting`);
+        if (!this._serverConfig.pm2) {
+            process.on("exit", function () {
+                require("child_process").spawn(process.argv.shift(), process.argv, {
+                    cwd: process.cwd(),
+                    detached: true,
+                    stdio: "inherit"
+                });
+            });
+        }
+        this.teardown();
+        process.exit();
     }
 
     async process(req, res) {

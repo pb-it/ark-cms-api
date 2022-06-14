@@ -38,10 +38,15 @@ class Shelf {
         this._models = [];
 
         var dataset = await this._knex('_model').select('id', 'definition');
+        var def;
         var data;
         var model;
         for (const row of dataset) {
-            data = JSON.parse(row['definition']);
+            def = row['definition'];
+            if (typeof def === 'object') //mysql2
+                data = def;
+            else if (typeof def === 'string' || def instanceof String) //mysql
+                data = JSON.parse(def);
             data['id'] = row['id'];
             model = new Model(this, data);
             this._models.push(model);
