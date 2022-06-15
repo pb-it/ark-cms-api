@@ -1,3 +1,4 @@
+const path = require('path');
 const Logger = require('../logger');
 const Registry = require('./registry');
 const VersionController = require('./versioncontroller');
@@ -81,7 +82,8 @@ class Controller {
         systemRouter.use('/log', express.static('log.txt'));
         systemRouter.get('/update', function (req, res) {
             Logger.info(`Updating`);
-            require("child_process").exec('git pull', function (err, stdout, stderr) {
+            var appRoot = path.join(__dirname, "../../");
+            require("child_process").exec('cd ' + appRoot + ' && git pull', function (err, stdout, stderr) {
                 if (err) {
                     console.error(`exec error: ${err}`);
                     return;
