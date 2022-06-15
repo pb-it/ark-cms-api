@@ -1,4 +1,5 @@
 const Logger = require('../logger');
+const path = require('path');
 const fs = require('fs');
 const inflection = require('inflection');
 
@@ -29,7 +30,7 @@ class Model {
 
     createExtensionFile(force) {
         if (this._definition.extensions) {
-            this._ePath = process.cwd() + "/api/extensions/" + this._name + ".js";
+            this._ePath = path.join(__dirname, "../../", "api/extensions/", this._name + ".js"); //NOTE: process.cwd() unsafe
             if (!fs.existsSync(this._ePath) || force)
                 fs.writeFileSync(this._ePath, this._definition.extensions, { encoding: 'utf8', flag: 'w' });
             const resolved = require.resolve(this._ePath);
