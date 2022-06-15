@@ -1,4 +1,5 @@
-const webclient = require(process.cwd() + "/src/common/webclient.js");
+const path = require('path');
+const webclient = require(path.join(__dirname, "/src/common/webclient.js"));
 
 const fs = require('fs');
 const ytdl = require('ytdl-core');
