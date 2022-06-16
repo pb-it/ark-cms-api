@@ -1,18 +1,18 @@
 {
-    "name": "japi",
-    "version": "1.0.0",
-    "description": "",
-    "main": "japi.js",
+    "name": "wing-cms-api",
+    "version": "0.1.0-beta",
+    "description": "Headless CMS",
+    "main": "server.js",
     "scripts": {
-        "start": "node japi.js",
-        "start-unix-prod": "export NODE_ENV=production&& node --max_old_space_size=8192 japi.js",
-        "start-win-prod": "set NODE_ENV=production&& node --max_old_space_size=8192 japi.js",
-        "start-unix-dev": "node --max_old_space_size=8192 japi.js",
-        "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 japi.js",
+        "start": "node server.js",
+        "start-unix-prod": "export NODE_ENV=production&& node --max_old_space_size=8192 server.js",
+        "start-win-prod": "set NODE_ENV=production&& node --max_old_space_size=8192 server.js",
+        "start-unix-dev": "node --max_old_space_size=8192 server.js",
+        "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 server.js",
         "test": "jest tests/common.test.js",
         "lint": "eslint src/js"
     },
-    "author": "",
+    "author": "Patrick Bauer",
     "license": "MIT",
     "dependencies": {
         "axios": "^0.21.4",

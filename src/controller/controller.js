@@ -6,6 +6,8 @@ const Shelf = require('../model/shelf');
 
 class Controller {
 
+    _appRoot;
+
     _serverConfig;
     _databaseConfig;
 
@@ -18,6 +20,7 @@ class Controller {
     _shelf;
 
     constructor() {
+        this._appRoot = path.join(__dirname, "../../");
     }
 
     async setup(serverConfig, databaseConfig) {
@@ -68,10 +71,14 @@ class Controller {
         var bodyParser = require('body-parser');
 
         var app = express();
-
         app.use(cors());
         app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
         app.use(bodyParser.json({ limit: '100mb' }));
+
+        app.get('/robots.txt', function (req, res) {
+            res.type('text/plain');
+            res.send("User-agent: *\nDisallow: /");
+        });
 
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
@@ -82,29 +89,29 @@ class Controller {
         systemRouter.use('/log', express.static('log.txt'));
         systemRouter.get('/update', function (req, res) {
             Logger.info(`Updating`);
-            var appRoot = path.join(__dirname, "../../");
-            require("child_process").exec('cd ' + appRoot + ' && git pull', function (err, stdout, stderr) {
-                if (err) {
+            require("child_process").exec('cd ' + this._appRoot + ' && git pull && npm update', function (err, stdout, stderr) {
+                if (err)
                     console.error(`exec error: ${err}`);
-                    return;
+                else {
+                    console.log(stdout);
+                    this.restart();
                 }
-                console.log(stdout);
-                this.restart();
             }.bind(this));
-            res.send("updating..");
+            res.send("Updating..");
         }.bind(this));
         systemRouter.get('/restart', function (req, res) {
             this.restart();
-            res.send("restarting..");
+            res.send("Restarting..");
         }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
             try {
                 Logger.info(`Reloading models`);
                 await this._shelf.loadModels();
-                res.send("reload done");
+                res.send("Reload done");
             } catch (error) {
                 Logger.parseError(error);
-                res.send("reload failed");
+                res.status(500);
+                res.send("Reload failed");
             }
             return Promise.resolve();
         }.bind(this));

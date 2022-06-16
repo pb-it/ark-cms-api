@@ -20,4 +20,4 @@ RUN mv ./config/database.js ./config/_database.js && \
     mv ./config/database_docker.js ./config/database.js
 
 EXPOSE 3002
-CMD [ "node", "japi.js" ]
+CMD [ "node", "server.js" ]
