@@ -3,10 +3,10 @@ const fs = require('fs');
 class Logger {
 
     static info(message) {
-        var msg = new Date().toUTCString() + " [info] " + message + "\r\n";
+        var msg = new Date().toUTCString() + " [info] " + message;
         try {
             console.log(msg);
-            fs.appendFileSync('./log.txt', msg);
+            fs.appendFileSync('./log.txt', msg + "\n");
         } catch (error) {
             console.error(err);
         }
@@ -65,7 +65,7 @@ class Logger {
         return Promise.resolve();
     }
 
-    async log(timestamp, method, model, recordId, data) {
+    async logRequest(timestamp, method, model, recordId, data) {
         var row = { 'method': method, 'model': model, 'record_id': recordId, 'data': JSON.stringify(data) };
         if (timestamp)
             row['timestamp'] = timestamp;

@@ -1,3 +1,4 @@
+const path = require('path');
 const axios = require('axios').default;
 const fs = require('fs');
 
@@ -28,7 +29,7 @@ async function download(url, file) {
     var stream = await axios.get(url, opt);
 
     var name;
-    var index = file.lastIndexOf('/');
+    var index = file.lastIndexOf(path.sep);
     if (index >= 0)
         name = file.substr(index + 1);
     else
@@ -39,6 +40,8 @@ async function download(url, file) {
         var disposition = stream.headers['content-disposition'];
         if (disposition) {
             ext = disposition.substr(disposition.lastIndexOf('.') + 1);
+            if (ext.endsWith('"'))
+                ext = ext.substr(0, ext.length - 1);
         } else if (type) {
             var parts = type.split('/');
             if (parts.length == 2)

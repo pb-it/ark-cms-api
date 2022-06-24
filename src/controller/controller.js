@@ -187,7 +187,7 @@ class Controller {
         }.bind(this));
         modelsRouter.use(async function (req, res) {
             try {
-                await this._logger.log(null, req.method, '_models', res.locals.id, req.body);
+                await this._logger.logRequest(null, req.method, '_models', res.locals.id, req.body);
             } catch (error) {
                 Logger.parseError(error);
             }
@@ -313,7 +313,7 @@ class Controller {
 
                 if (timestamp) { //req.method !== "GET"
                     try {
-                        await this._logger.log(timestamp, req.method, name, id, req.body);
+                        await this._logger.logRequest(timestamp, req.method, name, id, req.body);
                     } catch (error) {
                         Logger.parseError(error);
                     }
