@@ -117,6 +117,20 @@ class Controller {
         }.bind(this));
         app.use('/system', systemRouter);
 
+        var routesRouter = express.Router();
+        routesRouter.get('/', async function (req, res) {
+            var routes;
+            var str = await this._registry.get('routes');
+            if (str)
+                routes = JSON.parse(str);
+            res.json(routes);
+        }.bind(this));
+        routesRouter.put('/', async function (req, res) {
+            var result = await this._registry.upsert('routes', JSON.stringify(req.body));
+            res.json(result);
+        }.bind(this));
+        app.use('/routes', routesRouter);
+
         var profilesRouter = express.Router();
         profilesRouter.get('/', async function (req, res) {
             var profiles;
