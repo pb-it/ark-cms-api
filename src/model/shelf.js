@@ -51,6 +51,10 @@ class Shelf {
             model = new Model(this, data);
             this._models.push(model);
         };
+        return Promise.resolve();
+    }
+
+    async initModels() {
         for (var m of this._models) {
             try {
                 await m.init(false);

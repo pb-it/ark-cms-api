@@ -190,11 +190,19 @@ class Model {
                 break;
             case "enumeration":
                 await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.enu(attribute.name, attribute.options);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
+                    if (attribute.bUseString) {
+                        var column = table.string(attribute.name);
+                        if (attribute.defaultValue)
+                            column.defaultTo(attribute.defaultValue);
+                        if (attribute.required)
+                            column.notNullable();
+                    } else {
+                        var column = table.enu(attribute.name, attribute.options.map(function (x) { return x['value'] }));
+                        if (attribute.defaultValue)
+                            column.defaultTo(attribute.defaultValue);
+                        if (attribute.required)
+                            column.notNullable();
+                    }
                 });
                 break;
             case "text":
@@ -209,6 +217,15 @@ class Model {
                             column = table.text(attribute.name, 'longtext');
                     } else
                         column = table.text(attribute.name);
+                    if (attribute.defaultValue)
+                        column.defaultTo(attribute.defaultValue);
+                    if (attribute.required)
+                        column.notNullable();
+                });
+                break;
+            case "json":
+                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
+                    var column = table.json(attribute.name, attribute.enum);
                     if (attribute.defaultValue)
                         column.defaultTo(attribute.defaultValue);
                     if (attribute.required)
@@ -254,15 +271,6 @@ class Model {
             case "relation":
                 await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
                     table.integer(attribute.name);
-                });
-                break;
-            case "json":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.json(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
                 });
                 break;
             case "blob":
@@ -605,7 +613,9 @@ class Model {
             data = await ext.update(data);
         }
 
-        var forge = { 'id': id };
+        var forge = {};
+        if (id)
+            forge['id'] = id;
         var attr;
         for (var str in data) {
             if (!this._relations.includes(str) || !Array.isArray(data[str])) {
@@ -613,12 +623,21 @@ class Model {
                 if (attr) {
                     if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
                         forge[str] = data[str];
-                } else if (str === 'id' && this._definition.options.increments)
-                    forge[str] = data[str];
-                else
+                } else if (str === 'id' && this._definition.options.increments) {
+                    if (id) {
+                        if (id !== data[str])
+                            throw new Error("Conflict in received IDs");
+                    } else
+                        id = data[str];
+                } else
                     throw new Error("Undefined Attribute '" + str + "'");
             }
         }
+        if (id)
+            forge['id'] = id;
+        else
+            throw new Error("ID missing");
+
         var obj = await this._book.forge(forge).save();
         for (var str of this._relations) {
             if (data[str] && Array.isArray(data[str])) {

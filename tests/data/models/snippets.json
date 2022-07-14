@@ -1,0 +1,24 @@
+{
+    "name": "snippets",
+    "options": {
+        "increments": true,
+        "timestamps": true
+    },
+    "attributes": [
+        {
+            "name": "title",
+            "dataType": "string"
+        },
+        {
+            "name": "snippet",
+            "dataType": "text",
+            "view": "plain"
+        }
+    ],
+    "defaults": {
+        "title": "title",
+        "view": {
+            "details": "all"
+        }
+    }
+}

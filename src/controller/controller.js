@@ -1,7 +1,7 @@
 const path = require('path');
 const Logger = require('../logger');
 const Registry = require('./registry');
-const VersionController = require('./versioncontroller');
+const VersionController = require('./version-controller');
 const Shelf = require('../model/shelf');
 
 class Controller {
@@ -16,6 +16,7 @@ class Controller {
 
     _logger;
     _registry;
+    _versionController;
     _profileController;
     _shelf;
 
@@ -51,12 +52,14 @@ class Controller {
             this._registry = new Registry(this._knex);
             await this._registry.init();
 
-            var versionController = new VersionController(this._registry);
-            await versionController.verify();
-
             this._shelf = new Shelf(this._knex);
             await this._shelf.init();
             await this._shelf.loadModels();
+
+            this._versionController = new VersionController(this);
+            await this._versionController.verify();
+
+            await this._shelf.initModels();
 
             this._startExpress();
         } catch (error) {
@@ -83,6 +86,7 @@ class Controller {
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
             var info = {};
+            info['version'] = this._versionController.getVersion();
             info['client'] = this._databaseConfig.connections.default.settings.client;
             res.json(info);
         }.bind(this));
@@ -107,6 +111,7 @@ class Controller {
             try {
                 Logger.info(`Reloading models`);
                 await this._shelf.loadModels();
+                await this._shelf.initModels();
                 res.send("Reload done");
             } catch (error) {
                 Logger.parseError(error);
@@ -175,7 +180,7 @@ class Controller {
             } catch (error) {
                 Logger.parseError(error);
                 res.status(500);
-                res.send("Creation of model failed");
+                res.send("Creation or replacement of model failed");
             }
             return Promise.resolve();
         }.bind(this));
@@ -271,6 +276,14 @@ class Controller {
         process.exit();
     }
 
+    /**
+     * https://stackoverflow.com/questions/630453/what-is-the-difference-between-post-and-put-in-http
+     * To satisfy the definition that PUT is idempotent a PUT request must contain an ID.
+     * An interpretation of an PUT request without ID would be to replace all data with the new one which won't be supported by now.
+     * @param {*} req 
+     * @param {*} res 
+     * @returns 
+     */
     async process(req, res) {
         var name;
         var id;
@@ -353,6 +366,10 @@ class Controller {
 
     getRegistry() {
         return this._registry;
+    }
+
+    getVersionController() {
+        return this._versionController;
     }
 
     getShelf() {

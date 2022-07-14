@@ -2,48 +2,47 @@ const controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
+const modelsUrl = "http://localhost:3002/models";
+const apiUrl = "http://localhost:3002/api";
+var knex;
+var shelf;
+const bCleanupBeforeTests = false;
+const bCleanupAfterTest = false;
+
 beforeAll(async () => {
     const server = require('./config/server');
     const database = require('./config/database');
+    await controller.setup(server, database);
+    knex = controller.getKnex();
+    shelf = controller.getShelf();
 
-    return await controller.setup(server, database);
+    if (bCleanupBeforeTests)
+        ; //TODO:
+
+    return Promise.resolve();
 });
 
 afterAll(() => {
     controller.teardown();
 });
 
-/*test('company', async function () {
-    var model = JSON.parse(fs.readFileSync('./tests/data/models/company.json', 'utf8'));
-
-    const url = "http://localhost:3002/models";
-
-    await webclient.post(url, model);
-
-    var data = await webclient.curl(url);
-    delete data[0]['id'];
-    expect(data).toEqual([model]);
-
-    return Promise.resolve();
-});*/
-
-test.only('media', async function () {
+test('media', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/media.json', 'utf8'));
 
-    var url = "http://localhost:3002/models";
-    await webclient.post(url, model);
+    await webclient.put(modelsUrl, model);
 
-    var data = await webclient.curl(url);
+    var data = await webclient.curl(modelsUrl);
     var res = data.filter(function (x) {
         return x['name'] === "media";
     })[0];
+    var modelId = res['id'];
     delete res['id'];
     expect(res).toEqual(model);
 
-    var create = JSON.parse(fs.readFileSync('./tests/data/create/media1.json', 'utf8'));
+    var media = JSON.parse(fs.readFileSync('./tests/data/crud/media_1.json', 'utf8'));
 
-    url = "http://localhost:3002/api/media";
-    await webclient.post(url, create);
+    var url = apiUrl + "/media";
+    await webclient.post(url, media);
 
     data = await webclient.curl(url);
     expect(data.length).toEqual(1);
@@ -54,15 +53,69 @@ test.only('media', async function () {
     delete res['updated_at'];
     delete res['file'];
 
-    var result = JSON.parse(fs.readFileSync('./tests/data/results/media1.json', 'utf8'));
-    expect(res).toEqual(result);
+    expect(res).toEqual(media);
 
-    var knex = controller.getKnex();
-    try {
-        await knex.schema.dropTable('media');
-    } catch (err) {
-        console.log(err.message);
+    if (bCleanupAfterTest) {
+        await shelf.deleteModel(modelId);
+        data = await webclient.curl(modelsUrl);
+        res = data.filter(function (x) {
+            return x['name'] === "media";
+        });
+        expect(res.length).toEqual(0);
+
+        try {
+            await knex.schema.dropTable('media');
+        } catch (err) {
+            console.log(err.message);
+        }
     }
+    return Promise.resolve();
+});
 
+test('snippets', async function () {
+    var model = JSON.parse(fs.readFileSync('./tests/data/models/snippets.json', 'utf8'));
+
+    await webclient.put(modelsUrl, model);
+
+    var data = await webclient.curl(modelsUrl);
+    var res = data.filter(function (x) {
+        return x['name'] === "snippets";
+    })[0];
+    var modelId = res['id'];
+    delete res['id'];
+    expect(res).toEqual(model);
+
+    var snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_1.json', 'utf8'));
+
+    var url = apiUrl + "/snippets";
+    await webclient.post(url, snippet);
+
+    data = await webclient.curl(url);
+    expect(data.length).toEqual(1);
+
+    res = data[0];
+    delete res['id'];
+    delete res['created_at'];
+    delete res['updated_at'];
+
+    expect(res).toEqual(snippet);
+
+    snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_2.json', 'utf8'));
+    await webclient.post(url, snippet);
+
+    if (bCleanupAfterTest) {
+        await shelf.deleteModel(modelId);
+        data = await webclient.curl(modelsUrl);
+        res = data.filter(function (x) {
+            return x['name'] === "snippets";
+        });
+        expect(res.length).toEqual(0);
+
+        try {
+            await knex.schema.dropTable('snippets');
+        } catch (err) {
+            console.log(err.message);
+        }
+    }
     return Promise.resolve();
 });

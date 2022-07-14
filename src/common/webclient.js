@@ -18,6 +18,10 @@ module.exports.curl = async function request(url) {
 }
 
 module.exports.post = async function request(url, obj) {
+    return axios.post(url, obj);
+}
+
+module.exports.put = async function request(url, obj) {
     return axios.put(url, obj);
 }
 
