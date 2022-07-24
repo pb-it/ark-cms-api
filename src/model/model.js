@@ -588,6 +588,7 @@ class Model {
             }
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
 
+            var id = obj['id'];
             for (var str of this._relations) {
                 if (data[str] && Array.isArray(data[str])) {
                     var coll = obj[str]();
