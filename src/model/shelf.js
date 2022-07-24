@@ -66,20 +66,47 @@ class Shelf {
     }
 
     async upsertModel(definition) {
-        var name = definition.name;
+        var id = definition['id'];
+        var name = definition['name'];
 
         var data;
-        var res = await this._knex('_model').where('name', name).count('*');
-        var count = res[0]['count(*)'];
-        if (count == 0)
-            data = await this._knex('_model').insert({ 'name': name, 'definition': JSON.stringify(definition) });
-        else
-            data = await this._knex('_model').where('name', name).update({ 'definition': JSON.stringify(definition) });
+        var res;
+        if (id) {
+            var bCheckName = false;
+            res = await this._knex('_model').where('id', id);
+            if (res.length == 1) {
+                if (res[0]['name'] === name)
+                    data = await this._knex('_model').where('id', id).update({ 'definition': JSON.stringify(definition) });
+                else {
+                    var res = await this._knex('_model').where('name', name).count('*');
+                    var count = res[0]['count(*)'];
+                    if (count == 0)
+                        data = await this._knex('_model').where('id', id).update({ 'name': name, 'definition': JSON.stringify(definition) });
+                    else
+                        throw new Error("Cannot update model name to '" + name + "' because it already exists an model with that name");
+                }
+                bCheckName = true;
+            } else {
+                var res = await this._knex('_model').where('name', name).count('*');
+                var count = res[0]['count(*)'];
+                if (count == 0)
+                    data = await this._knex('_model').insert({ 'id': id, 'name': name, 'definition': JSON.stringify(definition) });
+                else
+                    throw new Error("An model with name '" + name + "' already exists with an different ID");
+            }
+        } else if (name) {
+            var res = await this._knex('_model').where('name', name).count('*');
+            var count = res[0]['count(*)'];
+            if (count == 0)
+                data = await this._knex('_model').insert({ 'name': name, 'definition': JSON.stringify(definition) });
+            else
+                data = await this._knex('_model').where('name', name).update({ 'definition': JSON.stringify(definition) });
 
-        res = await this._knex('_model').select('id').where('name', name);
-        var id = res[0]['id'];
+            res = await this._knex('_model').select('id').where('name', name);
+            id = res[0]['id'];
+            definition['id'] = id;
+        }
 
-        definition['id'] = id;
         var model = new Model(this, definition);
         await model.init(true);
         var models = this._models.filter(function (x) { return x.getName() !== name });

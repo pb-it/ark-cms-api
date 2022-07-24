@@ -10,6 +10,7 @@
         "start-unix-dev": "node --max_old_space_size=8192 server.js",
         "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 server.js",
         "test": "jest tests/common.test.js",
+        "test-relations": "jest tests/relations.test.js",
         "lint": "eslint src/js"
     },
     "author": "Patrick Bauer",

@@ -572,7 +572,7 @@ class Model {
         }
 
         if (true) { //TODO: temporary disable creation of db-entry
-            var forge = {}
+            var forge = {};
             var attr;
             for (var str in data) {
                 if (!this._relations.includes(str) || !Array.isArray(data[str])) {
@@ -587,13 +587,18 @@ class Model {
                 }
             }
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
+
             for (var str of this._relations) {
                 if (data[str] && Array.isArray(data[str])) {
                     var coll = obj[str]();
-                    if (coll.relatedData.type !== 'hasMany') //TODO: via is ignored
-                        await obj[str]().attach(data[str]);
+                    if (coll.relatedData.type === 'hasMany') { //relation via
+                        var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                        if (attr)
+                            this._updateHasManyRelation(attr, data[str], id);
+                    } else {
+                        await coll.attach(data[str]);
+                    }
                 }
-
             }
             obj = await obj.load(this._relations);
             json = obj.toJSON();
@@ -614,8 +619,6 @@ class Model {
         }
 
         var forge = {};
-        if (id)
-            forge['id'] = id;
         var attr;
         for (var str in data) {
             if (!this._relations.includes(str) || !Array.isArray(data[str])) {
@@ -642,7 +645,11 @@ class Model {
         for (var str of this._relations) {
             if (data[str] && Array.isArray(data[str])) {
                 var coll = obj[str]();
-                if (coll.relatedData.type !== 'hasMany') { //TODO: via is ignored
+                if (coll.relatedData.type === 'hasMany') { //relation via
+                    var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                    if (attr)
+                        this._updateHasManyRelation(attr, data[str], id);
+                } else {
                     await coll.detach();
                     await coll.attach(data[str]);
                 }
@@ -650,6 +657,17 @@ class Model {
         }
         obj = await obj.load(this._relations);
         return Promise.resolve(obj.toJSON());
+    }
+
+    async _updateHasManyRelation(attr, ids, id) {
+        var model = this._shelf.getModel(attr['model']);
+        var via = attr['via'];
+        var o = {};
+        o[via] = id;
+        for (var i of ids) {
+            await model.update(i, o);
+        }
+        return Promise.resolve();
     }
 
     async delete(id) {
