@@ -1,6 +1,5 @@
 const path = require('path');
 const Logger = require('../logger');
-const MigrationController = require('./migration-controller');
 
 class VersionController {
 
@@ -28,8 +27,7 @@ class VersionController {
                 Logger.info("[VersionController] ✔ Current application version '" + this._version + "' equals registry entry of database");
             else {
                 Logger.info("[VersionController] ✘ Current application version '" + this._version + "' does not equal registry entry of database - starting migration");
-                const mc = new MigrationController(this._controller);
-                await mc.update(value, this._version);
+                await this._controller.getMigrationsController().updateDatabase(value, this._version);
                 await this._registry.upsert('version', this._version);
             }
         } else {

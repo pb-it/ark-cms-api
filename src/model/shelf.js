@@ -39,16 +39,15 @@ class Shelf {
 
         var dataset = await this._knex('_model').select('id', 'definition');
         var def;
-        var data;
+        var definition;
         var model;
         for (const row of dataset) {
             def = row['definition'];
             if (typeof def === 'object') //mysql2
-                data = def;
+                definition = def;
             else if (typeof def === 'string' || def instanceof String) //mysql
-                data = JSON.parse(def);
-            data['id'] = row['id'];
-            model = new Model(this, data);
+                definition = JSON.parse(def);
+            model = new Model(this, row['id'], definition);
             this._models.push(model);
         };
         return Promise.resolve();
@@ -65,8 +64,7 @@ class Shelf {
         return Promise.resolve();
     }
 
-    async upsertModel(definition) {
-        var id = definition['id'];
+    async upsertModel(id, definition) {
         var name = definition['name'];
 
         var data;
@@ -104,10 +102,9 @@ class Shelf {
 
             res = await this._knex('_model').select('id').where('name', name);
             id = res[0]['id'];
-            definition['id'] = id;
         }
 
-        var model = new Model(this, definition);
+        var model = new Model(this, id, definition);
         await model.init(true);
         var models = this._models.filter(function (x) { return x.getName() !== name });
         models.push(model);
@@ -117,9 +114,17 @@ class Shelf {
     }
 
     async deleteModel(id) {
+        var name;
         await this._knex('_model').where('id', id).delete();
-        this._models = this._models.filter(function (x) { return x.getData()['id'] !== id });
-        return Promise.resolve();
+        var models = [];
+        for (var model of this._models) {
+            if (model.getId() == id)
+                name = model.getName();
+            else
+                models.push(model);
+        }
+        this._models = models;
+        return Promise.resolve(name);
     }
 
     getModel(name) {

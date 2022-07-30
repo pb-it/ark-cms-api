@@ -2,6 +2,20 @@ const Logger = require('../logger');
 
 class MigrationController {
 
+    static updateModelDefinition(definition, currentVersion, newVersion) {
+        switch (currentVersion) {
+            case '0.1.0-beta':
+                for (let attribute of definition['attributes']) {
+                    if (attribute['dataType'] === "enumeration")
+                        attribute['options'] = attribute['options'].map(function (x) { return { 'value': x } });
+                }
+                if (newVersion && newVersion === '0.1.1-beta')
+                    break;
+            default:
+        }
+        return definition;
+    }
+
     _controller;
     _shelf;
     _models;
@@ -12,24 +26,14 @@ class MigrationController {
         this._models = this._shelf.getModels();
     }
 
-    update(currentVersion, newVersion) {
+    updateDatabase(currentVersion, newVersion) {
         var definition;
-        switch (currentVersion) {
-            case '0.1.0-beta':
-                for (var m of this._models) {
-                    definition = m.getData();
-                    for (let attribute of definition['attributes']) {
-                        if (attribute['dataType'] === "enumeration")
-                            attribute['options'] = attribute['options'].map(function (x) { return { 'value': x } });
-                    }
-                    this._shelf.upsertModel(definition);
-                }
-                if (newVersion && newVersion === '0.1.1-beta')
-                    break;
-            default:
+        for (var m of this._models) {
+            definition = m.getDefinition();
+            MigrationController.updateModelDefinition(definition, currentVersion, newVersion);
+            this._shelf.upsertModel(undefined, definition);
         }
-
-        Logger.info("[MigrationController] ✔ Updated to version '" + newVersion + "'");
+        Logger.info("[MigrationController] ✔ Updated models in database to version '" + newVersion + "'");
     }
 }
 

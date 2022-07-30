@@ -1,6 +1,7 @@
 const path = require('path');
 const Logger = require('../logger');
 const Registry = require('./registry');
+const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
 const Shelf = require('../model/shelf');
 
@@ -16,7 +17,10 @@ class Controller {
 
     _logger;
     _registry;
+
+    _migrationsController;
     _versionController;
+
     _profileController;
     _shelf;
 
@@ -56,6 +60,7 @@ class Controller {
             await this._shelf.init();
             await this._shelf.loadModels();
 
+            this._migrationsController = new MigrationController(this);
             this._versionController = new VersionController(this);
             await this._versionController.verify();
 
@@ -167,20 +172,37 @@ class Controller {
         var modelsRouter = express.Router();
         modelsRouter.get('/', function (req, res) {
             var arr = [];
+            var definition;
             for (const [key, value] of Object.entries(this._shelf.getModels())) {
-                arr.push(value.getData());
+                definition = { ...value.getDefinition() };
+                definition['id'] = value.getId();
+                arr.push(definition);
             }
             res.json(arr);
         }.bind(this));
         modelsRouter.put('/', async function (req, res, next) {
-            try {
-                var id = await this._shelf.upsertModel(req.body);
-                res.locals.id = id;
-                await next();
-            } catch (error) {
-                Logger.parseError(error);
+            var version = req.query['v'];
+            if (version) {
+                try {
+                    var definition;
+                    var appVersion = this._versionController.getVersion();
+                    if (version === appVersion)
+                        definition = req.body;
+                    else {
+                        definition = MigrationController.updateModelDefinition(req.body, version, appVersion);
+                        Logger.info("[MigrationController] Updated model definition to version '" + appVersion + "'");
+                    }
+                    var id = await this._shelf.upsertModel(undefined, definition);
+                    res.locals.id = id;
+                    await next();
+                } catch (error) {
+                    Logger.parseError(error);
+                    res.status(500);
+                    res.send("Creation or replacement of model failed");
+                }
+            } else {
                 res.status(500);
-                res.send("Creation or replacement of model failed");
+                res.send("Please specify model version");
             }
             return Promise.resolve();
         }.bind(this));
@@ -190,9 +212,10 @@ class Controller {
                 if (!isNaN(req.params.id))
                     id = parseInt(req.params.id);
                 if (id) {
-                    await this._shelf.deleteModel(id);
+                    var name = await this._shelf.deleteModel(id);
                     res.locals.id = id;
                     await next();
+                    Logger.info("Deleted model '" + name + "'");
                 } else {
                     res.status(404);
                     res.send("Invalid model ID");
@@ -366,6 +389,10 @@ class Controller {
 
     getRegistry() {
         return this._registry;
+    }
+
+    getMigrationsController() {
+        return this._migrationsController;
     }
 
     getVersionController() {

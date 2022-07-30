@@ -6,6 +6,7 @@ const inflection = require('inflection');
 class Model {
 
     _shelf;
+    _id;
     _definition;
 
     _name;
@@ -16,8 +17,9 @@ class Model {
     _ePath;
     _extensions;
 
-    constructor(shelf, definition) {
+    constructor(shelf, id, definition) {
         this._shelf = shelf;
+        this._id = id;
         this._definition = definition;
 
         this._name = this._definition.name;
@@ -350,8 +352,16 @@ class Model {
         this._book = this._shelf.getBookshelf().Model.extend(obj);
     }
 
-    getData() {
+    getId() {
+        return this._id;
+    }
+
+    getDefinition() {
         return this._definition;
+    }
+
+    setDefinition(definition) {
+        this._definition = definition;
     }
 
     getName() {
