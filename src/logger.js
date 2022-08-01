@@ -1,12 +1,29 @@
 const fs = require('fs');
 
+const SeverityEnum = Object.freeze({ INFO: 'INFO', WARNING: 'WARNING', ERROR: 'ERROR' });
+
 class Logger {
 
     static info(message) {
-        var msg = new Date().toUTCString() + " [info] " + message;
+        Logger.logMessage(SeverityEnum.INFO, message);
+    }
+
+    static warning(message) {
+        Logger.logMessage(SeverityEnum.WARNING, message);
+    }
+
+    static error(message) {
+        Logger.logMessage(SeverityEnum.ERROR, message);
+    }
+
+    static logMessage(severity, message) {
+        var msg = new Date().toUTCString() + " [" + severity + "] " + message;
         try {
-            console.log(msg);
-            fs.appendFileSync('./log.txt', msg + "\n");
+            if (severity === SeverityEnum.ERROR)
+                console.error(msg);
+            else
+                console.log(msg);
+            fs.appendFileSync('./log.txt', msg + "\r\n");
         } catch (error) {
             console.error(err);
         }
@@ -31,16 +48,6 @@ class Logger {
         console.log(err);
         Logger.error(msg);
         return msg;
-    }
-
-    static error(message) {
-        var msg = new Date().toUTCString() + " [error] " + message + "\r\n";
-        try {
-            console.error(msg);
-            fs.appendFileSync('./log.txt', msg);
-        } catch (error) {
-            console.error(err);
-        }
     }
 
     _knex;

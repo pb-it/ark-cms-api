@@ -96,17 +96,32 @@ class Controller {
             res.json(info);
         }.bind(this));
         systemRouter.use('/log', express.static('log.txt'));
-        systemRouter.get('/update', function (req, res) {
-            Logger.info(`Updating`);
-            require("child_process").exec('cd ' + this._appRoot + ' && git pull && npm update', function (err, stdout, stderr) {
-                if (err)
-                    console.error(`exec error: ${err}`);
+        systemRouter.get('/update', async function (req, res) {
+            var msg;
+            var bUpdated = false;
+            try {
+                msg = await this.update();
+                console.log(msg);
+                var bUpToDate = 'Already up to date.';
+                if (msg.startsWith(bUpToDate))
+                    Logger.info("[App] " + bUpToDate);
                 else {
-                    console.log(stdout);
-                    this.restart();
+                    Logger.info('[App] ✔ Updated');
+                    bUpdated = true;
                 }
-            }.bind(this));
-            res.send("Updating..");
+            } catch (error) {
+                if (error['message'])
+                    msg = error['message'];
+                else
+                    msg = error;
+                console.error(msg);
+                Logger.error("[App] ✘ Update failed");
+            } finally {
+                res.send(msg.replace('\n', '<br/>'));
+            }
+            if (bUpdated)
+                this.restart();
+            return Promise.resolve();
         }.bind(this));
         systemRouter.get('/restart', function (req, res) {
             this.restart();
@@ -114,7 +129,7 @@ class Controller {
         }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
             try {
-                Logger.info(`Reloading models`);
+                Logger.info("[App] Reloading models");
                 await this._shelf.loadModels();
                 await this._shelf.initModels();
                 res.send("Reload done");
@@ -195,6 +210,7 @@ class Controller {
                     var id = await this._shelf.upsertModel(undefined, definition);
                     res.locals.id = id;
                     await next();
+                    Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
                 } catch (error) {
                     Logger.parseError(error);
                     res.status(500);
@@ -215,7 +231,7 @@ class Controller {
                     var name = await this._shelf.deleteModel(id);
                     res.locals.id = id;
                     await next();
-                    Logger.info("Deleted model '" + name + "'");
+                    Logger.info("[App] ✔ Deleted model '" + name + "'");
                 } else {
                     res.status(404);
                     res.send("Invalid model ID");
@@ -279,13 +295,26 @@ class Controller {
         this._svr.setTimeout(600 * 1000);
     }
 
+    async update() {
+        Logger.info("[App] Processing update request..");
+        return new Promise((resolve, reject) => {
+            require("child_process").exec('cd ' + this._appRoot + ' && git pull && npm install --legacy-peer-deps', function (err, stdout, stderr) {
+                if (err)
+                    reject(err);
+                else {
+                    resolve(stdout);
+                }
+            }.bind(this));
+        });
+    }
+
     teardown() {
         this._svr.close();
         this._knex.destroy();
     }
 
     restart() {
-        Logger.info(`Restarting`);
+        Logger.info("[App] Restarting..");
         if (!this._serverConfig.pm2) {
             process.on("exit", function () {
                 require("child_process").spawn(process.argv.shift(), process.argv, {

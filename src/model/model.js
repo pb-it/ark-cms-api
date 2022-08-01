@@ -102,7 +102,10 @@ class Model {
                     } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && tableInfo && !tableInfo.hasOwnProperty(attribute['name']))
                         await this._addColumn(attribute);
                 } catch (error) {
-                    Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + attribute['name'] + "']");
+                    if (error['message'])
+                        Logger.warning("[model: '" + this._name + "', attribute: '" + attribute['name'] + "'] " + error['message']);
+                    else
+                        Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + attribute['name'] + "']");
                 }
             }
         }
