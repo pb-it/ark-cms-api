@@ -2,7 +2,7 @@ const controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
-const modelsUrl = "http://localhost:3002/models";
+const modelsUrl = "http://localhost:3002/models?v=0.1.1-beta";
 const apiUrl = "http://localhost:3002/api";
 var knex;
 var shelf;
@@ -28,28 +28,13 @@ afterAll(() => {
 
 test('movie_db', async function () {
     var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
-
-    try {
-        await webclient.put(modelsUrl, modelMovies);
-    } catch (error) {
-        console.log(error);
-    }
+    await uploadModel(modelMovies);
 
     var modelStudios = JSON.parse(fs.readFileSync('./tests/data/models/studios.json', 'utf8'));
-
-    try {
-        await webclient.put(modelsUrl, modelStudios);
-    } catch (error) {
-        console.log(error);
-    }
+    await uploadModel(modelStudios);
 
     var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
-
-    try {
-        await webclient.put(modelsUrl, modelStars);
-    } catch (error) {
-        console.log(error);
-    }
+    await uploadModel(modelStars);
 
     await shelf.loadModels();
     await shelf.initModels();
@@ -131,8 +116,10 @@ test('movie_db', async function () {
 
     expect(resStar).toEqual(star);
 
-    //update
-    await webclient.put(urlStudios + "/" + studioId, { 'movies': [movieId] });
+    //update via relation
+    res = await webclient.put(urlStudios + "/" + studioId, { 'movies': [movieId] });
+    expect(res['data']['movies'].length).toEqual(1);
+    expect(res['data']['movies'][0]['id']).toEqual(movieId);
 
     data = await webclient.curl(urlMovies);
     expect(data.length).toEqual(1);
@@ -164,3 +151,23 @@ test('movie_db', async function () {
     }
     return Promise.resolve();
 });
+
+async function uploadModel(model) {
+    try {
+        await webclient.put(modelsUrl, model);
+    } catch (error) {
+        console.log(error);
+        var msg;
+        if (error['message']) {
+            msg = error['message'];
+            if (error['response']['data'])
+                msg += ": " + error['response']['data'];
+        }
+
+        if (msg)
+            throw new Error(msg);
+        else
+            throw error;
+    }
+    return Promise.resolve();
+}

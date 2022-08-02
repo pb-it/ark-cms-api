@@ -210,7 +210,7 @@ class Controller {
                     var id = await this._shelf.upsertModel(undefined, definition);
                     res.locals.id = id;
                     await next();
-                    Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
+                    Logger.info("[App] ✔ Creation or replacement of model '" + definition['name'] + "' successful");
                 } catch (error) {
                     Logger.parseError(error);
                     res.status(500);

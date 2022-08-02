@@ -1,19 +1,30 @@
 # wing-cms-api
 
-npm update
+```bash
+npm install --legacy-peer-deps
 
-npm start
+//npm update
+
+npm run start
+```
+
 
 # Docker
 
-docker build . -t <image name>
+```bash
+docker build . -t /<image name/>
 
-docker run -p 3002:3002 -d <image name>
+docker run -p 3002:3002 -d /<image name/>
 
 or with interactive bash
 
-docker run -p 3002:3002 -it <image name> /bin/bash
+docker run -p 3002:3002 -it /<image name/> /bin/bash
+```
+
 
 # Test
 
-npm test
+```bash
+npm run test
+//npm run test-relations
+```
