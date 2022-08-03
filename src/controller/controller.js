@@ -1,13 +1,19 @@
+const os = require('os');
 const path = require('path');
+const fs = require('fs');
+
 const Logger = require('../logger');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
 const Shelf = require('../model/shelf');
 
+const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
+
 class Controller {
 
     _appRoot;
+    _vcs;
 
     _serverConfig;
     _databaseConfig;
@@ -26,6 +32,11 @@ class Controller {
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../");
+
+        if (fs.existsSync('.git'))
+            this._vcs = VcsEnum.GIT;
+        else if (fs.existsSync('.svn'))
+            this._vcs = VcsEnum.SVN;
     }
 
     async setup(serverConfig, databaseConfig) {
@@ -92,7 +103,8 @@ class Controller {
         systemRouter.get('/info', function (req, res) {
             var info = {};
             info['version'] = this._versionController.getVersion();
-            info['client'] = this._databaseConfig.connections.default.settings.client;
+            info['vcs'] = this._vcs;
+            info['db_client'] = this._databaseConfig.connections.default.settings.client;
             res.json(info);
         }.bind(this));
         systemRouter.use('/log', express.static('log.txt'));
@@ -102,11 +114,15 @@ class Controller {
             try {
                 msg = await this.update();
                 console.log(msg);
-                var bUpToDate = 'Already up to date.';
-                if (msg.startsWith(bUpToDate))
-                    Logger.info("[App] " + bUpToDate);
+                var strUpToDate;
+                if (this._vcs === VcsEnum.GIT)
+                    strUpToDate = 'Already up to date.';
+                else if (this._vcs === VcsEnum.SVN)
+                    strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+                if (msg.startsWith(strUpToDate))
+                    Logger.info("[App] Already up to date");
                 else {
-                    Logger.info('[App] ✔ Updated');
+                    Logger.info("[App] ✔ Updated");
                     bUpdated = true;
                 }
             } catch (error) {
@@ -297,15 +313,24 @@ class Controller {
 
     async update() {
         Logger.info("[App] Processing update request..");
-        return new Promise((resolve, reject) => {
-            require("child_process").exec('cd ' + this._appRoot + ' && git pull && npm install --legacy-peer-deps', function (err, stdout, stderr) {
-                if (err)
-                    reject(err);
-                else {
-                    resolve(stdout);
-                }
-            }.bind(this));
-        });
+        if (this._vcs) {
+            var updateCmd;
+            if (this._vcs === VcsEnum.GIT)
+                updateCmd = 'git pull';
+            else if (this._vcs === VcsEnum.SVN)
+                updateCmd = 'svn update';
+
+            return new Promise((resolve, reject) => {
+                require("child_process").exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps', function (err, stdout, stderr) {
+                    if (err)
+                        reject(err);
+                    else {
+                        resolve(stdout);
+                    }
+                }.bind(this));
+            });
+        } else
+            throw new Error('No version control system detected');
     }
 
     teardown() {
@@ -315,7 +340,7 @@ class Controller {
 
     restart() {
         Logger.info("[App] Restarting..");
-        if (!this._serverConfig.pm2) {
+        if (!this._serverConfig['processManager']) {
             process.on("exit", function () {
                 require("child_process").spawn(process.argv.shift(), process.argv, {
                     cwd: process.cwd(),
