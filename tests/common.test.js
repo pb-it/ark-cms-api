@@ -10,8 +10,8 @@ const bCleanupBeforeTests = false;
 const bCleanupAfterTest = false;
 
 beforeAll(async () => {
-    const server = require('./config/server');
-    const database = require('./config/database');
+    const server = require('./config/server-config');
+    const database = require('./config/database-config');
     await controller.setup(server, database);
     knex = controller.getKnex();
     shelf = controller.getShelf();
