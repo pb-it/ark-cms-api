@@ -10,7 +10,8 @@ var database = {
                     user: 'root',
                     password: '',
                     database: 'xcms',
-                    charset: 'utf8mb4'
+                    charset: 'utf8mb4',
+                    connectTimeout: 60000
                 },
             },
             options: {}
