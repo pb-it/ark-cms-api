@@ -31,11 +31,11 @@ class Controller {
     _shelf;
 
     constructor() {
-        this._appRoot = path.join(__dirname, "../../");
+        this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
 
-        if (fs.existsSync('.git'))
+        if (fs.existsSync(path.join(this._appRoot, '.git')))
             this._vcs = VcsEnum.GIT;
-        else if (fs.existsSync('.svn'))
+        else if (fs.existsSync(path.join(this._appRoot, '.svn')))
             this._vcs = VcsEnum.SVN;
     }
 
