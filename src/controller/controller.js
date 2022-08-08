@@ -109,34 +109,40 @@ class Controller {
         }.bind(this));
         systemRouter.use('/log', express.static('log.txt'));
         systemRouter.get('/update', async function (req, res) {
-            var msg;
-            var bUpdated = false;
-            try {
-                msg = await this.update();
-                console.log(msg);
-                var strUpToDate;
-                if (this._vcs === VcsEnum.GIT)
-                    strUpToDate = 'Already up to date.';
-                else if (this._vcs === VcsEnum.SVN)
-                    strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
-                if (msg.startsWith(strUpToDate))
-                    Logger.info("[App] Already up to date");
-                else {
-                    Logger.info("[App] ✔ Updated");
-                    bUpdated = true;
+            var version = req.query['v'];
+            if (version) {
+                var msg;
+                var bUpdated = false;
+                try {
+                    msg = await this.update(version);
+                    console.log(msg);
+                    var strUpToDate;
+                    if (this._vcs === VcsEnum.GIT)
+                        strUpToDate = 'Already up to date.';
+                    else if (this._vcs === VcsEnum.SVN)
+                        strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+                    if (msg.startsWith(strUpToDate))
+                        Logger.info("[App] Already up to date");
+                    else {
+                        Logger.info("[App] ✔ Updated");
+                        bUpdated = true;
+                    }
+                } catch (error) {
+                    if (error['message'])
+                        msg = error['message'];
+                    else
+                        msg = error;
+                    console.error(msg);
+                    Logger.error("[App] ✘ Update failed");
+                } finally {
+                    res.send(msg.replace('\n', '<br/>'));
                 }
-            } catch (error) {
-                if (error['message'])
-                    msg = error['message'];
-                else
-                    msg = error;
-                console.error(msg);
-                Logger.error("[App] ✘ Update failed");
-            } finally {
-                res.send(msg.replace('\n', '<br/>'));
+                if (bUpdated)
+                    this.restart();
+            } else {
+                res.status(500);
+                res.send("Please specify application version");
             }
-            if (bUpdated)
-                this.restart();
             return Promise.resolve();
         }.bind(this));
         systemRouter.get('/restart', function (req, res) {
@@ -311,13 +317,16 @@ class Controller {
         this._svr.setTimeout(600 * 1000);
     }
 
-    async update() {
+    async update(version) {
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
             var updateCmd;
-            if (this._vcs === VcsEnum.GIT)
-                updateCmd = 'git pull';
-            else if (this._vcs === VcsEnum.SVN)
+            if (this._vcs === VcsEnum.GIT) {
+                if (version === 'latest')
+                    updateCmd = 'git pull origin main';
+                else
+                    updateCmd = 'git switch --detach ' + version;
+            } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
             return new Promise((resolve, reject) => {
