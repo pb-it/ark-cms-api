@@ -1,9 +1,15 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const inflection = require('inflection');
 
-const Logger = require('../logger');
+const Logger = require(path.join(__dirname, '../logger'));
+
+const common = require(path.join(__dirname, '../common/common'));
+const base64 = require(path.join(__dirname, '../common/base64'));
+const webclient = require(path.join(__dirname, '../common/webclient'));
+
 
 class Model {
 
@@ -299,6 +305,23 @@ class Model {
                     table.text(attribute.name, 'longtext');
                 });
                 break;
+            case "file":
+                await this._shelf.getKnex().transaction(function (trx) {
+                    return trx.schema.alterTable(this._tableName, function (table) {
+                        var column;
+                        if (attribute.length)
+                            column = table.string(attribute.name, attribute.length);
+                        else
+                            column = table.string(attribute.name);
+                        if (attribute.defaultValue)
+                            column.defaultTo(attribute.defaultValue);
+                        if (attribute.required)
+                            column.notNullable();
+                        if (attribute.unique)
+                            column.unique();
+                    });
+                }.bind(this));
+                break;
             default:
                 throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
         }
@@ -587,20 +610,8 @@ class Model {
         }
 
         if (true) { //TODO: temporary disable creation of db-entry
-            var forge = {};
-            var attr;
-            for (var str in data) {
-                if (!this._relations.includes(str) || !Array.isArray(data[str])) {
-                    attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
-                    if (attr) {
-                        if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
-                            forge[str] = data[str];
-                    } else if (str === 'id' && this._definition.options.increments)
-                        forge[str] = data[str];
-                    else
-                        throw new Error("Undefined Attribute '" + str + "'");
-                }
-            }
+            var forge = this._createForge(data);
+
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
 
             var id = obj['id'];
@@ -634,27 +645,17 @@ class Model {
             data = await ext.update(data);
         }
 
-        var forge = {};
-        var attr;
-        for (var str in data) {
-            if (!this._relations.includes(str) || !Array.isArray(data[str])) {
-                attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
-                if (attr) {
-                    if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
-                        forge[str] = data[str];
-                } else if (str === 'id' && this._definition.options.increments) {
-                    if (id) {
-                        if (id !== data[str])
-                            throw new Error("Conflict in received IDs");
-                    } else
-                        id = data[str];
-                } else
-                    throw new Error("Undefined Attribute '" + str + "'");
-            }
-        }
-        if (id)
-            forge['id'] = id;
-        else
+        var forge = this._createForge(data);
+
+        if (id) {
+            if (!forge['id'])
+                forge['id'] = id;
+            else if (forge['id'] !== id)
+                throw new Error("Conflict in received IDs");
+        } else
+            id = forge['id'];
+
+        if (!id)
             throw new Error("ID missing");
 
         var obj = await this._book.forge(forge).save();
@@ -673,6 +674,92 @@ class Model {
         }
         obj = await obj.load(this._relations);
         return Promise.resolve(obj.toJSON());
+    }
+
+    _createForge(data) {
+        var forge = {};
+        var attr;
+        for (var str in data) {
+            if (!this._relations.includes(str) || !Array.isArray(data[str])) {
+                attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                if (attr) {
+                    if (attr['dataType'] === "blob") {
+                        forge[str] = data[str]['blob'];
+                    } else if (attr['dataType'] === "base64") {
+                        forge[str] = data[str]['base64'];
+                    } else if (attr['dataType'] === "file") {
+                        if (attr['localPath']) {
+                            var localPath;
+                            if (attr['localPath'].startsWith('.'))
+                                localPath = path.join(__dirname, '../../', attr['localPath']);
+                            else {
+                                if (process.platform === 'linux') {
+                                    if (attr['localPath'].startsWith('/'))
+                                        localPath = attr['localPath'];
+                                    else
+                                        throw new Error("Invalid CDN path!");
+                                } else
+                                    localPath = attr['localPath'];
+                            }
+                            if (localPath) {
+                                var fileName = data[str]['filename'];
+                                if (!fileName)
+                                    fileName = this._createRandomFilename(localPath, data[str]);
+
+                                if (fileName) {
+                                    var filePath = path.join(localPath, fileName);
+                                    //console.log(filePath);
+                                    this._createFile(filePath, data[str]);
+                                    forge[str] = fileName;
+                                }
+                            }
+                        }
+                    } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
+                        forge[str] = data[str];
+                } else if (str === 'id' && this._definition.options.increments) {
+                    forge[str] = data[str];
+                } else
+                    throw new Error("Undefined Attribute '" + str + "'");
+            }
+        }
+        return forge;
+    }
+
+    _createRandomFilename(localPath, data) {
+        var filename;
+
+        var ext;
+        if (data['url'] && data['url'].startsWith("http"))
+            ext = common.getFileExtensionFromUrl(data['url']);
+        else if (data['base64'] && data['base64'].startsWith("data:")) {
+            var start = data['base64'].indexOf("/");
+            var end = data['base64'].indexOf(";");
+            if (start > 0 && end > 0)
+                ext = data['base64'].substring(start + 1, end);
+        }
+        if (!ext)
+            throw new Error("Failed to determine file extension!");
+
+        if (fs.existsSync(localPath)) {
+            try {
+                do {
+                    filename = crypto.randomBytes(16).toString("hex") + '.' + ext;
+                } while (fs.existsSync(path.join(localPath, filename)));
+            } catch (err) {
+                console.error(err);
+                return null;
+            }
+        } else
+            throw new Error("Path to local CDN incorrect!");
+        return filename;
+    }
+
+    _createFile(filePath, data) {
+        if (data['url'] && data['url'].startsWith("http")) {
+            webclient.download(data['url'], filePath);
+        } else if (data['base64'] && data['base64'].startsWith("data:")) {
+            base64.createFile(filePath, data['base64']);
+        }
     }
 
     async _updateHasManyRelation(attr, ids, id) {
