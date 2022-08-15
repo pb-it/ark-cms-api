@@ -44,10 +44,15 @@ class Controller {
         this._databaseConfig = databaseConfig;
 
         try {
-            var defaultSettings = this._databaseConfig.connections.default.settings;
+            var defaultConnection = this._databaseConfig['defaultConnection'];
+            var databaseSettings;
+            if (defaultConnection && this._databaseConfig['connections'] && this._databaseConfig['connections'][defaultConnection])
+                databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
+            else
+                throw new Error('Faulty database configuration!');
             this._knex = require('knex')({
-                client: defaultSettings.client,
-                connection: defaultSettings.connection
+                client: databaseSettings['client'],
+                connection: databaseSettings['connection']
             });
             /*this._knex.on('query', function (queryData) {
                 console.log(queryData);
@@ -55,7 +60,7 @@ class Controller {
 
             try {
                 await this._knex.raw('select 1+1 as result');
-                Logger.info("[knex] ✔ Successfully connected to " + defaultSettings.client + " on " + defaultSettings.connection.host);
+                Logger.info("[knex] ✔ Successfully connected to " + databaseSettings['client'] + " on " + databaseSettings['connection']['host']);
             } catch (error) {
                 Logger.parseError(error, "[knex]");
                 process.exit(1);
@@ -69,13 +74,13 @@ class Controller {
 
             this._shelf = new Shelf(this._knex);
             await this._shelf.init();
-            await this._shelf.loadModels();
+            await this._shelf.loadAllModels();
 
             this._migrationsController = new MigrationController(this);
             this._versionController = new VersionController(this);
             await this._versionController.verify();
 
-            await this._shelf.initModels();
+            await this._shelf.initAllModels();
 
             this._startExpress();
         } catch (error) {
@@ -152,8 +157,8 @@ class Controller {
         systemRouter.get('/reload', async function (req, res) {
             try {
                 Logger.info("[App] Reloading models");
-                await this._shelf.loadModels();
-                await this._shelf.initModels();
+                await this._shelf.loadAllModels();
+                await this._shelf.initAllModels();
                 res.send("Reload done");
             } catch (error) {
                 Logger.parseError(error);

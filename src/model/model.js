@@ -25,6 +25,8 @@ class Model {
     _ePath;
     _extensions;
 
+    _bInitDone;
+
     constructor(shelf, id, definition) {
         this._shelf = shelf;
         this._id = id;
@@ -49,7 +51,7 @@ class Model {
         }
     }
 
-    async init(bNew) {
+    async initModel(bNew) {
         this.createExtensionFile(bNew);
 
         if (this._ePath)
@@ -119,6 +121,7 @@ class Model {
         }
 
         this.createBook();
+        this._bInitDone = true;
         return Promise.resolve();
     }
 
@@ -344,8 +347,10 @@ class Model {
                         obj[attribute.name] = function () {
                             var book;
                             var model = shelf.getModel(attribute.model);
-                            if (model)
+                            if (model && model.initDone())
                                 book = model.getBook();
+                            else
+                                throw new Error('Faulty model \'' + model.getName() + '\'');
                             return this.hasMany(book, attribute.via);
                         };
                     } else {
@@ -353,16 +358,20 @@ class Model {
                             obj[attribute.name] = function () {
                                 var book;
                                 var model = shelf.getModel(attribute.model);
-                                if (model)
+                                if (model && model.initDone())
                                     book = model.getBook();
+                                else
+                                    throw new Error('Faulty model \'' + model.getName() + '\'');
                                 return this.belongsToMany(book);
                             };
                         } else {
                             obj[attribute.name] = function () {
                                 var book;
                                 var model = shelf.getModel(attribute.model);
-                                if (model)
+                                if (model && model.initDone())
                                     book = model.getBook();
+                                else
+                                    throw new Error('Faulty model \'' + model.getName() + '\'');
                                 return this.belongsTo(book, attribute.name);
                             };
                         }
@@ -378,6 +387,10 @@ class Model {
         if (this._definition.options && this._definition.options.timestamps)
             obj['hasTimestamps'] = true;
         this._book = this._shelf.getBookshelf().Model.extend(obj);
+    }
+
+    initDone() {
+        return this._bInitDone;
     }
 
     getId() {
@@ -459,144 +472,147 @@ class Model {
     async readAll(query) {
         var res;
         var book = this._book;
-        if (query) {
-            var index;
-            for (let prop in query) {
-                if (prop === "_sort") {
-                    var parts = query[prop].split(':');
-                    if (parts.length == 2) {
-                        book = book.query('orderBy', parts[0], parts[1]);
-                    }
-                } else if (prop === "_limit") {
-                    if (query[prop] != -1) {
-                        book = book.query(function (qb) {
-                            qb.limit(query[prop]);
-                        });
-                    }
-                } else {
-                    index = prop.indexOf('.');
-                    if (index > 0) {
-                        var propName = prop.substring(0, index);
-                        var subAttr;
-                        for (var attribute of this._definition.attributes) {
-                            if (attribute['dataType'] === "relation" && attribute.name === propName) {
-                                subAttr = attribute;
-                                break;
-                            }
+        if (this._bInitDone && book) {
+            if (query) {
+                var index;
+                for (let prop in query) {
+                    if (prop === "_sort") {
+                        var parts = query[prop].split(':');
+                        if (parts.length == 2) {
+                            book = book.query('orderBy', parts[0], parts[1]);
                         }
-                        if (subAttr) {
-                            var subProp = prop.substring(index + 1);
-                            if (subAttr.multiple) {
-                                var subType = subAttr.model;
-                                var relModel = this._shelf.getModel(subType);
-                                if (relModel) {
-                                    if (subAttr.via) {
-                                        if (subProp === 'id') {
-                                            var relObj = await relModel.read(query[prop]);
-                                            if (relObj && relObj[subAttr.via]) {
-                                                var id = relObj[subAttr.via].id;
-                                                if (id)
-                                                    book = book.where({ 'id': id })
-                                            } else
-                                                return Promise.resolve();
-                                        }
-                                    } else {
-                                        var subOpt = {};
-                                        subOpt[subProp] = query[prop];
-                                        return relModel.readRel(subOpt, this._name, query['_sort']);
-                                    }
-                                } else
-                                    return Promise.reject(new Error(`unkown type: ${subType}`));
-                            } else {
-                                if (subProp === 'id') {
-                                    book = book.where(propName, query[prop]);
+                    } else if (prop === "_limit") {
+                        if (query[prop] != -1) {
+                            book = book.query(function (qb) {
+                                qb.limit(query[prop]);
+                            });
+                        }
+                    } else {
+                        index = prop.indexOf('.');
+                        if (index > 0) {
+                            var propName = prop.substring(0, index);
+                            var subAttr;
+                            for (var attribute of this._definition.attributes) {
+                                if (attribute['dataType'] === "relation" && attribute.name === propName) {
+                                    subAttr = attribute;
+                                    break;
                                 }
                             }
-                        } else
-                            return Promise.reject(new Error(`unkown attribute '${propName}' of type '${this._name}'`));
-                    } else {
-                        var index = prop.lastIndexOf('_');
-                        if (index == -1) {
-                            if (Array.isArray(query[prop]))
-                                book = book.where(prop, 'in', query[prop]);
-                            else {
-                                var obj = {};
-                                obj[prop] = query[prop];
-                                book = book.where(obj);
-                            }
-                        } else {
-                            var end = prop.substring(index + 1);
-                            var str = prop.substring(0, index);
-                            switch (end) {
-                                case 'null':
-                                    if (query[prop] === "false")
-                                        book = book.where(str, 'is not', null); // whereNotNull
-                                    else
-                                        book = book.where(str, 'is', null);
-                                    break;
-                                case 'in':
-                                    throw new Error("Not Implemented Yet");
-                                    break;
-                                case 'nin':
-                                    throw new Error("Not Implemented Yet");
-                                    break;
-                                case 'contains':
-                                    book = book.query(function (qb) {
-                                        qb.where(str, 'is not', null).where(str, 'like', `%${query[prop]}%`);
-                                    });
-                                    break;
-                                case 'ncontains':
-                                    book = book.query(function (qb) {
-                                        qb.where(function () {
-                                            this.where(str, 'is', null).orWhere(str, 'not like', `%${query[prop]}%`);
-                                        });
-                                    });
-                                    break;
-                                case 'eq':
-                                    book = book.query(function () {
-                                        this.where(str, 'is not', null).where(str, 'like', query[prop]);
-                                    });
-                                    break;
-                                case 'neq':
-                                    if (Array.isArray(query[prop])) {
-                                        book = book.query(function (qb) {
-                                            qb.where(function () {
-                                                this.where(str, 'is', null).orWhere(str, 'not in', query[prop]); // <> / !=
-                                            });
-                                        });
-                                    } else {
-                                        book = book.query(function (qb) {
-                                            qb.where(function () {
-                                                this.where(str, 'is', null).orWhere(str, 'not like', query[prop]); // <> / !=
-                                            });
-                                        });
+                            if (subAttr) {
+                                var subProp = prop.substring(index + 1);
+                                if (subAttr.multiple) {
+                                    var subType = subAttr.model;
+                                    var relModel = this._shelf.getModel(subType);
+                                    if (relModel) {
+                                        if (subAttr.via) {
+                                            if (subProp === 'id') {
+                                                var relObj = await relModel.read(query[prop]);
+                                                if (relObj && relObj[subAttr.via]) {
+                                                    var id = relObj[subAttr.via].id;
+                                                    if (id)
+                                                        book = book.where({ 'id': id })
+                                                } else
+                                                    return Promise.resolve();
+                                            }
+                                        } else {
+                                            var subOpt = {};
+                                            subOpt[subProp] = query[prop];
+                                            return relModel.readRel(subOpt, this._name, query['_sort']);
+                                        }
+                                    } else
+                                        return Promise.reject(new Error(`unkown type: ${subType}`));
+                                } else {
+                                    if (subProp === 'id') {
+                                        book = book.where(propName, query[prop]);
                                     }
-                                    break;
-                                case 'lt':
-                                    book = book.where(str, '<', query[prop]);
-                                    break;
-                                case 'gt':
-                                    book = book.where(str, '>', query[prop]);
-                                    break;
-                                case 'lte':
-                                    book = book.where(str, '<=', query[prop]);
-                                    break;
-                                case 'gte':
-                                    book = book.where(str, '>=', query[prop]);
-                                    break;
-                                default:
-                                    book = book.where(prop, query[prop]);
+                                }
+                            } else
+                                return Promise.reject(new Error(`unkown attribute '${propName}' of type '${this._name}'`));
+                        } else {
+                            var index = prop.lastIndexOf('_');
+                            if (index == -1) {
+                                if (Array.isArray(query[prop]))
+                                    book = book.where(prop, 'in', query[prop]);
+                                else {
+                                    var obj = {};
+                                    obj[prop] = query[prop];
+                                    book = book.where(obj);
+                                }
+                            } else {
+                                var end = prop.substring(index + 1);
+                                var str = prop.substring(0, index);
+                                switch (end) {
+                                    case 'null':
+                                        if (query[prop] === "false")
+                                            book = book.where(str, 'is not', null); // whereNotNull
+                                        else
+                                            book = book.where(str, 'is', null);
+                                        break;
+                                    case 'in':
+                                        throw new Error("Not Implemented Yet");
+                                        break;
+                                    case 'nin':
+                                        throw new Error("Not Implemented Yet");
+                                        break;
+                                    case 'contains':
+                                        book = book.query(function (qb) {
+                                            qb.where(str, 'is not', null).where(str, 'like', `%${query[prop]}%`);
+                                        });
+                                        break;
+                                    case 'ncontains':
+                                        book = book.query(function (qb) {
+                                            qb.where(function () {
+                                                this.where(str, 'is', null).orWhere(str, 'not like', `%${query[prop]}%`);
+                                            });
+                                        });
+                                        break;
+                                    case 'eq':
+                                        book = book.query(function () {
+                                            this.where(str, 'is not', null).where(str, 'like', query[prop]);
+                                        });
+                                        break;
+                                    case 'neq':
+                                        if (Array.isArray(query[prop])) {
+                                            book = book.query(function (qb) {
+                                                qb.where(function () {
+                                                    this.where(str, 'is', null).orWhere(str, 'not in', query[prop]); // <> / !=
+                                                });
+                                            });
+                                        } else {
+                                            book = book.query(function (qb) {
+                                                qb.where(function () {
+                                                    this.where(str, 'is', null).orWhere(str, 'not like', query[prop]); // <> / !=
+                                                });
+                                            });
+                                        }
+                                        break;
+                                    case 'lt':
+                                        book = book.where(str, '<', query[prop]);
+                                        break;
+                                    case 'gt':
+                                        book = book.where(str, '>', query[prop]);
+                                        break;
+                                    case 'lte':
+                                        book = book.where(str, '<=', query[prop]);
+                                        break;
+                                    case 'gte':
+                                        book = book.where(str, '>=', query[prop]);
+                                        break;
+                                    default:
+                                        book = book.where(prop, query[prop]);
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        if (!res) {
-            res = await book.fetchAll({
-                'withRelated': this._relations
-            });
-        }
+            if (!res) {
+                res = await book.fetchAll({
+                    'withRelated': this._relations
+                });
+            }
+        } else
+            throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(res.toJSON());
     }
 

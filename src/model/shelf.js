@@ -34,7 +34,7 @@ class Shelf {
         return this._bookshelf;
     }
 
-    async loadModels() {
+    async loadAllModels() {
         this._models = [];
 
         var dataset = await this._knex('_model').select('id', 'definition');
@@ -53,10 +53,10 @@ class Shelf {
         return Promise.resolve();
     }
 
-    async initModels() {
+    async initAllModels() {
         for (var m of this._models) {
             try {
-                await m.init(false);
+                await m.initModel(false);
             } catch (error) {
                 Logger.parseError(error);
             }
@@ -105,7 +105,7 @@ class Shelf {
         }
 
         var model = new Model(this, id, definition);
-        await model.init(true);
+        await model.initModel(true);
         var models = this._models.filter(function (x) { return x.getName() !== name });
         models.push(model);
         this._models = models;

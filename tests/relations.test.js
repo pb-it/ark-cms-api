@@ -36,8 +36,8 @@ test('movie_db', async function () {
     var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
     await uploadModel(modelStars);
 
-    await shelf.loadModels();
-    await shelf.initModels();
+    await shelf.loadAllModels();
+    await shelf.initAllModels();
 
     var data = await webclient.curl(modelsUrl);
 
