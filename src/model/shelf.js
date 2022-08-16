@@ -1,4 +1,4 @@
-const Logger = require('../logger');
+const Logger = require('../common/logger/logger');
 const Model = require('./model');
 
 class Shelf {

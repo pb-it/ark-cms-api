@@ -4,8 +4,7 @@ const crypto = require('crypto');
 
 const inflection = require('inflection');
 
-const Logger = require(path.join(__dirname, '../logger'));
-
+const Logger = require(path.join(__dirname, '../common/logger/logger'));
 const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
 const webclient = require(path.join(__dirname, '../common/webclient'));

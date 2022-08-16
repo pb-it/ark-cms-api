@@ -1,13 +1,13 @@
 const path = require('path');
-const axios = require('axios').default;
 const fs = require('fs');
+const axios = require('axios').default;
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3750.0 Iron Safari/537.36'
     //Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0
 }
 
-module.exports.curl = async function request(url) {
+module.exports.curl = async function (url) {
     var data;
     if (url) {
         var resp = await axios.get(url);
@@ -17,11 +17,11 @@ module.exports.curl = async function request(url) {
     return Promise.resolve(data);
 }
 
-module.exports.post = async function request(url, obj) {
+module.exports.post = async function (url, obj) {
     return axios.post(url, obj);
 }
 
-module.exports.put = async function request(url, obj) {
+module.exports.put = async function (url, obj) {
     return axios.put(url, obj);
 }
 
@@ -88,6 +88,19 @@ async function tryDownload(url, file) {
         console.log(err);
     }
     return Promise.resolve(result);
+}
+
+module.exports.isImage = function (url) {
+    return new Promise(async function (resolve) {
+        var opt = {
+            'responseType': 'stream',
+            'headers': headers
+        }
+        var stream = await axios.get(url, opt);
+        console.log(stream.headers['content-type']);
+        var match = stream.headers['content-type'].match(/(image)+\//g);
+        resolve(match && match.length != 0);
+    });
 }
 
 module.exports.download = download;

@@ -2,7 +2,8 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 
-const Logger = require('../logger');
+const Logger = require('../common/logger/logger');
+const SeverityEnum = require('../common/logger/severity-enum');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
@@ -103,6 +104,7 @@ class Controller {
             res.type('text/plain');
             res.send("User-agent: *\nDisallow: /");
         });
+        //app.use('/robots.txt', express.static('robots.txt'));
 
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
@@ -112,7 +114,54 @@ class Controller {
             info['db_client'] = this._databaseConfig.connections.default.settings.client;
             res.json(info);
         }.bind(this));
-        systemRouter.use('/log', express.static('log.txt'));
+        systemRouter.get('/log', function (req, res) {
+            var severity = req.query['severity'];
+            var format = req.query['_format'];
+            var sort = req.query['_sort'];
+            var entries;
+            try {
+                entries = Logger.getAllEntries(sort);
+                if (severity) {
+                    var s;
+                    switch (severity) {
+                        case 'info':
+                            s = SeverityEnum.INFO;
+                            break;
+                        case 'warning':
+                            s = SeverityEnum.WARNING;
+                            break;
+                        case 'error':
+                            s = SeverityEnum.ERROR;
+                            break;
+                        default:
+                    }
+
+                    if (s) {
+                        entries = entries.filter(function (x) {
+                            return x['severity'] === s;
+                        });
+                    } else
+                        throw new Error('Parsing severity failed');
+                }
+
+                if (format && format === 'json')
+                    res.json(entries);
+                else {
+                    var list = "";
+                    for (var entry of entries) {
+                        if (list.length > 0)
+                            list += '\r\n';
+                        list += entry.toString();
+                    }
+                    res.type('text/plain');
+                    res.send(list);
+                }
+            } catch (error) {
+                Logger.parseError(error);
+                res.status(500);
+                res.send("Parsing log file failed");
+            }
+        });
         systemRouter.get('/update', async function (req, res) {
             var version = req.query['v'];
             if (version) {
@@ -151,8 +200,8 @@ class Controller {
             return Promise.resolve();
         }.bind(this));
         systemRouter.get('/restart', function (req, res) {
-            this.restart();
             res.send("Restarting..");
+            this.restart();
         }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
             try {

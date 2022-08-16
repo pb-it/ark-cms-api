@@ -1,0 +1,1 @@
+module.exports = Object.freeze({ INFO: 'INFO', WARNING: 'WARNING', ERROR: 'ERROR' });
