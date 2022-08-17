@@ -52,7 +52,7 @@ class MigrationController {
             }
         } else {
             Logger.info("[MigrationController] Initialized registry entry of database with current application version '" + sAppVersion + "'");
-            await this._registry.upsert('version', sAppVersion);
+            await this._controller.getRegistry().upsert('version', sAppVersion);
         }
         return Promise.resolve(true);
     }
