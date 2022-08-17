@@ -56,7 +56,7 @@ class Shelf {
     async initAllModels() {
         for (var m of this._models) {
             try {
-                await m.initModel(false);
+                await m.initModel();
             } catch (error) {
                 Logger.parseError(error);
             }
@@ -66,6 +66,7 @@ class Shelf {
 
     async upsertModel(id, definition) {
         var name = definition['name'];
+        Logger.info('[App] Creating or updating model \'' + name + '\'');
 
         var data;
         var res;
@@ -105,7 +106,7 @@ class Shelf {
         }
 
         var model = new Model(this, id, definition);
-        await model.initModel(true);
+        await model.initModel();
         var models = this._models.filter(function (x) { return x.getName() !== name });
         models.push(model);
         this._models = models;

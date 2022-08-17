@@ -1,5 +1,20 @@
 const fs = require('fs');
 
+module.exports.getExtension = function (data) {
+    var ext;
+    if (data.startsWith("data:")) {
+        var start = data.indexOf("/");
+        var end = data.indexOf(";");
+        if (start > 0 && end > 0)
+            ext = data.substring(start + 1, end);
+    }
+    if (!ext) {
+        console.log(data.substring(0, 20));
+        throw new Error("unknown filetype");
+    }
+    return ext;
+}
+
 module.exports.createFile = function (filePath, data) {
     if (filePath) {
         if (!fs.existsSync(filePath)) {

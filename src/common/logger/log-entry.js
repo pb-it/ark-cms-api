@@ -2,22 +2,25 @@ class LogEntry {
 
     date;
     severity;
-    message
+    message;
+    error;
 
-    constructor(severity, message) {
-        this.date = new Date().toUTCString();
+    constructor(severity, message, error) {
+        this.date = new Date();
         this.severity = severity;
         this.message = message;
+        this.error = error;
     }
 
     parse(obj) {
-        this.date = obj['date'];
+        this.date = new Date(obj['date']);
         this.severity = obj['severity'];
         this.message = obj['message'];
+        this.error = obj['error'];
     }
 
     toString() {
-        return this.date + " [" + this.severity + "] " + this.message;
+        return this.date.toUTCString() + " [" + this.severity + "] " + this.message;
     }
 }
 

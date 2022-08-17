@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 
-const controller = require('./src/controller/controller');
+global.controller = require('./src/controller/controller');
 
 const serverConfigPath = path.join(__dirname, './config/server-config.js');
 const serverConfigtemplatePath = path.join(__dirname, './config/server-config-template.js');

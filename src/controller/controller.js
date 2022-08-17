@@ -7,6 +7,7 @@ const SeverityEnum = require('../common/logger/severity-enum');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
+const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
 
 const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
@@ -38,6 +39,10 @@ class Controller {
             this._vcs = VcsEnum.GIT;
         else if (fs.existsSync(path.join(this._appRoot, '.svn')))
             this._vcs = VcsEnum.SVN;
+    }
+
+    getAppRoot() {
+        return this._appRoot;
     }
 
     async setup(serverConfig, databaseConfig) {
@@ -77,11 +82,11 @@ class Controller {
             await this._shelf.init();
             await this._shelf.loadAllModels();
 
-            this._migrationsController = new MigrationController(this);
             this._versionController = new VersionController(this);
-            await this._versionController.verify();
+            this._migrationsController = new MigrationController(this);
 
-            await this._shelf.initAllModels();
+            if (await this._migrationsController.migrateDatabase())
+                await this._shelf.initAllModels();
 
             this._startExpress();
         } catch (error) {
@@ -109,7 +114,7 @@ class Controller {
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
             var info = {};
-            info['version'] = this._versionController.getVersion();
+            info['version'] = this._versionController.getVersion().toString();
             info['vcs'] = this._vcs;
             info['db_client'] = this._databaseConfig.connections.default.settings.client;
             res.json(info);
@@ -164,39 +169,34 @@ class Controller {
         });
         systemRouter.get('/update', async function (req, res) {
             var version = req.query['v'];
-            if (version) {
-                var msg;
-                var bUpdated = false;
-                try {
-                    msg = await this.update(version);
-                    console.log(msg);
-                    var strUpToDate;
-                    if (this._vcs === VcsEnum.GIT)
-                        strUpToDate = 'Already up to date.';
-                    else if (this._vcs === VcsEnum.SVN)
-                        strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
-                    if (msg.startsWith(strUpToDate))
-                        Logger.info("[App] Already up to date");
-                    else {
-                        Logger.info("[App] ✔ Updated");
-                        bUpdated = true;
-                    }
-                } catch (error) {
-                    if (error['message'])
-                        msg = error['message'];
-                    else
-                        msg = error;
-                    console.error(msg);
-                    Logger.error("[App] ✘ Update failed");
-                } finally {
-                    res.send(msg.replace('\n', '<br/>'));
+            var msg;
+            var bUpdated = false;
+            try {
+                msg = await this.update(version);
+                console.log(msg);
+                var strUpToDate;
+                if (this._vcs === VcsEnum.GIT)
+                    strUpToDate = 'Already up to date.';
+                else if (this._vcs === VcsEnum.SVN)
+                    strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+                if (msg.startsWith(strUpToDate))
+                    Logger.info("[App] Already up to date");
+                else {
+                    Logger.info("[App] ✔ Updated");
+                    bUpdated = true;
                 }
-                if (bUpdated)
-                    this.restart();
-            } else {
-                res.status(500);
-                res.send("Please specify application version");
+            } catch (error) {
+                if (error['message'])
+                    msg = error['message'];
+                else
+                    msg = error;
+                console.error(msg);
+                Logger.error("[App] ✘ Update failed");
+            } finally {
+                res.send(msg.replace('\n', '<br/>'));
             }
+            if (bUpdated)
+                this.restart();
             return Promise.resolve();
         }.bind(this));
         systemRouter.get('/restart', function (req, res) {
@@ -204,11 +204,15 @@ class Controller {
             this.restart();
         }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
+            var bForce = (req.query['force'] === 'true');
             try {
                 Logger.info("[App] Reloading models");
                 await this._shelf.loadAllModels();
-                await this._shelf.initAllModels();
-                res.send("Reload done");
+                if (await this._migrationsController.migrateDatabase(bForce)) {
+                    await this._shelf.initAllModels();
+                    res.send("Reload done");
+                } else
+                    res.send("Reload aborted");
             } catch (error) {
                 Logger.parseError(error);
                 res.status(500);
@@ -273,24 +277,42 @@ class Controller {
         }.bind(this));
         modelsRouter.put('/', async function (req, res, next) {
             var version = req.query['v'];
+            var bForce = (req.query['force'] === 'true');
             if (version) {
+                var bError = false;
+                var err;
+                var definition = req.body;
                 try {
-                    var definition;
                     var appVersion = this._versionController.getVersion();
-                    if (version === appVersion)
-                        definition = req.body;
-                    else {
-                        definition = MigrationController.updateModelDefinition(req.body, version, appVersion);
-                        Logger.info("[MigrationController] Updated model definition to version '" + appVersion + "'");
+                    var sAppVersion = appVersion.toString();
+                    if (version !== sAppVersion) {
+                        var modelVersion = new AppVersion(version);
+                        if (MigrationController.compatible(modelVersion, appVersion) || bForce) {
+                            definition = MigrationController.updateModelDefinition(definition, version, appVersion);
+                            Logger.info("[MigrationController] ✔ Updated definition of model '" + definition['name'] + "' to version '" + appVersion + "'");
+                        } else {
+                            Logger.info("[MigrationController] ✘ An update of the minor release version may result in faulty models! Force only after studying changelog!");
+                            bError = true;
+                        }
                     }
-                    var id = await this._shelf.upsertModel(undefined, definition);
-                    res.locals.id = id;
-                    await next();
-                    Logger.info("[App] ✔ Creation or replacement of model '" + definition['name'] + "' successful");
+                    if (!bError) {
+                        var id = await this._shelf.upsertModel(undefined, definition);
+                        res.locals.id = id;
+                        await next();
+                        Logger.info("[App] ✔ Creation or replacement of model '" + definition['name'] + "' successful");
+                    }
                 } catch (error) {
-                    Logger.parseError(error);
+                    err = error;
+                }
+                if (bError || err) {
+                    var msg = "Creation or replacement of model";
+                    if (definition['name'])
+                        msg += " '" + definition['name'] + "'";
+                    msg += " failed";
+                    if (err)
+                        Logger.parseError(err, msg);
                     res.status(500);
-                    res.send("Creation or replacement of model failed");
+                    res.send(msg);
                 }
             } else {
                 res.status(500);
@@ -376,10 +398,13 @@ class Controller {
         if (this._vcs) {
             var updateCmd;
             if (this._vcs === VcsEnum.GIT) {
-                if (version === 'latest')
-                    updateCmd = 'git pull origin main';
-                else
-                    updateCmd = 'git switch --detach ' + version;
+                if (version) {
+                    if (version === 'latest')
+                        updateCmd = 'git pull origin main';
+                    else
+                        updateCmd = 'git switch --detach ' + version;
+                } else
+                    updateCmd = 'git pull';
             } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 

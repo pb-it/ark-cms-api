@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 
+const common = require(path.join(__dirname, "../common"));
 const SeverityEnum = require(path.join(__dirname, "severity-enum"));
 const LogEntry = require(path.join(__dirname, "log-entry"));
 
@@ -32,23 +33,25 @@ class Logger {
     }
 
     static parseError(err, msg) {
-        if (msg)
-            msg += " ";
-        else
-            msg = "";
-        if (err.isAxiosError && err.response && err.response.status) { //axios
-            msg += "[axios] download failed with error: " + err.response.status + " - " + err.response.statusText;
-        } else if (err.code && err.sqlMessage) { //SQL/knex error
-            msg += "[knex] " + err.code;
-        } else if (err.name && err.name === 'CustomError' && err.message) { //?
-            msg += err.message;
-        } else if (err.name && err.name === 'Error' && err.message) { //custom
-            msg += err.message;
-        } else {
-            msg += err;
+        if (err) {
+            if (msg)
+                msg += " ";
+            else
+                msg = "";
+            if (err.isAxiosError && err.response && err.response.status) { //axios
+                msg = "[axios] download failed with error: " + err.response.status + " - " + err.response.statusText;
+            } else if (err.code && err.sqlMessage) { //SQL/knex error
+                msg = "[knex] " + err.code;
+            } else if (err.name && err.name === 'CustomError' && err.message) { //?
+                msg = err.message;
+            } else if (err.name && err.name === 'Error' && err.message) { //custom
+                msg = err.message;
+            } else {
+                msg = err;
+            }
+            console.log(err);
         }
-        console.log(err);
-        Logger.error(msg);
+        Logger.error(msg, err);
         return msg;
     }
 
@@ -60,12 +63,15 @@ class Logger {
         Logger.logMessage(SeverityEnum.WARNING, message);
     }
 
-    static error(message) {
-        Logger.logMessage(SeverityEnum.ERROR, message);
+    static error(message, error) {
+        Logger.logMessage(SeverityEnum.ERROR, message, error);
     }
 
-    static logMessage(severity, message) {
-        var entry = new LogEntry(severity, message);
+    static logMessage(severity, message, error) {
+        var err;
+        if (error)
+            err = common.flatten(error);
+        var entry = new LogEntry(severity, message, err);
         try {
             if (severity === SeverityEnum.ERROR)
                 console.error(entry.toString());

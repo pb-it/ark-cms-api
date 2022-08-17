@@ -1,4 +1,5 @@
 const Logger = require('../common/logger/logger');
+const AppVersion = require('../common/app-version');
 
 class MigrationController {
 
@@ -16,6 +17,10 @@ class MigrationController {
         return definition;
     }
 
+    static compatible(oldVersion, newVersion) {
+        return (oldVersion.major === newVersion.major && oldVersion.minor === newVersion.minor);
+    }
+
     _controller;
     _shelf;
     _models;
@@ -26,14 +31,40 @@ class MigrationController {
         this._models = this._shelf.getModels();
     }
 
-    updateDatabase(currentVersion, newVersion) {
+    async migrateDatabase(bForce) {
+        var appVersion = this._controller.getVersionController().getVersion();
+        var sAppVersion = appVersion.toString();
+        var sRegVersion = await this._controller.getRegistry().get('version');
+        if (sRegVersion) {
+            if (sRegVersion === sAppVersion)
+                Logger.info("[MigrationController] ✔ Current application version '" + sAppVersion + "' equals registry entry of database");
+            else {
+                Logger.info("[MigrationController] ✘ Current application version '" + sAppVersion + "' does not equal registry entry of database - starting migration");
+                var regVersion = new AppVersion(sRegVersion);
+                if (MigrationController.compatible(regVersion, appVersion) || bForce) {
+                    await this._migrateAllModels(sRegVersion, sAppVersion);
+                    await this._controller.getRegistry().upsert('version', sAppVersion);
+                } else {
+                    Logger.info("[MigrationController] ✘ An update of the minor release version may result in faulty models! Force only after studying changelog!");
+                    return Promise.resolve(false);
+                }
+            }
+        } else {
+            Logger.info("[MigrationController] Initialized registry entry of database with current application version '" + sAppVersion + "'");
+            await this._registry.upsert('version', sAppVersion);
+        }
+        return Promise.resolve(true);
+    }
+
+    async _migrateAllModels(currentVersion, newVersion) {
         var definition;
         for (var m of this._models) {
             definition = m.getDefinition();
             MigrationController.updateModelDefinition(definition, currentVersion, newVersion);
             this._shelf.upsertModel(undefined, definition);
         }
-        Logger.info("[MigrationController] ✔ Updated models in database to version '" + newVersion + "'");
+        Logger.info("[MigrationController] ✔ Updated all models in database to version '" + newVersion + "'");
+        return Promise.resolve();
     }
 }
 

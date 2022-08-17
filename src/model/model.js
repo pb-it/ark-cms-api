@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const _eval = require('eval');
 
 const inflection = require('inflection');
 
@@ -8,7 +9,6 @@ const Logger = require(path.join(__dirname, '../common/logger/logger'));
 const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
 const webclient = require(path.join(__dirname, '../common/webclient'));
-
 
 class Model {
 
@@ -21,8 +21,7 @@ class Model {
     _relations;
     _book;
 
-    _ePath;
-    _extensions;
+    _extension;
 
     _bInitDone;
 
@@ -39,22 +38,9 @@ class Model {
         this._relations = [];
     }
 
-    createExtensionFile(force) {
-        if (this._definition.extensions) {
-            this._ePath = path.join(__dirname, "../../api/extensions/", this._name + ".js"); //NOTE: process.cwd() unsafe
-            if (!fs.existsSync(this._ePath) || force)
-                fs.writeFileSync(this._ePath, this._definition.extensions, { encoding: 'utf8', flag: 'w' });
-            const resolved = require.resolve(this._ePath);
-            if (resolved)
-                delete require.cache[resolved];
-        }
-    }
-
-    async initModel(bNew) {
-        this.createExtensionFile(bNew);
-
-        if (this._ePath)
-            this._extensions = require(this._ePath);
+    async initModel() {
+        if (this._definition.extensions)
+            this._extension = _eval(this._definition.extensions, true);
 
         var knex = this._shelf.getKnex();
         var exist = await knex.schema.hasTable(this._tableName);
@@ -618,11 +604,8 @@ class Model {
     async create(data) {
         var json;
 
-        if (this._extensions && this._extensions.prototype.create) {
-            var ext = new this._extensions(data);
-            await ext.create();
-            data = ext.getData();
-        }
+        if (this._extension && this._extension.preCreateHook)
+            data = await this._extension.preCreateHook(data);
 
         if (true) { //TODO: temporary disable creation of db-entry
             var forge = this._createForge(data);
@@ -651,13 +634,12 @@ class Model {
     }
 
     async update(id, data) {
-        if (this._extensions && this._extensions.prototype.update) {
+        if (this._extension && this._extension.preUpdateHook) {
             var obj = await await this._book.where({ 'id': id }).fetch({
                 'require': true
             });
             var current = obj.toJSON();
-            var ext = new this._extensions(current);
-            data = await ext.update(data);
+            data = await this._extension.preUpdateHook(current, data);
         }
 
         var forge = this._createForge(data);
@@ -793,10 +775,8 @@ class Model {
             'withRelated': this._relations
         });
 
-        if (this._extensions && this._extensions.prototype.delete) {
-            var ext = new this._extensions(obj.toJSON());
-            await ext.delete();
-        }
+        if (this._extension && this._extension.preDeleteHook)
+            await this._extension.preDeleteHook(obj.toJSON());
 
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {
@@ -808,6 +788,10 @@ class Model {
             }
         }
         await obj.destroy();
+
+        if (this._extension && this._extension.postDeleteHook)
+            await this._extension.postDeleteHook(obj.toJSON());
+
         return Promise.resolve(obj.toJSON());
     }
 }
