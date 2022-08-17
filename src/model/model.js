@@ -407,10 +407,13 @@ class Model {
     }
 
     async read(id) {
-        var obj = await this._book.where({ 'id': id }).fetch({
-            'withRelated': this._relations,
-            'require': true
-        });
+        if (this._bInitDone && this._book) {
+            var obj = await this._book.where({ 'id': id }).fetch({
+                'withRelated': this._relations,
+                'require': true
+            });
+        } else
+            throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(obj.toJSON());
     }
 

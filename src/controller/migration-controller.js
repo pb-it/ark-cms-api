@@ -43,6 +43,7 @@ class MigrationController {
                 var regVersion = new AppVersion(sRegVersion);
                 if (MigrationController.compatible(regVersion, appVersion) || bForce) {
                     await this._migrateAllModels(sRegVersion, sAppVersion);
+                    Logger.info("[MigrationController] ✔ Updated all models in database to version '" + sAppVersion + "'");
                     await this._controller.getRegistry().upsert('version', sAppVersion);
                 } else {
                     Logger.info("[MigrationController] ✘ An update of the minor release version may result in faulty models! Force only after studying changelog!");
@@ -58,12 +59,13 @@ class MigrationController {
 
     async _migrateAllModels(currentVersion, newVersion) {
         var definition;
-        for (var m of this._models) {
-            definition = m.getDefinition();
-            MigrationController.updateModelDefinition(definition, currentVersion, newVersion);
-            this._shelf.upsertModel(undefined, definition);
+        if (this._models) {
+            for (var m of this._models) {
+                definition = m.getDefinition();
+                MigrationController.updateModelDefinition(definition, currentVersion, newVersion);
+                this._shelf.upsertModel(undefined, definition);
+            }
         }
-        Logger.info("[MigrationController] ✔ Updated all models in database to version '" + newVersion + "'");
         return Promise.resolve();
     }
 }

@@ -8,6 +8,9 @@
         "type": "git",
         "url": "https://github.com/pb-it/wing-cms-api"
     },
+    "engines": {
+        "node": ">=12"
+    },
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

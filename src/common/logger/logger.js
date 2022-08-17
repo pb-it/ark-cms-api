@@ -42,12 +42,10 @@ class Logger {
                 msg = "[axios] download failed with error: " + err.response.status + " - " + err.response.statusText;
             } else if (err.code && err.sqlMessage) { //SQL/knex error
                 msg = "[knex] " + err.code;
-            } else if (err.name && err.name === 'CustomError' && err.message) { //?
-                msg = err.message;
-            } else if (err.name && err.name === 'Error' && err.message) { //custom
-                msg = err.message;
+            } else if (err.name && err.message) { // Error/CustomError/TypeError
+                msg = err.name + ": " + err.message;
             } else {
-                msg = err;
+                msg = "undefined";
             }
             console.log(err);
         }

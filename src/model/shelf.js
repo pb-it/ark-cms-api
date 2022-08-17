@@ -54,11 +54,13 @@ class Shelf {
     }
 
     async initAllModels() {
-        for (var m of this._models) {
-            try {
-                await m.initModel();
-            } catch (error) {
-                Logger.parseError(error);
+        if (this._models) {
+            for (var m of this._models) {
+                try {
+                    await m.initModel();
+                } catch (error) {
+                    Logger.parseError(error);
+                }
             }
         }
         return Promise.resolve();
