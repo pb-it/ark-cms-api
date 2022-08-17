@@ -29,14 +29,10 @@
         "cors": "^2.8.5",
         "eval": "^0.1.8",
         "express": "^4.17.1",
-        "fluent-ffmpeg": "^2.1.2",
         "jsdom": "^19.0.0",
         "knex": "^0.95.11",
         "mysql": "^2.18.1",
-        "mysql2": "^2.3.3",
-        "progress": "^2.0.3",
-        "ytdl-core": "^4.11.0",
-        "ytdl-core-muxer": "^1.0.1"
+        "mysql2": "^2.3.3"
     },
     "devDependencies": {
         "eslint": "^7.32.0",

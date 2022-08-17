@@ -39,8 +39,11 @@ class Model {
     }
 
     async initModel() {
-        if (this._definition.extensions)
+        if (this._definition.extensions) {
             this._extension = _eval(this._definition.extensions, true);
+            if (this._extension.init)
+                await this._extension.init();
+        }
 
         var knex = this._shelf.getKnex();
         var exist = await knex.schema.hasTable(this._tableName);
