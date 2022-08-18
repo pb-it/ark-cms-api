@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
+const common = require('../common/common');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
@@ -550,7 +551,7 @@ class Controller {
     }
 
     async installDependencies(arr) {
-        var file = path.join(controller.getAppRoot(), 'package.json');
+        var file = path.join(this._appRoot, 'package.json');
 
         var before = fs.readFileSync(file, 'utf8');
         //var pkg = JSON.parse(str);
@@ -558,23 +559,23 @@ class Controller {
 
         var bInstall = true;
         //var res = await exec('npm list --location=global add-dependencies');
-        var json = await exec('npm list --location=global -json');
+        var json = await common.exec('npm list --location=global -json');
         var obj = JSON.parse(json);
         if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
             bInstall = false;
         if (bInstall) {
             Logger.info('Installing \'add-dependencies\' ...');
-            await exec('npm install add-dependencies --location=global');
+            await common.exec('npm install add-dependencies --location=global');
         } else
             Logger.info('\'add-dependencies\' already installed');
 
-        await exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
+        await common.exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
 
         var after = fs.readFileSync(file, 'utf8');
 
         if (before !== after) {
             Logger.info('Dependencies changed - installing new software');
-            await common.exec('cd ' + controller.getAppRoot() + ' && npm install --legacy-peer-deps');
+            await common.exec('cd ' + this._appRoot + ' && npm install --legacy-peer-deps');
             this.setRestartRequest();
         }
 

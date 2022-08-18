@@ -1,4 +1,4 @@
-async function exec(cmd) {
+module.exports.exec = function (cmd) {
     return new Promise((resolve, reject) => {
         require("child_process").exec(cmd, function (err, stdout, stderr) {
             if (err)
