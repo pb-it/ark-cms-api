@@ -14,6 +14,7 @@ const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
 
 class Controller {
 
+    _info;
     _appRoot;
     _vcs;
 
@@ -49,6 +50,12 @@ class Controller {
         this._serverConfig = serverConfig;
         this._databaseConfig = databaseConfig;
 
+        this._info = {
+            'state': 'starting',
+            'vcs': this._vcs,
+            'db_client': this._databaseConfig.connections.default.settings.clientks
+        };
+
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
             var databaseSettings;
@@ -83,12 +90,15 @@ class Controller {
             await this._shelf.loadAllModels();
 
             this._versionController = new VersionController(this);
+            this._info['version'] = this._versionController.getVersion().toString();
             this._migrationsController = new MigrationController(this);
 
             if (await this._migrationsController.migrateDatabase())
                 await this._shelf.initAllModels();
 
             this._startExpress();
+
+            this._info['state'] = 'running';
         } catch (error) {
             Logger.parseError(error);
         }
@@ -113,11 +123,7 @@ class Controller {
 
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
-            var info = {};
-            info['version'] = this._versionController.getVersion().toString();
-            info['vcs'] = this._vcs;
-            info['db_client'] = this._databaseConfig.connections.default.settings.client;
-            res.json(info);
+            res.json(this._info);
         }.bind(this));
         systemRouter.get('/log', function (req, res) {
             var severity = req.query['severity'];
@@ -169,10 +175,11 @@ class Controller {
         });
         systemRouter.get('/update', async function (req, res) {
             var version = req.query['v'];
+            var bForce = req.query['force'] && (req.query['force'] === 'true');
             var msg;
             var bUpdated = false;
             try {
-                msg = await this.update(version);
+                msg = await this.update(version, bForce);
                 console.log(msg);
                 var strUpToDate;
                 if (this._vcs === VcsEnum.GIT)
@@ -393,32 +400,28 @@ class Controller {
         this._svr.setTimeout(600 * 1000);
     }
 
-    async update(version) {
+    async update(version, bForce) {
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
-            var updateCmd;
+            var updateCmd = "";
             if (this._vcs === VcsEnum.GIT) {
                 if (version) {
                     if (version === 'latest')
-                        updateCmd = 'git pull origin main';
+                        updateCmd += 'git pull origin main';
                     else
-                        updateCmd = 'git switch --detach ' + version;
-                } else
-                    updateCmd = 'git pull';
+                        updateCmd += 'git switch --detach ' + version;
+                } else {
+                    if (bForce)
+                        updateCmd += 'git reset --hard && '; //git clean -fxd
+                    updateCmd += 'git pull';
+                }
             } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
-            return new Promise((resolve, reject) => {
-                require("child_process").exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps', function (err, stdout, stderr) {
-                    if (err)
-                        reject(err);
-                    else {
-                        resolve(stdout);
-                    }
-                }.bind(this));
-            });
+            await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
         } else
             throw new Error('No version control system detected');
+        return Promise.resolve();
     }
 
     teardown() {
@@ -543,6 +546,44 @@ class Controller {
 
     getShelf() {
         return this._shelf;
+    }
+
+    installDependencies(arr) {
+        var file = path.join(controller.getAppRoot(), 'package.json');
+
+        var before = fs.readFileSync(file, 'utf8');
+        //var pkg = JSON.parse(str);
+        //console.log(pkg['dependencies']);
+
+        var bInstall = true;
+        //var res = await exec('npm list --location=global add-dependencies');
+        var json = await exec('npm list --location=global -json');
+        var obj = JSON.parse(json);
+        if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
+            bInstall = false;
+        if (bInstall) {
+            Logger.info('Installing \'add-dependencies\' ...');
+            await exec('npm install add-dependencies --location=global');
+        } else
+            Logger.info('\'add-dependencies\' already installed');
+
+        await exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
+
+        var after = fs.readFileSync(file, 'utf8');
+
+        if (before !== after) {
+            Logger.info('Dependencies changed - installing new software');
+            await common.exec('cd ' + controller.getAppRoot() + ' && npm install --legacy-peer-deps');
+            this.setRestartRequest();
+        }
+    }
+
+    /**
+     * flag to process multiple request at once
+     */
+    setRestartRequest() {
+        this._info['state'] = 'openRestartRequest';
+        //await controller.restart();
     }
 }
 
