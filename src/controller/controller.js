@@ -52,8 +52,7 @@ class Controller {
 
         this._info = {
             'state': 'starting',
-            'vcs': this._vcs,
-            'db_client': this._databaseConfig.connections.default.settings.clientks
+            'vcs': this._vcs
         };
 
         try {
@@ -63,6 +62,8 @@ class Controller {
                 databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
             else
                 throw new Error('Faulty database configuration!');
+            this._info['db_client'] = this._databaseConfig.connections.default.settings.client
+
             this._knex = require('knex')({
                 client: databaseSettings['client'],
                 connection: databaseSettings['connection']
