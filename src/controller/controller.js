@@ -548,7 +548,7 @@ class Controller {
         return this._shelf;
     }
 
-    installDependencies(arr) {
+    async installDependencies(arr) {
         var file = path.join(controller.getAppRoot(), 'package.json');
 
         var before = fs.readFileSync(file, 'utf8');
@@ -576,6 +576,8 @@ class Controller {
             await common.exec('cd ' + controller.getAppRoot() + ' && npm install --legacy-peer-deps');
             this.setRestartRequest();
         }
+
+        return Promise.resolve();
     }
 
     /**
