@@ -39,6 +39,8 @@ class Model {
     }
 
     async initModel() {
+        Logger.info("Init model '" + this._name + "'");
+
         if (this._definition.extensions) {
             this._extension = _eval(this._definition.extensions, true);
             if (this._extension.init)

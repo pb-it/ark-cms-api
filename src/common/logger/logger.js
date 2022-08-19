@@ -7,6 +7,8 @@ const LogEntry = require(path.join(__dirname, "log-entry"));
 
 const logFile = path.join(__dirname, "../../../log.json");
 
+const CHANGE_TABLE_NAME = '_change';
+
 class Logger {
 
     static getAllEntries(sort) {
@@ -109,9 +111,9 @@ class Logger {
     }
 
     async init() {
-        var exist = await this._knex.schema.hasTable('_log');
+        var exist = await this._knex.schema.hasTable(CHANGE_TABLE_NAME);
         if (!exist) {
-            await this._knex.schema.createTable('_log', function (table) {
+            await this._knex.schema.createTable(CHANGE_TABLE_NAME, function (table) {
                 table.increments('id').primary();
                 table.timestamp('timestamp').notNullable().defaultTo(this._knex.raw('CURRENT_TIMESTAMP')); //table.timestamps(true, false);
                 table.string('method');
@@ -119,16 +121,16 @@ class Logger {
                 table.integer('record_id');
                 table.json('data');
             }.bind(this));
-            Logger.info("Created '_log' table");
+            Logger.info("Created '" + CHANGE_TABLE_NAME + "' table");
         }
         return Promise.resolve();
     }
 
-    async logRequest(timestamp, method, model, recordId, data) {
+    async logChange(timestamp, method, model, recordId, data) {
         var row = { 'method': method, 'model': model, 'record_id': recordId, 'data': JSON.stringify(data) };
         if (timestamp)
             row['timestamp'] = timestamp;
-        return this._knex('_log').insert(row);
+        return this._knex(CHANGE_TABLE_NAME).insert(row);
     }
 }
 

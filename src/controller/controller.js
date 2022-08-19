@@ -95,12 +95,14 @@ class Controller {
             this._info['version'] = this._versionController.getVersion().toString();
             this._migrationsController = new MigrationController(this);
 
-            if (await this._migrationsController.migrateDatabase())
+            var res = await this._migrationsController.migrateDatabase();
+            if (res)
                 await this._shelf.initAllModels();
 
             this._startExpress();
 
-            this._info['state'] = 'running';
+            if (this._info['state'] === 'starting')
+                this._info['state'] = 'running';
         } catch (error) {
             Logger.parseError(error);
         }
@@ -284,7 +286,7 @@ class Controller {
             }
             res.json(arr);
         }.bind(this));
-        modelsRouter.put('/', async function (req, res, next) {
+        modelsRouter.put('/', async function (req, res) {
             var version = req.query['v'];
             var bForce = (req.query['force'] === 'true');
             if (version) {
@@ -297,8 +299,8 @@ class Controller {
                     if (version !== sAppVersion) {
                         var modelVersion = new AppVersion(version);
                         if (MigrationController.compatible(modelVersion, appVersion) || bForce) {
-                            definition = MigrationController.updateModelDefinition(definition, version, appVersion);
-                            Logger.info("[MigrationController] ✔ Updated definition of model '" + definition['name'] + "' to version '" + appVersion + "'");
+                            definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
+                            Logger.info("[MigrationController] ✔ Updated definition of model '" + definition['name'] + "' to version '" + sAppVersion + "'");
                         } else {
                             Logger.info("[MigrationController] ✘ An update of the minor release version may result in faulty models! Force only after studying changelog!");
                             bError = true;
@@ -306,9 +308,9 @@ class Controller {
                     }
                     if (!bError) {
                         var id = await this._shelf.upsertModel(undefined, definition);
-                        res.locals.id = id;
-                        await next();
+                        await this._logger.logChange(null, req.method, '_models', id, req.body);
                         Logger.info("[App] ✔ Creation or replacement of model '" + definition['name'] + "' successful");
+                        res.json(id);
                     }
                 } catch (error) {
                     err = error;
@@ -329,16 +331,81 @@ class Controller {
             }
             return Promise.resolve();
         }.bind(this));
-        modelsRouter.delete('/:id', async function (req, res, next) {
+        modelsRouter.put('/:id/*', async function (req, res, next) {
+            try {
+                var id;
+                if (!isNaN(req.params.id))
+                    id = parseInt(req.params.id);
+                if (id) {
+                    var models = this._shelf.getModels();
+                    var model;
+                    for (var m of models) {
+                        if (m.getId() == id) {
+                            model = m;
+                            break;
+                        }
+                    }
+                    if (model) {
+                        var p = req.params[0];
+                        if (p) {
+                            if (p.startsWith('states')) {
+                                var definition = model.getDefinition();
+                                definition['states'] = req.body;
+                                await this._shelf.upsertModel(id, definition, false);
+                                await this._logger.logChange(null, req.method, '_models', id, req.body);
+                                Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
+                                res.json(id);
+                            } else if (p.startsWith('filters')) {
+                                var definition = model.getDefinition();
+                                definition['filters'] = req.body;
+                                await this._shelf.upsertModel(id, definition, false);
+                                await this._logger.logChange(null, req.method, '_models', id, req.body);
+                                Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
+                                res.json(id);
+                            } else if (p.startsWith('defaults')) {
+                                p = p.substring(9);
+                                if (p === "view") {
+                                    var definition = model.getDefinition();
+                                    var defaults = definition['defaults'];
+                                    if (!defaults) {
+                                        defaults = {};
+                                        definition['defaults'] = defaults;
+                                    }
+                                    defaults['view'] = req.body;
+                                    await this._shelf.upsertModel(id, definition, false);
+                                    await this._logger.logChange(null, req.method, '_models', id, req.body);
+                                    Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
+                                    res.json(id);
+                                }
+                            }
+                        }
+                        if (!res.headersSent)
+                            next();
+                    } else {
+                        res.status(404);
+                        res.send("Invalid model ID");
+                    }
+                } else {
+                    res.status(404);
+                    res.send("Invalid model ID");
+                }
+            } catch (error) {
+                Logger.parseError(error);
+                res.status(500);
+                res.send("Update of model failed");
+            }
+            return Promise.resolve();
+        }.bind(this));
+        modelsRouter.delete('/:id', async function (req, res) {
             try {
                 var id;
                 if (!isNaN(req.params.id))
                     id = parseInt(req.params.id);
                 if (id) {
                     var name = await this._shelf.deleteModel(id);
-                    res.locals.id = id;
-                    await next();
+                    await this._logger.logChange(null, req.method, '_models', id, req.body);
                     Logger.info("[App] ✔ Deleted model '" + name + "'");
+                    res.send("OK");
                 } else {
                     res.status(404);
                     res.send("Invalid model ID");
@@ -350,23 +417,11 @@ class Controller {
             }
             return Promise.resolve();
         }.bind(this));
-        modelsRouter.use(async function (req, res) {
-            try {
-                await this._logger.logRequest(null, req.method, '_models', res.locals.id, req.body);
-            } catch (error) {
-                Logger.parseError(error);
-            }
-            if (req.method === "DELETE")
-                res.send("OK");
-            else
-                res.json(res.locals.id);
-            return Promise.resolve();
-        }.bind(this));
         app.use('/models', modelsRouter);
 
         var apiRouter = express.Router();
         apiRouter.route('*')
-            .all(async function (req, res, next) {
+            .all(async function (req, res) {
                 try {
                     var data = await this.process(req, res);
                     if (!res.headersSent) {
@@ -378,22 +433,32 @@ class Controller {
                             res.json([]);
                     }
                 } catch (err) {
-                    next(err);
+                    if (err && err.message && err.message === "EmptyResponse") {
+                        res.status(404);
+                        res.send(err.message);
+                    } else {
+                        var msg = Logger.parseError(err);
+                        res.status(500);
+                        res.send(msg);
+                    }
                 }
                 return Promise.resolve();
             }.bind(this));
         app.use('/api', apiRouter);
 
-        app.use(function (err, req, res, next) {
-            if (err && err.message && err.message === "EmptyResponse") {
-                res.status(404);
-                res.send(err.message);
-            } else {
+        var changesRouter = express.Router();
+        changesRouter.get('/', function (req, res) {
+            try {
+                res.status(200);
+                res.send('TODO'); //TODO:
+            } catch (err) {
                 var msg = Logger.parseError(err);
                 res.status(500);
                 res.send(msg);
             }
-        });
+            return Promise.resolve();
+        }.bind(this));
+        app.use('/changes', changesRouter);
 
         this._svr = app.listen(this._serverConfig.port, function () {
             Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
@@ -510,7 +575,7 @@ class Controller {
 
                 if (timestamp) { //req.method !== "GET"
                     try {
-                        await this._logger.logRequest(timestamp, req.method, name, id, req.body);
+                        await this._logger.logChange(timestamp, req.method, name, id, req.body);
                     } catch (error) {
                         Logger.parseError(error);
                     }
@@ -578,7 +643,6 @@ class Controller {
             await common.exec('cd ' + this._appRoot + ' && npm install --legacy-peer-deps');
             this.setRestartRequest();
         }
-
         return Promise.resolve();
     }
 

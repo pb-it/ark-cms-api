@@ -66,13 +66,13 @@ class Shelf {
         return Promise.resolve();
     }
 
-    async upsertModel(id, definition) {
+    async upsertModel(id, definition, bInit = true) {
         var name = definition['name'];
         Logger.info('[App] Creating or updating model \'' + name + '\'');
 
-        var data;
         var res;
         if (id) {
+            var data;
             var bCheckName = false;
             res = await this._knex('_model').where('id', id);
             if (res.length == 1) {
@@ -107,11 +107,29 @@ class Shelf {
             id = res[0]['id'];
         }
 
-        var model = new Model(this, id, definition);
-        await model.initModel();
-        var models = this._models.filter(function (x) { return x.getName() !== name });
-        models.push(model);
-        this._models = models;
+        var model;
+        if (this._models) {
+            for (var m of this._models) {
+                if (m.getName() === name) {
+                    model = m;
+                    break;
+                }
+            }
+        }
+        if (model) {
+            if (model.getId() === id)
+                model.setDefinition(definition);
+            else
+                throw new Error("An model with name '" + name + "' already exists with an different ID");
+        } else {
+            model = new Model(this, id, definition);
+            if (this._models)
+                this._models.push(model);
+            else
+                this._models = [model];
+        }
+        if (bInit)
+            await model.initModel();
 
         return Promise.resolve(id);
     }

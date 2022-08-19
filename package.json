@@ -1,6 +1,6 @@
 {
     "name": "wing-cms-api",
-    "version": "0.2.0-beta",
+    "version": "0.2.1-beta",
     "description": "Headless CMS",
     "author": "Patrick Bauer <patrick.bauer@pb-it.at>",
     "license": "MIT",
