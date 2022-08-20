@@ -21,14 +21,15 @@ class MigrationController {
                     if (newVersion && newVersion.isLower(new AppVersion('0.2.1-beta')))
                         break;
                 case '0.2.1-beta':
-                    if (definition['defaults']) {
-                        var defaults = definition['defaults'];
+                    var defaults = definition['defaults'];
+                    if (defaults) {
                         var panelType = defaults['paneltype'];
                         if (panelType) {
                             if (defaults['view'])
                                 defaults['view']['panelType'] = panelType
                             else
                                 defaults['view'] = { 'panelType': panelType };
+                            delete defaults['paneltype'];
                         }
                     }
                     break;

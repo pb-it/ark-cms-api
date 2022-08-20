@@ -34,6 +34,8 @@ class Controller {
     _profileController;
     _shelf;
 
+    _routes;
+
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
 
@@ -55,6 +57,8 @@ class Controller {
             'state': 'starting',
             'vcs': this._vcs
         };
+
+        this._routes = {};
 
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
@@ -190,15 +194,18 @@ class Controller {
                     strUpToDate = 'Already up to date.';
                 else if (this._vcs === VcsEnum.SVN)
                     strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
-                if (msg.startsWith(strUpToDate))
-                    Logger.info("[App] Already up to date");
-                else {
-                    Logger.info("[App] ✔ Updated");
-                    bUpdated = true;
-                }
+                if (msg) {
+                    if (msg.startsWith(strUpToDate))
+                        Logger.info("[App] Already up to date");
+                    else {
+                        Logger.info("[App] ✔ Updated");
+                        bUpdated = true;
+                    }
+                } else
+                    throw new Error('Missing response from update process');
             } catch (error) {
                 if (error['message'])
-                    msg = error['message'];
+                    msg = error['message']; // 'Command failed:...'
                 else
                     msg = error;
                 console.error(msg);
@@ -423,14 +430,19 @@ class Controller {
         apiRouter.route('*')
             .all(async function (req, res) {
                 try {
-                    var data = await this.process(req, res);
-                    if (!res.headersSent) {
-                        if (req.method === "DELETE")
-                            res.send("OK");
-                        else if (data)
-                            res.json(data);
-                        else
-                            res.json([]);
+                    var data;
+                    if (this._routes[req.url])
+                        data = await this._routes[req.url](req, res);
+                    else {
+                        data = await this.process(req, res);
+                        if (!res.headersSent) {
+                            if (req.method === "DELETE")
+                                res.send("OK");
+                            else if (data)
+                                res.json(data);
+                            else
+                                res.json([]);
+                        }
                     }
                 } catch (err) {
                     if (err && err.message && err.message === "EmptyResponse") {
@@ -468,6 +480,7 @@ class Controller {
     }
 
     async update(version, bForce) {
+        var response;
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
             var updateCmd = "";
@@ -485,10 +498,10 @@ class Controller {
             } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
-            await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
+            response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
         } else
             throw new Error('No version control system detected');
-        return Promise.resolve();
+        return Promise.resolve(response);
     }
 
     teardown() {
@@ -526,10 +539,12 @@ class Controller {
 
         var data;
 
-        var parts = req.url.substring(1);
+        var parts;
         var index = parts.indexOf('?');
-        if (index != -1)
-            parts = parts.substring(0, index);
+        if (index == -1)
+            parts = req.url.substring(1);
+        else
+            parts = req.url.substring(1, index);
 
         parts = parts.split('/');
         if (parts.length == 1) {
@@ -615,6 +630,10 @@ class Controller {
         return this._shelf;
     }
 
+    addRoute(path, func) {
+        this._routes[path] = func;
+    }
+
     async installDependencies(arr) {
         var file = path.join(this._appRoot, 'package.json');
 
@@ -624,7 +643,7 @@ class Controller {
 
         var bInstall = true;
         //var res = await exec('npm list --location=global add-dependencies');
-        var json = await common.exec('npm list --location=global -json');
+        var json = await common.exec('npm list --location=global -json'); // --silent --legacy-peer-deps
         var obj = JSON.parse(json);
         if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
             bInstall = false;
