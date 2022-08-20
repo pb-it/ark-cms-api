@@ -483,22 +483,24 @@ class Controller {
         var response;
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
-            var updateCmd = "";
+            var updateCmd;
             if (this._vcs === VcsEnum.GIT) {
+                if (bForce)
+                    updateCmd = 'git reset --hard && '; //git clean -fxd
+                else
+                    updateCmd = "";
                 if (version) {
                     if (version === 'latest')
                         updateCmd += 'git pull origin main';
                     else
                         updateCmd += 'git switch --detach ' + version;
-                } else {
-                    if (bForce)
-                        updateCmd += 'git reset --hard && '; //git clean -fxd
+                } else
                     updateCmd += 'git pull';
-                }
             } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
-            response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
+            if (updateCmd)
+                response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
         } else
             throw new Error('No version control system detected');
         return Promise.resolve(response);
@@ -540,7 +542,7 @@ class Controller {
         var data;
 
         var parts;
-        var index = parts.indexOf('?');
+        var index = req.url.indexOf('?');
         if (index == -1)
             parts = req.url.substring(1);
         else
