@@ -58,7 +58,7 @@ class Controller {
             'vcs': this._vcs
         };
 
-        this._routes = {};
+        this._routes = [];
 
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
@@ -431,9 +431,21 @@ class Controller {
             .all(async function (req, res) {
                 try {
                     var data;
-                    if (this._routes[req.url])
-                        data = await this._routes[req.url](req, res);
-                    else {
+                    var match;
+                    for (var route of this._routes) {
+                        if (route['regex'] && route['fn']) {
+                            match = new RegExp(route['regex'], 'ig').exec(req.path);
+                            if (match) {
+                                if (!req.locals)
+                                    req.locals = { 'match': match };
+                                else
+                                    req.locals['match'] = match;
+                                data = await route['fn'](req, res);
+                                break;
+                            }
+                        }
+                    }
+                    if (!match) {
                         data = await this.process(req, res);
                         if (!res.headersSent) {
                             if (req.method === "DELETE")
@@ -632,8 +644,19 @@ class Controller {
         return this._shelf;
     }
 
-    addRoute(path, func) {
-        this._routes[path] = func;
+    addRoute(route) {
+        if (route['regex'] && route['fn']) {
+            this.deleteRoute(route);
+            this._routes.push(route);
+        }
+    }
+
+    deleteRoute(route) {
+        if (route['regex']) {
+            this._routes = this._routes.filter(function (x) {
+                x['regex'] !== route['regex'];
+            });
+        }
     }
 
     async installDependencies(arr) {

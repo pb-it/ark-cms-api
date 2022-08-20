@@ -425,6 +425,7 @@ class Model {
     }
 
     async readRel(query, rel, sort) {
+        var res;
         var obj;
         var attr = this.getAttribute(rel);
         if (attr) {
@@ -461,7 +462,9 @@ class Model {
                 }
             }
         }
-        return Promise.resolve(obj.toJSON());
+        if (obj)
+            res = obj.toJSON();
+        return Promise.resolve(res);
     }
 
     async readAll(query) {
