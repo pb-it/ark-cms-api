@@ -13,6 +13,13 @@ const Shelf = require('../model/shelf');
 
 const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
 
+class ValidationError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ValidationError";
+    }
+}
+
 class Controller {
 
     _info;
@@ -43,10 +50,6 @@ class Controller {
             this._vcs = VcsEnum.GIT;
         else if (fs.existsSync(path.join(this._appRoot, '.svn')))
             this._vcs = VcsEnum.SVN;
-    }
-
-    getAppRoot() {
-        return this._appRoot;
     }
 
     async setup(serverConfig, databaseConfig) {
@@ -86,14 +89,13 @@ class Controller {
             }
 
             this._logger = new Logger(this._knex);
-            await this._logger.init();
-
-            this._registry = new Registry(this._knex);
-            await this._registry.init();
+            await this._logger.initLogger();
 
             this._shelf = new Shelf(this._knex);
-            await this._shelf.init();
-            await this._shelf.loadAllModels();
+            await this._shelf.initShelf();
+
+            this._registry = new Registry(this._knex);
+            await this._registry.initRegistry();
 
             this._versionController = new VersionController(this);
             this._info['version'] = this._versionController.getVersion().toString();
@@ -103,14 +105,167 @@ class Controller {
             if (res)
                 await this._shelf.initAllModels();
 
-            this._startExpress();
-
-            if (this._info['state'] === 'starting')
+            if (this._info['state'] === 'openRestartRequest')
+                this.restart();
+            else if (this._info['state'] === 'starting') {
+                this._startExpress();
                 this._info['state'] = 'running';
+            }
         } catch (error) {
             Logger.parseError(error);
         }
         return Promise.resolve();
+    }
+
+    getAppRoot() {
+        return this._appRoot;
+    }
+
+    getServerConfig() {
+        return this._serverConfig;
+    }
+
+    getDatabaseConfig() {
+        return this._databaseConfig;
+    }
+
+    getKnex() {
+        return this._knex;
+    }
+
+    getRegistry() {
+        return this._registry;
+    }
+
+    getMigrationsController() {
+        return this._migrationsController;
+    }
+
+    getVersionController() {
+        return this._versionController;
+    }
+
+    getShelf() {
+        return this._shelf;
+    }
+
+    async update(version, bForce) {
+        var response;
+        Logger.info("[App] Processing update request..");
+        if (this._vcs) {
+            var updateCmd;
+            if (this._vcs === VcsEnum.GIT) {
+                if (bForce)
+                    updateCmd = 'git reset --hard && '; //git clean -fxd
+                else
+                    updateCmd = "";
+                if (version) {
+                    if (version === 'latest')
+                        updateCmd += 'git pull origin main';
+                    else
+                        updateCmd += 'git switch --detach ' + version;
+                } else
+                    updateCmd += 'git pull';
+            } else if (this._vcs === VcsEnum.SVN)
+                updateCmd = 'svn update';
+
+            if (updateCmd)
+                response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
+        } else
+            throw new Error('No version control system detected');
+        return Promise.resolve(response);
+    }
+
+    teardown() {
+        if (this._svr)
+            this._svr.close();
+        if (this._knex)
+            this._knex.destroy();
+    }
+
+    restart() {
+        Logger.info("[App] Restarting..");
+        if (!this._serverConfig['processManager']) {
+            process.on("exit", function () {
+                require("child_process").spawn(process.argv.shift(), process.argv, {
+                    cwd: process.cwd(),
+                    detached: true,
+                    stdio: "inherit"
+                });
+            });
+        }
+        this.teardown();
+        process.exit();
+    }
+
+    addRoute(route) {
+        if (route['regex'] && route['fn']) {
+            this.deleteRoute(route);
+            this._routes.push(route);
+        }
+    }
+
+    deleteRoute(route) {
+        if (route['regex']) {
+            this._routes = this._routes.filter(function (x) {
+                x['regex'] !== route['regex'];
+            });
+        }
+    }
+
+    async installDependencies(arr) {
+        var file = path.join(this._appRoot, 'package.json');
+        var str = fs.readFileSync(file, 'utf8');
+        var pkg = JSON.parse(str);
+        var installed = Object.keys(pkg['dependencies']);
+        var missing = [];
+        for (var x of arr) {
+            if (!installed.includes(x))
+                missing.push(x)
+        }
+        if (missing.length > 0) {
+            Logger.info('[App] Installing missing dependencies');
+            await common.exec('cd ' + this._appRoot + ' && npm install ' + missing.join(' ') + ' --legacy-peer-deps');
+            this.setRestartRequest();
+        }
+        return Promise.resolve();
+    }
+
+    /**
+     * add-dependencies only adds the dependency to package.json without installing it
+     * still has to fork npm processes for version checks which are quite time-consuming
+     */
+    async installWithAddDependencies() {
+        var bInstall = true;
+        //var res = await exec('npm list --location=global add-dependencies');
+        var json = await common.exec('npm list --location=global -json'); // --silent --legacy-peer-deps
+        var obj = JSON.parse(json);
+        if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
+            bInstall = false;
+        if (bInstall) {
+            Logger.info('Installing \'add-dependencies\' ...');
+            await common.exec('npm install add-dependencies --location=global');
+        } else
+            Logger.info('\'add-dependencies\' already installed');
+
+        var file = path.join(this._appRoot, 'package.json');
+        var before = fs.readFileSync(file, 'utf8');
+        await common.exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
+        var after = fs.readFileSync(file, 'utf8');
+        if (before !== after) {
+            Logger.info('[App] Installing new dependencies');
+            await common.exec('cd ' + this._appRoot + ' && npm install --legacy-peer-deps');
+            this.setRestartRequest();
+        }
+        return Promise.resolve();
+    }
+
+    /**
+     * flag to process multiple request at once
+     */
+    setRestartRequest() {
+        this._info['state'] = 'openRestartRequest';
+        //await controller.restart();
     }
 
     _startExpress() {
@@ -229,6 +384,9 @@ class Controller {
                 if (await this._migrationsController.migrateDatabase(bForce)) {
                     await this._shelf.initAllModels();
                     res.send("Reload done");
+
+                    if (this._info['state'] === 'openRestartRequest')
+                        this.restart();
                 } else
                     res.send("Reload aborted");
             } catch (error) {
@@ -240,197 +398,10 @@ class Controller {
         }.bind(this));
         app.use('/system', systemRouter);
 
-        var routesRouter = express.Router();
-        routesRouter.get('/', async function (req, res) {
-            var routes;
-            var str = await this._registry.get('routes');
-            if (str)
-                routes = JSON.parse(str);
-            res.json(routes);
-        }.bind(this));
-        routesRouter.put('/', async function (req, res) {
-            var result = await this._registry.upsert('routes', JSON.stringify(req.body));
-            res.json(result);
-        }.bind(this));
-        app.use('/routes', routesRouter);
-
-        var profilesRouter = express.Router();
-        profilesRouter.get('/', async function (req, res) {
-            var profiles;
-            var str = await this._registry.get('profiles');
-            if (str)
-                profiles = JSON.parse(str);
-            res.json(profiles);
-        }.bind(this));
-        profilesRouter.put('/', async function (req, res) {
-            var result = await this._registry.upsert('profiles', JSON.stringify(req.body));
-            res.json(result);
-        }.bind(this));
-        app.use('/profiles', profilesRouter);
-
-        var bookmarksRouter = express.Router();
-        bookmarksRouter.get('/', async function (req, res) {
-            var bookmarks;
-            var str = await this._registry.get('bookmarks');
-            if (str)
-                bookmarks = JSON.parse(str);
-            res.json(bookmarks);
-        }.bind(this));
-        bookmarksRouter.put('/', async function (req, res) {
-            var result = await this._registry.upsert('bookmarks', JSON.stringify(req.body));
-            res.json(result);
-        }.bind(this));
-        app.use('/bookmarks', bookmarksRouter);
-
-        var modelsRouter = express.Router();
-        modelsRouter.get('/', function (req, res) {
-            var arr = [];
-            var definition;
-            for (const [key, value] of Object.entries(this._shelf.getModels())) {
-                definition = { ...value.getDefinition() };
-                definition['id'] = value.getId();
-                arr.push(definition);
-            }
-            res.json(arr);
-        }.bind(this));
-        modelsRouter.put('/', async function (req, res) {
-            var version = req.query['v'];
-            var bForce = (req.query['force'] === 'true');
-            if (version) {
-                var bError = false;
-                var err;
-                var definition = req.body;
-                try {
-                    var appVersion = this._versionController.getVersion();
-                    var sAppVersion = appVersion.toString();
-                    if (version !== sAppVersion) {
-                        var modelVersion = new AppVersion(version);
-                        if (MigrationController.compatible(modelVersion, appVersion) || bForce) {
-                            definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
-                            Logger.info("[MigrationController] ✔ Updated definition of model '" + definition['name'] + "' to version '" + sAppVersion + "'");
-                        } else {
-                            Logger.info("[MigrationController] ✘ An update of the minor release version may result in faulty models! Force only after studying changelog!");
-                            bError = true;
-                        }
-                    }
-                    if (!bError) {
-                        var id = await this._shelf.upsertModel(undefined, definition);
-                        await this._logger.logChange(null, req.method, '_models', id, req.body);
-                        Logger.info("[App] ✔ Creation or replacement of model '" + definition['name'] + "' successful");
-                        res.json(id);
-                    }
-                } catch (error) {
-                    err = error;
-                }
-                if (bError || err) {
-                    var msg = "Creation or replacement of model";
-                    if (definition['name'])
-                        msg += " '" + definition['name'] + "'";
-                    msg += " failed";
-                    if (err)
-                        Logger.parseError(err, msg);
-                    res.status(500);
-                    res.send(msg);
-                }
-            } else {
-                res.status(500);
-                res.send("Please specify model version");
-            }
-            return Promise.resolve();
-        }.bind(this));
-        modelsRouter.put('/:id/*', async function (req, res, next) {
-            try {
-                var id;
-                if (!isNaN(req.params.id))
-                    id = parseInt(req.params.id);
-                if (id) {
-                    var models = this._shelf.getModels();
-                    var model;
-                    for (var m of models) {
-                        if (m.getId() == id) {
-                            model = m;
-                            break;
-                        }
-                    }
-                    if (model) {
-                        var p = req.params[0];
-                        if (p) {
-                            if (p.startsWith('states')) {
-                                var definition = model.getDefinition();
-                                definition['states'] = req.body;
-                                await this._shelf.upsertModel(id, definition, false);
-                                await this._logger.logChange(null, req.method, '_models', id, req.body);
-                                Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
-                                res.json(id);
-                            } else if (p.startsWith('filters')) {
-                                var definition = model.getDefinition();
-                                definition['filters'] = req.body;
-                                await this._shelf.upsertModel(id, definition, false);
-                                await this._logger.logChange(null, req.method, '_models', id, req.body);
-                                Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
-                                res.json(id);
-                            } else if (p.startsWith('defaults')) {
-                                p = p.substring(9);
-                                if (p === "view") {
-                                    var definition = model.getDefinition();
-                                    var defaults = definition['defaults'];
-                                    if (!defaults) {
-                                        defaults = {};
-                                        definition['defaults'] = defaults;
-                                    }
-                                    defaults['view'] = req.body;
-                                    await this._shelf.upsertModel(id, definition, false);
-                                    await this._logger.logChange(null, req.method, '_models', id, req.body);
-                                    Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
-                                    res.json(id);
-                                }
-                            }
-                        }
-                        if (!res.headersSent)
-                            next();
-                    } else {
-                        res.status(404);
-                        res.send("Invalid model ID");
-                    }
-                } else {
-                    res.status(404);
-                    res.send("Invalid model ID");
-                }
-            } catch (error) {
-                Logger.parseError(error);
-                res.status(500);
-                res.send("Update of model failed");
-            }
-            return Promise.resolve();
-        }.bind(this));
-        modelsRouter.delete('/:id', async function (req, res) {
-            try {
-                var id;
-                if (!isNaN(req.params.id))
-                    id = parseInt(req.params.id);
-                if (id) {
-                    var name = await this._shelf.deleteModel(id);
-                    await this._logger.logChange(null, req.method, '_models', id, req.body);
-                    Logger.info("[App] ✔ Deleted model '" + name + "'");
-                    res.send("OK");
-                } else {
-                    res.status(404);
-                    res.send("Invalid model ID");
-                }
-            } catch (error) {
-                Logger.parseError(error);
-                res.status(500);
-                res.send("Deletion of model failed");
-            }
-            return Promise.resolve();
-        }.bind(this));
-        app.use('/models', modelsRouter);
-
         var apiRouter = express.Router();
         apiRouter.route('*')
-            .all(async function (req, res) {
+            .all(async function (req, res, next) {
                 try {
-                    var data;
                     var match;
                     for (var route of this._routes) {
                         if (route['regex'] && route['fn']) {
@@ -440,102 +411,39 @@ class Controller {
                                     req.locals = { 'match': match };
                                 else
                                     req.locals['match'] = match;
-                                data = await route['fn'](req, res);
+                                await route['fn'](req, res);
                                 break;
                             }
                         }
                     }
-                    if (!match) {
-                        data = await this.process(req, res);
-                        if (!res.headersSent) {
-                            if (req.method === "DELETE")
-                                res.send("OK");
-                            else if (data)
-                                res.json(data);
-                            else
-                                res.json([]);
+                    if (!match)
+                        await this.process(req, res);
+                } catch (error) {
+                    var msg = Logger.parseError(error);
+                    if (error) {
+                        if (error instanceof ValidationError) {
+                            res.status(404);
+                            res.send(error.message);
+                        } else if (error.message && error.message === "EmptyResponse") {
+                            res.status(404);
+                            res.send(error.message);
+                        } else {
+                            res.status(500);
+                            res.send(msg);
                         }
                     }
-                } catch (err) {
-                    if (err && err.message && err.message === "EmptyResponse") {
-                        res.status(404);
-                        res.send(err.message);
-                    } else {
-                        var msg = Logger.parseError(err);
-                        res.status(500);
-                        res.send(msg);
-                    }
                 }
+                if (!res.headersSent)
+                    next();
                 return Promise.resolve();
             }.bind(this));
         app.use('/api', apiRouter);
-
-        var changesRouter = express.Router();
-        changesRouter.get('/', function (req, res) {
-            try {
-                res.status(200);
-                res.send('TODO'); //TODO:
-            } catch (err) {
-                var msg = Logger.parseError(err);
-                res.status(500);
-                res.send(msg);
-            }
-            return Promise.resolve();
-        }.bind(this));
-        app.use('/changes', changesRouter);
 
         this._svr = app.listen(this._serverConfig.port, function () {
             Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
         }.bind(this));
 
         this._svr.setTimeout(600 * 1000);
-    }
-
-    async update(version, bForce) {
-        var response;
-        Logger.info("[App] Processing update request..");
-        if (this._vcs) {
-            var updateCmd;
-            if (this._vcs === VcsEnum.GIT) {
-                if (bForce)
-                    updateCmd = 'git reset --hard && '; //git clean -fxd
-                else
-                    updateCmd = "";
-                if (version) {
-                    if (version === 'latest')
-                        updateCmd += 'git pull origin main';
-                    else
-                        updateCmd += 'git switch --detach ' + version;
-                } else
-                    updateCmd += 'git pull';
-            } else if (this._vcs === VcsEnum.SVN)
-                updateCmd = 'svn update';
-
-            if (updateCmd)
-                response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
-        } else
-            throw new Error('No version control system detected');
-        return Promise.resolve(response);
-    }
-
-    teardown() {
-        this._svr.close();
-        this._knex.destroy();
-    }
-
-    restart() {
-        Logger.info("[App] Restarting..");
-        if (!this._serverConfig['processManager']) {
-            process.on("exit", function () {
-                require("child_process").spawn(process.argv.shift(), process.argv, {
-                    cwd: process.cwd(),
-                    detached: true,
-                    stdio: "inherit"
-                });
-            });
-        }
-        this.teardown();
-        process.exit();
     }
 
     /**
@@ -551,151 +459,208 @@ class Controller {
         var id;
         var rel;
 
-        var data;
+        var arr = req.params[0].split('/');
+        var str = arr.shift();
+        if (str === '') {
+            name = arr.shift();
+            if (name) {
+                if (name.startsWith('_') && req.method !== "GET" && name !== '_registry') {
+                    if (name === '_model') {
+                        if (req.method === "PUT") {
+                            id = await this.putModel(req, res);
+                            res.json(id);
 
-        var parts;
-        var index = req.url.indexOf('?');
-        if (index == -1)
-            parts = req.url.substring(1);
-        else
-            parts = req.url.substring(1, index);
+                            if (this._info['state'] === 'openRestartRequest')
+                                this.restart();
+                            return Promise.resolve();
+                        } else if (req.method === "DELETE") {
+                            str = arr.shift();
+                            try {
+                                id = parseInt(str);
+                            } catch (error) {
+                                Logger.parseError(error);
+                            }
+                            if (id) {
+                                try {
+                                    var foo = await this._shelf.deleteModel(id);
+                                    var change = {
+                                        'method': req.method,
+                                        'model': '_models',
+                                        'record_id': id,
+                                        'data': JSON.stringify(req.body)
+                                    };
+                                    await this._shelf.getModel('_change').create(change);
+                                    Logger.info("[App] ✔ Deleted model '" + foo + "'");
+                                    res.send("OK");
+                                    return Promise.resolve();
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                    throw new ValidationError("Deletion of model failed");
+                                }
+                            } else
+                                throw new ValidationError("Invalid model ID");
+                        }
+                    } else
+                        throw new ValidationError("Modification of system models prohibited!");
+                } else {
+                    var model = this._shelf.getModel(name);
+                    if (model) {
+                        var data;
+                        var timestamp;
+                        switch (req.method) {
+                            case "POST":
+                                data = await model.create(req.body);
+                                id = data['id'];
+                                timestamp = data['created_at'];
+                                break;
+                            case "GET":
+                                if (rel)
+                                    data = await model.readRel({ 'id': id }, rel);
+                                else if (id)
+                                    data = await model.read(id);
+                                else
+                                    data = await model.readAll(req.query);
+                                break;
+                            case "PUT":
+                                data = await model.update(id, req.body);
+                                timestamp = data['updated_at'];
+                                break;
+                            case "DELETE":
+                                data = await model.delete(id);
+                                timestamp = this._knex.fn.now();
+                                break;
+                            default:
+                                throw new ValidationError("Unsuppourted method");
+                        }
 
-        parts = parts.split('/');
-        if (parts.length == 1) {
-            name = parts[0];
-        } else if (parts.length == 2) {
-            name = parts[0];
-            id = parts[1];
-        } else if (parts.length == 3) {
-            name = parts[0];
-            id = parts[1];
-            rel = parts[2];
-        }
+                        if (timestamp) { //req.method !== "GET"
+                            var change = {
+                                'timestamp': timestamp,
+                                'method': req.method,
+                                'model': name,
+                                'record_id': id,
+                                'data': JSON.stringify(req.body)
+                            };
+                            await this._shelf.getModel('_change').create(change);
+                        }
 
-        if (name) {
-            var model = this._shelf.getModel(name);
-            if (model) {
-                var timestamp;
-                switch (req.method) {
-                    case "POST":
-                        data = await model.create(req.body);
-                        id = data['id'];
-                        timestamp = data['created_at'];
-                        break;
-                    case "GET":
-                        if (rel)
-                            data = await model.readRel({ 'id': id }, rel);
-                        else if (id)
-                            data = await model.read(id);
+                        if (req.method === "DELETE")
+                            res.send("OK");
+                        else if (data)
+                            res.json(data);
                         else
-                            data = await model.readAll(req.query);
-                        break;
-                    case "PUT":
-                        data = await model.update(id, req.body);
-                        timestamp = data['updated_at'];
-                        break;
-                    case "DELETE":
-                        data = await model.delete(id);
-                        timestamp = this._knex.fn.now();
-                        break;
-                    default:
-                        throw new Error("Unsuppourted method")
+                            res.json([]);
+                        return Promise.resolve();
+                    } else
+                        throw new ValidationError("Model '" + name + "' not defined");
                 }
+            }
+        }
+        throw new ValidationError("Invalid path");
+    }
 
-                if (timestamp) { //req.method !== "GET"
-                    try {
-                        await this._logger.logChange(timestamp, req.method, name, id, req.body);
-                    } catch (error) {
-                        Logger.parseError(error);
-                    }
+    async putModel(req) {
+        if (req.params[0] === '/_model') {
+            var version = req.query['v'];
+            var bForce = (req.query['force'] === 'true');
+            if (version) {
+                var definition = req.body;
+                var name = definition['name'];
+                var appVersion = this._versionController.getVersion();
+                var sAppVersion = appVersion.toString();
+                if (version !== sAppVersion) {
+                    var modelVersion = new AppVersion(version);
+                    if (MigrationController.compatible(modelVersion, appVersion) || bForce) {
+                        definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
+                        Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
+                    } else
+                        throw new ValidationError("An update of the minor release version may result in faulty models! Force only after studying changelog!");
                 }
+                var model = await this._shelf.upsertModel(undefined, definition);
+                var id = model.getId();
+                var change = {
+                    'method': req.method,
+                    'model': '_models',
+                    'record_id': id,
+                    'data': JSON.stringify(req.body)
+                };
+                await this._shelf.getModel('_change').create(change);
+                Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
+                return Promise.resolve(id);
             } else
-                throw new Error("Model '" + name + "' not defined");
-        } else
-            throw new Error("Invalid path");
-        return Promise.resolve(data);
-    }
-
-    getServerConfig() {
-        return this._serverConfig;
-    }
-
-    getDatabaseConfig() {
-        return this._databaseConfig;
-    }
-
-    getKnex() {
-        return this._knex;
-    }
-
-    getRegistry() {
-        return this._registry;
-    }
-
-    getMigrationsController() {
-        return this._migrationsController;
-    }
-
-    getVersionController() {
-        return this._versionController;
-    }
-
-    getShelf() {
-        return this._shelf;
-    }
-
-    addRoute(route) {
-        if (route['regex'] && route['fn']) {
-            this.deleteRoute(route);
-            this._routes.push(route);
+                throw new ValidationError("Please specify model version");
+        } else {
+            if (req.params[0].startsWith('/_model/')) {
+                var arr = req.params[0].substring('/_model/'.length).split('/');
+                var id;
+                var str = arr.shift();
+                try {
+                    id = parseInt(str);
+                } catch (error) {
+                    Logger.parseError(error);
+                }
+                if (id) {
+                    var models = this._shelf.getModels();
+                    var model;
+                    for (var m of models) {
+                        if (m.getId() == id) {
+                            model = m;
+                            break;
+                        }
+                    }
+                    if (model) {
+                        str = arr.shift();
+                        if (str) {
+                            var definition;
+                            if (str === 'states') {
+                                definition = model.getDefinition();
+                                definition['states'] = req.body;
+                            } else if (str === 'filters') {
+                                definition = model.getDefinition();
+                                definition['filters'] = req.body;
+                            } else if (str === 'defaults') {
+                                str = arr.shift();
+                                if (str === "view") {
+                                    definition = model.getDefinition();
+                                    var defaults = definition['defaults'];
+                                    if (!defaults) {
+                                        defaults = {};
+                                        definition['defaults'] = defaults;
+                                    }
+                                    defaults['view'] = req.body;
+                                }
+                            }
+                            if (definition) {
+                                try {
+                                    await this._shelf.upsertModel(id, definition, false);
+                                    var change = {
+                                        'method': req.method,
+                                        'model': '_models',
+                                        'record_id': id,
+                                        'data': JSON.stringify(req.body)
+                                    };
+                                    await this._shelf.getModel('_change').create(change);
+                                    Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
+                                    return Promise.resolve(id);
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                    var msg = "Creation or replacement of model";
+                                    if (name)
+                                        msg += " '" + name + "'";
+                                    else if (id)
+                                        msg += " [id:" + id + "]";
+                                    msg += " failed";
+                                    throw new ValidationError(msg);
+                                }
+                            }
+                        }
+                    } else
+                        throw new ValidationError("Invalid model ID");
+                } else
+                    throw new ValidationError("Invalid model ID");
+            }
         }
-    }
-
-    deleteRoute(route) {
-        if (route['regex']) {
-            this._routes = this._routes.filter(function (x) {
-                x['regex'] !== route['regex'];
-            });
-        }
-    }
-
-    async installDependencies(arr) {
-        var file = path.join(this._appRoot, 'package.json');
-
-        var before = fs.readFileSync(file, 'utf8');
-        //var pkg = JSON.parse(str);
-        //console.log(pkg['dependencies']);
-
-        var bInstall = true;
-        //var res = await exec('npm list --location=global add-dependencies');
-        var json = await common.exec('npm list --location=global -json'); // --silent --legacy-peer-deps
-        var obj = JSON.parse(json);
-        if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
-            bInstall = false;
-        if (bInstall) {
-            Logger.info('Installing \'add-dependencies\' ...');
-            await common.exec('npm install add-dependencies --location=global');
-        } else
-            Logger.info('\'add-dependencies\' already installed');
-
-        await common.exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
-
-        var after = fs.readFileSync(file, 'utf8');
-
-        if (before !== after) {
-            Logger.info('Dependencies changed - installing new software');
-            await common.exec('cd ' + this._appRoot + ' && npm install --legacy-peer-deps');
-            this.setRestartRequest();
-        }
-        return Promise.resolve();
-    }
-
-    /**
-     * flag to process multiple request at once
-     */
-    setRestartRequest() {
-        this._info['state'] = 'openRestartRequest';
-        //await controller.restart();
+        throw new ValidationError("Invalid path");
     }
 }
 

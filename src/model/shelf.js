@@ -1,4 +1,5 @@
 const Logger = require('../common/logger/logger');
+const controller = require('../controller/controller');
 const Model = require('./model');
 
 class Shelf {
@@ -6,6 +7,7 @@ class Shelf {
     _knex;
     _bookshelf;
 
+    _mModel;
     _models;
 
     constructor(knex) {
@@ -13,15 +15,61 @@ class Shelf {
         this._bookshelf = require('bookshelf')(this._knex);
     }
 
-    async init() {
-        var exist = await this._knex.schema.hasTable('_model');
-        if (!exist) {
-            await this._knex.schema.createTable('_model', function (table) {
-                table.increments('id').primary();
-                table.string('name', 63).unique().notNullable();
-                table.json('definition');
-            });
-            Logger.info("Created '_model' table");
+    async initShelf() {
+        var definition = {
+            "name": "_model",
+            "options": {
+                "increments": true,
+                "timestamps": false
+            },
+            "attributes": [
+                {
+                    "name": "definition",
+                    "dataType": "json"
+                }
+            ]
+        }
+        this._mModel = new Model(this, null, definition);
+        await this._mModel.initModel(); // creates model database if not exists
+        await this.loadAllModels();
+        if (!this.getModel('_model')) {
+            this._models.push(this._mModel);
+            await this.upsertModel(null, definition, false);
+        }
+
+        if (!this.getModel('_change')) {
+            definition = {
+                "name": "_change",
+                "options": {
+                    "increments": true,
+                    "timestamps": false
+                },
+                "attributes": [
+                    {
+                        "name": "timestamp",
+                        "dataType": "timestamp",
+                        "required": true,
+                        "defaultValue": "CURRENT_TIMESTAMP"
+                    },
+                    {
+                        "name": "method",
+                        "dataType": "string"
+                    },
+                    {
+                        "name": "model",
+                        "dataType": "string"
+                    },
+                    {
+                        "name": "record_id",
+                        "dataType": "integer"
+                    },
+                    {
+                        "name": "data",
+                        "dataType": "json"
+                    }
+                ]
+            }
+            await this.upsertModel(null, definition);
         }
         return Promise.resolve();
     }
@@ -47,19 +95,26 @@ class Shelf {
                 definition = def;
             else if (typeof def === 'string' || def instanceof String) //mysql
                 definition = JSON.parse(def);
-            model = new Model(this, row['id'], definition);
-            this._models.push(model);
-        };
+            if (definition['name'] === '_model') {
+                this._mModel.setId(row['id']);
+                this._models.push(this._mModel);
+            } else {
+                model = new Model(this, row['id'], definition);
+                this._models.push(model);
+            }
+        }
         return Promise.resolve();
     }
 
     async initAllModels() {
         if (this._models) {
             for (var m of this._models) {
-                try {
-                    await m.initModel();
-                } catch (error) {
-                    Logger.parseError(error);
+                if (m.getName() !== '_model' && m.getName() !== '_registy') {
+                    try {
+                        await m.initModel();
+                    } catch (error) {
+                        Logger.parseError(error);
+                    }
                 }
             }
         }
@@ -70,58 +125,46 @@ class Shelf {
         var name = definition['name'];
         Logger.info('[App] Creating or updating model \'' + name + '\'');
 
-        var res;
-        if (id) {
-            var data;
-            var bCheckName = false;
-            res = await this._knex('_model').where('id', id);
-            if (res.length == 1) {
-                if (res[0]['name'] === name)
-                    data = await this._knex('_model').where('id', id).update({ 'definition': JSON.stringify(definition) });
-                else {
-                    var res = await this._knex('_model').where('name', name).count('*');
-                    var count = res[0]['count(*)'];
-                    if (count == 0)
-                        data = await this._knex('_model').where('id', id).update({ 'name': name, 'definition': JSON.stringify(definition) });
-                    else
-                        throw new Error("Cannot update model name to '" + name + "' because it already exists an model with that name");
-                }
-                bCheckName = true;
-            } else {
-                var res = await this._knex('_model').where('name', name).count('*');
-                var count = res[0]['count(*)'];
-                if (count == 0)
-                    data = await this._knex('_model').insert({ 'id': id, 'name': name, 'definition': JSON.stringify(definition) });
-                else
-                    throw new Error("An model with name '" + name + "' already exists with an different ID");
-            }
-        } else if (name) {
-            var res = await this._knex('_model').where('name', name).count('*');
-            var count = res[0]['count(*)'];
-            if (count == 0)
-                data = await this._knex('_model').insert({ 'name': name, 'definition': JSON.stringify(definition) });
-            else
-                data = await this._knex('_model').where('name', name).update({ 'definition': JSON.stringify(definition) });
-
-            res = await this._knex('_model').select('id').where('name', name);
-            id = res[0]['id'];
-        }
-
         var model;
         if (this._models) {
-            for (var m of this._models) {
-                if (m.getName() === name) {
-                    model = m;
-                    break;
+            if (id) {
+                for (var m of this._models) {
+                    if (m.getId() == id) {
+                        if (m.getName() !== definition['name'])
+                            throw new Error('Renaming models not supported');
+                        model = m;
+                        break;
+                    }
+                }
+            } else {
+                for (var m of this._models) {
+                    if (m.getName() === name) {
+                        model = m;
+                        id = model.getId();
+                        break;
+                    }
                 }
             }
         }
-        if (model) {
-            if (model.getId() === id)
-                model.setDefinition(definition);
+
+        var res;
+        if (id) {
+            res = await this._knex('_model').where('id', id); //.count('*');
+            if (res.length == 1)  //var count = res[0]['count(*)'];
+                res = await this._knex('_model').where('id', id).update({ 'definition': JSON.stringify(definition) });
             else
-                throw new Error("An model with name '" + name + "' already exists with an different ID");
+                throw new Error();
         } else {
+            res = await this._knex('_model').insert({ 'definition': JSON.stringify(definition) });
+            id = res[0];
+
+            //res = await this._knex('_model').select('id').where('name', name);
+            //id = res[0]['id'];
+        }
+
+        if (model)
+            model.setDefinition(definition);
+        else {
             model = new Model(this, id, definition);
             if (this._models)
                 this._models.push(model);
@@ -131,7 +174,7 @@ class Shelf {
         if (bInit)
             await model.initModel();
 
-        return Promise.resolve(id);
+        return Promise.resolve(model);
     }
 
     async deleteModel(id) {
@@ -150,9 +193,11 @@ class Shelf {
 
     getModel(name) {
         var model;
-        var arr = this._models.filter(function (x) { return x.getName() === name });
-        if (arr && arr.length == 1)
-            model = arr[0];
+        if (this._models) {
+            var arr = this._models.filter(function (x) { return x.getName() === name });
+            if (arr && arr.length == 1)
+                model = arr[0];
+        }
         return model;
     }
 

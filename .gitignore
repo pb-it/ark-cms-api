@@ -2,13 +2,11 @@
 node_modules
 package-lock.json
 
-*.log
-log.*
 
-_*
-
-api/extensions/*
 config/server-config.js
 config/database-config.js
 tests/config/server-config.js
 tests/config/database-config.js
+
+
+_*

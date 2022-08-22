@@ -50,7 +50,7 @@ class Model {
         var knex = this._shelf.getKnex();
         var exist = await knex.schema.hasTable(this._tableName);
         if (!exist) {
-            await knex.schema.createTable(this._tableName, function (table) {
+            await knex.schema.createTable(this._tableName, async function (table) {
                 //table.engine('innodb');
                 if (this._definition.options) {
                     if (this._definition.options.increments)
@@ -61,52 +61,17 @@ class Model {
                         //table.dateTime('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'));
                     }
                 }
+
+                if (this._definition.attributes)
+                    await this._addColumns(table, null, this._definition.attributes);
             }.bind(this));
             Logger.info("Added table '" + this._tableName + "'");
-        }
-
-        if (this._definition.attributes) {
-            var tableInfo = await knex.table(this._tableName).columnInfo();
-            for (let attribute of this._definition.attributes) {
-                try {
-                    if (attribute['dataType'] === "relation") {
-                        this._relations.push(attribute['name']);
-                        if (!attribute.via) {
-                            if (attribute.multiple) {
-                                var model = this._shelf.getModel(attribute['model']);
-                                if (model) {
-                                    var modelTable = model.getTableName();
-                                    var relTable;
-                                    if (this._tableName.localeCompare(modelTable) == -1)
-                                        relTable = this._tableName + "_" + modelTable;
-                                    else
-                                        relTable = modelTable + "_" + this._tableName;
-                                    exist = await knex.schema.hasTable(relTable);
-                                    if (!exist) {
-                                        await knex.schema.createTable(relTable, function (table) {
-                                            table.increments('id').primary();
-
-                                            table.integer(inflection.singularize(this._tableName) + "_id").unsigned().notNullable().references('id').inTable(this._tableName);
-                                            table.integer(inflection.singularize(modelTable) + "_id").unsigned().notNullable().references('id').inTable(modelTable);
-                                        }.bind(this));
-                                        Logger.info("Added table '" + relTable + "'");
-                                    }
-                                } else {
-                                    throw new Error("Model '" + attribute['model'] + "' is not defined");
-                                }
-                            } else {
-                                if (tableInfo && !tableInfo.hasOwnProperty(attribute['name']))
-                                    await this._addColumn(attribute);
-                            }
-                        }
-                    } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && tableInfo && !tableInfo.hasOwnProperty(attribute['name']))
-                        await this._addColumn(attribute);
-                } catch (error) {
-                    if (error['message'])
-                        Logger.warning("[model: '" + this._name + "', attribute: '" + attribute['name'] + "'] " + error['message']);
-                    else
-                        Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + attribute['name'] + "']");
-                }
+        } else {
+            if (this._definition.attributes) {
+                var tableInfo = await knex.table(this._tableName).columnInfo();
+                await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
+                    await this._addColumns(table, tableInfo, this._definition.attributes);
+                }.bind(this));
             }
         }
 
@@ -115,205 +80,220 @@ class Model {
         return Promise.resolve();
     }
 
-    async _addColumn(attribute) {
+    async _addColumns(table, tableInfo, attributes) {
+        var knex = this._shelf.getKnex();
+        for (let attribute of attributes) {
+            try {
+                if (attribute['dataType'] === "relation") {
+                    this._relations.push(attribute['name']);
+                    if (!attribute.via) {
+                        if (attribute.multiple) {
+                            var model = this._shelf.getModel(attribute['model']);
+                            if (model) {
+                                var modelTable = model.getTableName();
+                                var relTable;
+                                if (this._tableName.localeCompare(modelTable) == -1)
+                                    relTable = this._tableName + "_" + modelTable;
+                                else
+                                    relTable = modelTable + "_" + this._tableName;
+                                if (!await knex.schema.hasTable(relTable)) {
+                                    await knex.schema.createTable(relTable, function (table) {
+                                        table.increments('id').primary();
+
+                                        table.integer(inflection.singularize(this._tableName) + "_id").unsigned().notNullable().references('id').inTable(this._tableName);
+                                        table.integer(inflection.singularize(modelTable) + "_id").unsigned().notNullable().references('id').inTable(modelTable);
+                                    }.bind(this));
+                                    Logger.info("Added table '" + relTable + "'");
+                                }
+                            } else {
+                                throw new Error("Model '" + attribute['model'] + "' is not defined");
+                            }
+                        } else {
+                            if (!tableInfo || !tableInfo.hasOwnProperty(attribute['name']))
+                                this._addColumn(table, attribute);
+                        }
+                    }
+                } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && (!tableInfo || !tableInfo.hasOwnProperty(attribute['name'])))
+                    this._addColumn(table, attribute);
+            } catch (error) {
+                if (error['message'])
+                    Logger.warning("[model: '" + this._name + "', attribute: '" + attribute['name'] + "'] " + error['message']);
+                else
+                    Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + attribute['name'] + "']");
+            }
+        }
+        return Promise.resolve();
+    }
+
+    async _addColumn(table, attribute) {
         switch (attribute['dataType']) {
             case "boolean":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.boolean(attribute.name);
-                    if (attribute.defaultValue != null && attribute.defaultValue != undefined) {
-                        if (attribute.defaultValue)
-                            column.defaultTo('1');
-                        else
-                            column.defaultTo('0');
-                    }
-                    column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.boolean(attribute.name);
+                if (attribute.defaultValue != null && attribute.defaultValue != undefined) {
+                    if (attribute.defaultValue)
+                        column.defaultTo('1');
+                    else
+                        column.defaultTo('0');
+                }
+                column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "integer":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column;
-                    if (attribute.length)
-                        column = table.integer(attribute.name, attribute.length);
-                    else
-                        column = table.integer(attribute.name);
-                    if (attribute.unsigned)
-                        column.unsigned();
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column;
+                if (attribute.length)
+                    column = table.integer(attribute.name, attribute.length);
+                else
+                    column = table.integer(attribute.name);
+                if (attribute.primary)
+                    column.primary();
+                if (attribute.unsigned)
+                    column.unsigned();
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "double":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.double(attribute.name);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.double(attribute.name);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "decimal":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.decimal(attribute.name);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.decimal(attribute.name);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "string":
-                await this._shelf.getKnex().transaction(function (trx) {
-                    return trx.schema.alterTable(this._tableName, function (table) {
-                        var column;
-                        if (attribute.length)
-                            column = table.string(attribute.name, attribute.length);
-                        else
-                            column = table.string(attribute.name);
-                        if (attribute.defaultValue)
-                            column.defaultTo(attribute.defaultValue);
-                        if (attribute.required)
-                            column.notNullable();
-                        if (attribute.unique)
-                            column.unique(); //could fail if there was no length specified
-                    });
-                }.bind(this));
+                var column;
+                if (attribute.length)
+                    column = table.string(attribute.name, attribute.length);
+                else
+                    column = table.string(attribute.name);
+                if (attribute.primary)
+                    column.primary();
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
+                if (attribute.unique)
+                    column.unique(); //could fail if there was no length specified
                 break;
             case "url":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column;
-                    if (attribute.length)
-                        column = table.string(attribute.name, attribute.length);
-                    else
-                        column = table.string(attribute.name);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column;
+                if (attribute.length)
+                    column = table.string(attribute.name, attribute.length);
+                else
+                    column = table.string(attribute.name);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "enumeration":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    if (attribute.bUseString) {
-                        var column = table.string(attribute.name);
-                        if (attribute.defaultValue)
-                            column.defaultTo(attribute.defaultValue);
-                        if (attribute.required)
-                            column.notNullable();
-                    } else {
-                        var column = table.enu(attribute.name, attribute.options.map(function (x) { return x['value'] }));
-                        if (attribute.defaultValue)
-                            column.defaultTo(attribute.defaultValue);
-                        if (attribute.required)
-                            column.notNullable();
-                    }
-                });
+                if (attribute.bUseString) {
+                    var column = table.string(attribute.name);
+                    if (attribute.defaultValue)
+                        column.defaultTo(attribute.defaultValue);
+                    if (attribute.required)
+                        column.notNullable();
+                } else {
+                    var column = table.enu(attribute.name, attribute.options.map(function (x) { return x['value'] }));
+                    if (attribute.defaultValue)
+                        column.defaultTo(attribute.defaultValue);
+                    if (attribute.required)
+                        column.notNullable();
+                }
                 break;
             case "text":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column;
-                    if (attribute.length) {
-                        if (attribute.length <= 65535)
-                            column = table.text(attribute.name);
-                        else if (attribute.length <= 16777215)
-                            column = table.text(attribute.name, 'mediumtext');
-                        else
-                            column = table.text(attribute.name, 'longtext');
-                    } else
+                var column;
+                if (attribute.length) {
+                    if (attribute.length <= 65535)
                         column = table.text(attribute.name);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                    else if (attribute.length <= 16777215)
+                        column = table.text(attribute.name, 'mediumtext');
+                    else
+                        column = table.text(attribute.name, 'longtext');
+                } else
+                    column = table.text(attribute.name);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "json":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.json(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.json(attribute.name, attribute.enum);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "time":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.time(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.time(attribute.name, attribute.enum);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "date":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.date(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.date(attribute.name, attribute.enum);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "datetime":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.datetime(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
-                        column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                var column = table.datetime(attribute.name, attribute.enum);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "timestamp":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    var column = table.timestamp(attribute.name, attribute.enum);
-                    if (attribute.defaultValue)
+                var column = table.timestamp(attribute.name, attribute.enum);
+                if (attribute.defaultValue) {
+                    if (attribute.defaultValue === 'CURRENT_TIMESTAMP')
+                        column.defaultTo(this._shelf.getKnex().raw('CURRENT_TIMESTAMP')); //table.timestamps(true, false);
+                    else
                         column.defaultTo(attribute.defaultValue);
-                    if (attribute.required)
-                        column.notNullable();
-                });
+                }
+                if (attribute.required)
+                    column.notNullable();
                 break;
             case "relation":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    table.integer(attribute.name);
-                });
+                table.integer(attribute.name);
                 break;
             case "blob":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    if (attribute.length) {
-                        if (attribute.length <= 65535)
-                            table.binary(attribute.name, attribute.length);
-                        else if (attribute.length <= 16777215)
-                            table.specificType(attribute.name, "MEDIUMBLOB");
-                        else
-                            table.specificType(attribute.name, "LONGBLOB");
-                    } else {
-                        table.binary(attribute.name);
-                    }
-                });
+                if (attribute.length) {
+                    if (attribute.length <= 65535)
+                        table.binary(attribute.name, attribute.length);
+                    else if (attribute.length <= 16777215)
+                        table.specificType(attribute.name, "MEDIUMBLOB");
+                    else
+                        table.specificType(attribute.name, "LONGBLOB");
+                } else {
+                    table.binary(attribute.name);
+                }
                 break;
             case "base64":
-                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
-                    table.text(attribute.name, 'longtext');
-                });
+                table.text(attribute.name, 'longtext');
                 break;
             case "file":
-                await this._shelf.getKnex().transaction(function (trx) {
-                    return trx.schema.alterTable(this._tableName, function (table) {
-                        var column;
-                        if (attribute.length)
-                            column = table.string(attribute.name, attribute.length);
-                        else
-                            column = table.string(attribute.name);
-                        if (attribute.defaultValue)
-                            column.defaultTo(attribute.defaultValue);
-                        if (attribute.required)
-                            column.notNullable();
-                        if (attribute.unique)
-                            column.unique();
-                    });
-                }.bind(this));
+                var column;
+                if (attribute.length)
+                    column = table.string(attribute.name, attribute.length);
+                else
+                    column = table.string(attribute.name);
+                if (attribute.defaultValue)
+                    column.defaultTo(attribute.defaultValue);
+                if (attribute.required)
+                    column.notNullable();
+                if (attribute.unique)
+                    column.unique();
                 break;
             default:
                 throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
@@ -385,6 +365,10 @@ class Model {
 
     getId() {
         return this._id;
+    }
+
+    setId(id) {
+        this._id = id;
     }
 
     getDefinition() {
@@ -471,7 +455,7 @@ class Model {
         var res;
         var book = this._book;
         if (this._bInitDone && book) {
-            if (query) {
+            if (query && Object.keys(query).length > 0) {
                 var index;
                 for (let prop in query) {
                     if (prop === "_sort") {
@@ -614,13 +598,18 @@ class Model {
         return Promise.resolve(res.toJSON());
     }
 
+    /**
+     * 
+     * @param {*} data 
+     * @returns object
+     */
     async create(data) {
-        var json;
+        var res;
 
         if (this._extension && this._extension.preCreateHook)
             data = await this._extension.preCreateHook(data);
 
-        if (true) { //TODO: temporary disable creation of db-entry
+        if (this._definition.options.increments) {
             var forge = this._createForge(data);
 
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
@@ -639,14 +628,15 @@ class Model {
                 }
             }
             obj = await obj.load(this._relations);
-            json = obj.toJSON();
+            res = obj.toJSON();
         } else
-            json = JSON.stringify({});
-
-        return Promise.resolve(json);
+            res = await this.upsert(data);
+        return Promise.resolve(res);
     }
 
     async update(id, data) {
+        var res;
+
         if (this._extension && this._extension.preUpdateHook) {
             var obj = await await this._book.where({ 'id': id }).fetch({
                 'require': true
@@ -655,35 +645,50 @@ class Model {
             data = await this._extension.preUpdateHook(current, data);
         }
 
-        var forge = this._createForge(data);
+        if (this._definition.options.increments) {
+            var forge = this._createForge(data);
 
-        if (id) {
-            if (!forge['id'])
-                forge['id'] = id;
-            else if (forge['id'] !== id)
-                throw new Error("Conflict in received IDs");
-        } else
-            id = forge['id'];
+            if (id) {
+                if (!forge['id'])
+                    forge['id'] = id;
+                else if (forge['id'] !== id)
+                    throw new Error("Conflict in received IDs");
+            } else
+                id = forge['id'];
 
-        if (!id)
-            throw new Error("ID missing");
+            if (!id)
+                throw new Error("ID missing");
 
-        var obj = await this._book.forge(forge).save();
-        for (var str of this._relations) {
-            if (data[str] && Array.isArray(data[str])) {
-                var coll = obj[str]();
-                if (coll.relatedData.type === 'hasMany') { //relation via
-                    var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
-                    if (attr)
-                        this._updateHasManyRelation(attr, data[str], id);
-                } else {
-                    await coll.detach();
-                    await coll.attach(data[str]);
+            var obj = await this._book.forge(forge).save();
+            for (var str of this._relations) {
+                if (data[str] && Array.isArray(data[str])) {
+                    var coll = obj[str]();
+                    if (coll.relatedData.type === 'hasMany') { //relation via
+                        var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                        if (attr)
+                            this._updateHasManyRelation(attr, data[str], id);
+                    } else {
+                        await coll.detach();
+                        await coll.attach(data[str]);
+                    }
                 }
             }
-        }
-        obj = await obj.load(this._relations);
-        return Promise.resolve(obj.toJSON());
+            obj = await obj.load(this._relations);
+            res = obj.toJSON()
+        } else
+            res = await this.upsert(data);
+        return Promise.resolve(res);
+    }
+
+    async upsert(data) {
+        var res;
+        await this._shelf.getKnex()(this._tableName).insert(data).onConflict().merge();
+        var obj = await this._book.where(data).fetch({
+            'withRelated': this._relations,
+            'require': true
+        });
+        res = obj.toJSON();
+        return Promise.resolve(res);
     }
 
     _createForge(data) {
