@@ -396,6 +396,9 @@ class Controller {
             }
             return Promise.resolve();
         }.bind(this));
+        systemRouter.post('/shutdown', async () => {
+            process.exit();
+        });
         app.use('/system', systemRouter);
 
         var apiRouter = express.Router();
@@ -470,8 +473,8 @@ class Controller {
                             id = await this.putModel(req, res);
                             res.json(id);
 
-                            if (this._info['state'] === 'openRestartRequest')
-                                this.restart();
+                            /*if (this._info['state'] === 'openRestartRequest')
+                                this.restart(); */ // dont restart in case of importing multiple models at once 
                             return Promise.resolve();
                         } else if (req.method === "DELETE") {
                             str = arr.shift();
@@ -538,8 +541,12 @@ class Controller {
                             case "DELETE":
                                 if (model.getDefinition().options.increments)
                                     data = await model.delete(id);
-                                else
-                                    data = await model.delete(req.body);
+                                else {
+                                    if (Object.keys(req.query).length > 0)
+                                        data = await model.delete(req.query);
+                                    else
+                                        data = await model.delete(req.body);
+                                }
                                 timestamp = this._knex.fn.now();
                                 break;
                             default:
