@@ -9,7 +9,7 @@ var database = {
                     host: 'host.docker.internal',
                     user: 'root',
                     password: '',
-                    database: 'xcms',
+                    database: 'cms',
                     charset: 'utf8mb4',
                     connectTimeout: 60000
                 },

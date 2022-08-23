@@ -1,8 +1,9 @@
-const controller = require('../src/controller/controller');
+global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
-const modelsUrl = "http://localhost:3002/models?v=0.1.1-beta";
+const modelsUrl = "http://localhost:3002/api/_model";
+const modelsUrlPut = modelsUrl + "?v=0.3.0-beta";
 const apiUrl = "http://localhost:3002/api";
 var knex;
 var shelf;
@@ -10,8 +11,8 @@ const bCleanupBeforeTests = false;
 const bCleanupAfterTest = false;
 
 beforeAll(async () => {
-    const server = require('./config/server');
-    const database = require('./config/database');
+    const server = require('./config/server-config');
+    const database = require('./config/database-config');
     await controller.setup(server, database);
     knex = controller.getKnex();
     shelf = controller.getShelf();
@@ -42,25 +43,22 @@ test('movie_db', async function () {
     var data = await webclient.curl(modelsUrl);
 
     var res = data.filter(function (x) {
-        return x['name'] === "movies";
+        return x['definition']['name'] === "movies";
     })[0];
     var modelMoviesId = res['id'];
-    delete res['id'];
-    expect(res).toEqual(modelMovies);
+    expect(res['definition']).toEqual(modelMovies);
 
     res = data.filter(function (x) {
-        return x['name'] === "studios";
+        return x['definition']['name'] === "studios";
     })[0];
     var modelStudiosId = res['id'];
-    delete res['id'];
-    expect(res).toEqual(modelStudios);
+    expect(res['definition']).toEqual(modelStudios);
 
     res = data.filter(function (x) {
-        return x['name'] === "stars";
+        return x['definition']['name'] === "stars";
     })[0];
     var modelStarsId = res['id'];
-    delete res['id'];
-    expect(res).toEqual(modelStars);
+    expect(res['definition']).toEqual(modelStars);
 
     //insert testdata
     var movie = JSON.parse(fs.readFileSync('./tests/data/crud/movies_1.json', 'utf8'));
@@ -154,7 +152,7 @@ test('movie_db', async function () {
 
 async function uploadModel(model) {
     try {
-        await webclient.put(modelsUrl, model);
+        await webclient.put(modelsUrlPut, model);
     } catch (error) {
         console.log(error);
         var msg;

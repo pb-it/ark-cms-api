@@ -10,6 +10,13 @@ const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
 const webclient = require(path.join(__dirname, '../common/webclient'));
 
+class UnknownModelError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "UnknownModelError";
+    }
+}
+
 class Model {
 
     _shelf;
@@ -18,7 +25,7 @@ class Model {
 
     _name;
     _tableName;
-    _relations;
+    _relationNames;
     _book;
 
     _extension;
@@ -35,16 +42,19 @@ class Model {
             this._tableName = this._definition.tableName;
         else
             this._tableName = this._definition.name;
-        this._relations = [];
+        this._relationNames = [];
     }
 
     async initModel() {
         Logger.info("Init model '" + this._name + "'");
 
-        if (this._definition.extensions) {
-            this._extension = _eval(this._definition.extensions, true);
-            if (this._extension.init)
-                await this._extension.init();
+        if (this._definition['extensions']) {
+            var extension = this._definition['extensions']['server'];
+            if (extension) {
+                this._extension = _eval(extension, true);
+                if (this._extension.init)
+                    await this._extension.init();
+            }
         }
 
         var knex = this._shelf.getKnex();
@@ -75,57 +85,44 @@ class Model {
             }
         }
 
+        if (this._definition.attributes) {
+            var junctions = this._definition.attributes.filter(function (attribute) {
+                return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+            });
+            for (var junction of junctions) {
+                try {
+                    await this._addJunctionTable(junction);
+                } catch (error) {
+                    if (error instanceof UnknownModelError)
+                        Logger.warning("[model: '" + this._name + "', attribute: '" + junction['name'] + "'] " + error['message']);
+                    else
+                        Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + junction['name'] + "']");
+                }
+            }
+        }
+
         this.createBook();
         this._bInitDone = true;
         return Promise.resolve();
     }
 
     async _addColumns(table, tableInfo, attributes) {
-        var knex = this._shelf.getKnex();
         for (let attribute of attributes) {
-            try {
-                if (attribute['dataType'] === "relation") {
-                    this._relations.push(attribute['name']);
-                    if (!attribute.via) {
-                        if (attribute.multiple) {
-                            var model = this._shelf.getModel(attribute['model']);
-                            if (model) {
-                                var modelTable = model.getTableName();
-                                var relTable;
-                                if (this._tableName.localeCompare(modelTable) == -1)
-                                    relTable = this._tableName + "_" + modelTable;
-                                else
-                                    relTable = modelTable + "_" + this._tableName;
-                                if (!await knex.schema.hasTable(relTable)) {
-                                    await knex.schema.createTable(relTable, function (table) {
-                                        table.increments('id').primary();
-
-                                        table.integer(inflection.singularize(this._tableName) + "_id").unsigned().notNullable().references('id').inTable(this._tableName);
-                                        table.integer(inflection.singularize(modelTable) + "_id").unsigned().notNullable().references('id').inTable(modelTable);
-                                    }.bind(this));
-                                    Logger.info("Added table '" + relTable + "'");
-                                }
-                            } else {
-                                throw new Error("Model '" + attribute['model'] + "' is not defined");
-                            }
-                        } else {
-                            if (!tableInfo || !tableInfo.hasOwnProperty(attribute['name']))
-                                this._addColumn(table, attribute);
-                        }
+            if (attribute['dataType'] === "relation") {
+                this._relationNames.push(attribute['name']);
+                if (!attribute.via) {
+                    if (!attribute.multiple) {
+                        if (!tableInfo || !tableInfo.hasOwnProperty(attribute['name']))
+                            this._addColumn(table, attribute);
                     }
-                } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && (!tableInfo || !tableInfo.hasOwnProperty(attribute['name'])))
-                    this._addColumn(table, attribute);
-            } catch (error) {
-                if (error['message'])
-                    Logger.warning("[model: '" + this._name + "', attribute: '" + attribute['name'] + "'] " + error['message']);
-                else
-                    Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + attribute['name'] + "']");
-            }
+                }
+            } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && (!tableInfo || !tableInfo.hasOwnProperty(attribute['name'])))
+                this._addColumn(table, attribute);
         }
         return Promise.resolve();
     }
 
-    async _addColumn(table, attribute) {
+    _addColumn(table, attribute) {
         switch (attribute['dataType']) {
             case "boolean":
                 var column = table.boolean(attribute.name);
@@ -299,7 +296,30 @@ class Model {
                 throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
         }
         Logger.info("Added column '" + attribute.name + "' to table '" + this._tableName + "'");
-        return Promise.resolve();
+    }
+
+    async _addJunctionTable(attribute) {
+        var knex = this._shelf.getKnex();
+        var model = this._shelf.getModel(attribute['model']);
+        if (model) {
+            var modelTable = model.getTableName();
+            var relTable;
+            if (this._tableName.localeCompare(modelTable) == -1)
+                relTable = this._tableName + "_" + modelTable;
+            else
+                relTable = modelTable + "_" + this._tableName;
+            if (!await knex.schema.hasTable(relTable)) {
+                await knex.schema.createTable(relTable, function (table) {
+                    table.increments('id').primary();
+
+                    table.integer(inflection.singularize(this._tableName) + "_id").unsigned().notNullable().references('id').inTable(this._tableName);
+                    table.integer(inflection.singularize(modelTable) + "_id").unsigned().notNullable().references('id').inTable(modelTable);
+                }.bind(this));
+                Logger.info("Added table '" + relTable + "'");
+            }
+        } else {
+            throw new UnknownModelError("Model '" + attribute['model'] + "' is not defined");
+        }
     }
 
     getAttribute(name) {
@@ -388,7 +408,7 @@ class Model {
     }
 
     getRelations() {
-        return this._relations;
+        return this._relationNames;
     }
 
     getBook() {
@@ -399,7 +419,7 @@ class Model {
         var res;
         if (this._bInitDone && this._book) {
             var obj = await this._book.where({ 'id': id }).fetch({
-                'withRelated': this._relations,
+                'withRelated': this._relationNames,
                 'require': true
             });
             res = obj.toJSON();
@@ -590,7 +610,7 @@ class Model {
             }
             if (!res) {
                 res = await book.fetchAll({
-                    'withRelated': this._relations
+                    'withRelated': this._relationNames
                 });
             }
         } else
@@ -615,7 +635,7 @@ class Model {
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
 
             var id = obj['id'];
-            for (var str of this._relations) {
+            for (var str of this._relationNames) {
                 if (data[str] && Array.isArray(data[str])) {
                     var coll = obj[str]();
                     if (coll.relatedData.type === 'hasMany') { //relation via
@@ -627,7 +647,7 @@ class Model {
                     }
                 }
             }
-            obj = await obj.load(this._relations);
+            obj = await obj.load(this._relationNames);
             res = obj.toJSON();
         } else
             res = await this.upsert(data);
@@ -660,7 +680,7 @@ class Model {
                 throw new Error("ID missing");
 
             var obj = await this._book.forge(forge).save();
-            for (var str of this._relations) {
+            for (var str of this._relationNames) {
                 if (data[str] && Array.isArray(data[str])) {
                     var coll = obj[str]();
                     if (coll.relatedData.type === 'hasMany') { //relation via
@@ -673,7 +693,7 @@ class Model {
                     }
                 }
             }
-            obj = await obj.load(this._relations);
+            obj = await obj.load(this._relationNames);
             res = obj.toJSON()
         } else
             res = await this.upsert(data);
@@ -684,7 +704,7 @@ class Model {
         var res;
         await this._shelf.getKnex()(this._tableName).insert(data).onConflict().merge();
         var obj = await this._book.where(data).fetch({
-            'withRelated': this._relations,
+            'withRelated': this._relationNames,
             'require': true
         });
         res = obj.toJSON();
@@ -695,7 +715,7 @@ class Model {
         var forge = {};
         var attr;
         for (var str in data) {
-            if (!this._relations.includes(str) || !Array.isArray(data[str])) {
+            if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
                 attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                 if (attr) {
                     if (attr['dataType'] === "blob") {
@@ -789,12 +809,23 @@ class Model {
     }
 
     async delete(id) {
-        var obj = await this._book.forge({ 'id': id }).fetch({
-            'withRelated': this._relations
-        });
+        var res;
+        var obj;
+        if (this._definition.options.increments) {
+            obj = await this._book.forge({ 'id': id }).fetch({
+                'withRelated': this._relationNames
+            });
+        } else {
+            obj = await this._book.where(id).fetch({
+                'withRelated': this._relationNames,
+                'require': true
+            });
+        }
+
+        res = obj.toJSON();
 
         if (this._extension && this._extension.preDeleteHook)
-            await this._extension.preDeleteHook(obj.toJSON());
+            await this._extension.preDeleteHook(res);
 
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {
@@ -805,12 +836,15 @@ class Model {
                 }
             }
         }
-        await obj.destroy();
+        if (this._definition.options.increments)
+            await obj.destroy();
+        else
+            await this._shelf.getKnex()(this._tableName).where(id).del();
 
         if (this._extension && this._extension.postDeleteHook)
-            await this._extension.postDeleteHook(obj.toJSON());
+            await this._extension.postDeleteHook(res);
 
-        return Promise.resolve(obj.toJSON());
+        return Promise.resolve(res);
     }
 }
 

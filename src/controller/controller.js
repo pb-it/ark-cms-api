@@ -377,11 +377,11 @@ class Controller {
             this.restart();
         }.bind(this));
         systemRouter.get('/reload', async function (req, res) {
-            var bForce = (req.query['force'] === 'true');
+            var bForceMigration = (req.query['forceMigration'] === 'true');
             try {
                 Logger.info("[App] Reloading models");
                 await this._shelf.loadAllModels();
-                if (await this._migrationsController.migrateDatabase(bForce)) {
+                if (await this._migrationsController.migrateDatabase(bForceMigration)) {
                     await this._shelf.initAllModels();
                     res.send("Reload done");
 
@@ -475,10 +475,12 @@ class Controller {
                             return Promise.resolve();
                         } else if (req.method === "DELETE") {
                             str = arr.shift();
-                            try {
-                                id = parseInt(str);
-                            } catch (error) {
-                                Logger.parseError(error);
+                            if (str) {
+                                try {
+                                    id = parseInt(str);
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                }
                             }
                             if (id) {
                                 try {
@@ -505,6 +507,14 @@ class Controller {
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model) {
+                        str = arr.shift();
+                        if (str) {
+                            try {
+                                id = parseInt(str);
+                            } catch (error) {
+                                Logger.parseError(error);
+                            }
+                        }
                         var data;
                         var timestamp;
                         switch (req.method) {
@@ -526,7 +536,10 @@ class Controller {
                                 timestamp = data['updated_at'];
                                 break;
                             case "DELETE":
-                                data = await model.delete(id);
+                                if (model.getDefinition().options.increments)
+                                    data = await model.delete(id);
+                                else
+                                    data = await model.delete(req.body);
                                 timestamp = this._knex.fn.now();
                                 break;
                             default:
@@ -562,7 +575,7 @@ class Controller {
     async putModel(req) {
         if (req.params[0] === '/_model') {
             var version = req.query['v'];
-            var bForce = (req.query['force'] === 'true');
+            var bForceMigration = (req.query['forceMigration'] === 'true');
             if (version) {
                 var definition = req.body;
                 var name = definition['name'];
@@ -570,7 +583,7 @@ class Controller {
                 var sAppVersion = appVersion.toString();
                 if (version !== sAppVersion) {
                     var modelVersion = new AppVersion(version);
-                    if (MigrationController.compatible(modelVersion, appVersion) || bForce) {
+                    if (MigrationController.compatible(modelVersion, appVersion) || bForceMigration) {
                         definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
                         Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
                     } else

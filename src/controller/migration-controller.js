@@ -1,26 +1,45 @@
 const Logger = require('../common/logger/logger');
 const AppVersion = require('../common/app-version');
 
+/**
+ * dbHelper.js
+ * @param {*} knex 
+ * @param {*} tableName 
+ * @param {*} columnName 
+ * @returns 
+ */
+const dropColumn = (knex, tableName, columnName) => {
+    return knex.schema.hasColumn(tableName, columnName).then((hasColumn) => {
+        if (hasColumn) {
+            return knex.schema.alterTable(tableName, table => {
+                table.dropColumn(columnName);
+            });
+        } else
+            return null;
+    });
+}
+
 class MigrationController {
 
     static updateModelDefinition(definition, currentVersion, newVersion) {
         var sCurrentVersion = currentVersion.toString();
-        var sNewVersion = newVersion.toString();
-        if (sCurrentVersion !== sNewVersion) {
+        var sNewVersion;
+        if (newVersion)
+            sNewVersion = newVersion.toString();
+        if (!sNewVersion || (sCurrentVersion !== sNewVersion)) {
             switch (sCurrentVersion) {
                 case '0.1.0-beta':
                     for (let attribute of definition['attributes']) {
                         if (attribute['dataType'] === "enumeration")
                             attribute['options'] = attribute['options'].map(function (x) { return { 'value': x } });
                     }
-                    if (newVersion && newVersion.isLower(new AppVersion('0.1.1-beta')))
+                    if (sNewVersion === '0.1.1-beta')
                         break;
                 case '0.1.1-beta':
                 case '0.1.2-beta':
-                case '0.2.0-beta':
-                    if (newVersion && newVersion.isLower(new AppVersion('0.2.1-beta')))
+                    if (sNewVersion === '0.2.0-beta')
                         break;
-                case '0.2.1-beta':
+                case '0.2.0-beta':
                     var defaults = definition['defaults'];
                     if (defaults) {
                         var panelType = defaults['paneltype'];
@@ -32,6 +51,22 @@ class MigrationController {
                             delete defaults['paneltype'];
                         }
                     }
+                    if (sNewVersion === '0.2.1-beta')
+                        break;
+                case '0.2.1-beta':
+                    var extensions = definition['extensions'];
+                    if (extensions)
+                        extensions = { 'server': extensions };
+                    var actions = definition['actions'];
+                    if (actions && actions['init']) {
+                        if (extensions)
+                            extensions['client'] = actions['init'];
+                        else
+                            extensions = { 'client': actions['init'] };
+                        delete definition['actions'];
+                    }
+                    if (extensions)
+                        definition['extensions'] = extensions;
                     break;
                 default:
             }
@@ -62,22 +97,32 @@ class MigrationController {
                 Logger.info("[MigrationController] ✔ Current application version '" + sAppVersion + "' equals registry entry of database");
             else {
                 Logger.info("[MigrationController] ✘ Current application version '" + sAppVersion + "' does not equal registry entry of database - starting migration");
-
+                var knex = this._controller.getKnex();
                 switch (sRegVersion) {
                     case '0.1.0-beta':
                     case '0.1.1-beta':
                     case '0.1.2-beta':
                     case '0.2.0-beta':
-                        var knex = this._controller.getKnex();
-                        await knex.schema.dropTable('_change'); // created while starting application
-                        await knex.schema.renameTable('_log', '_change');
+                        if (await knex.schema.hasTable('_log')) {
+                            await knex.schema.dropTable('_change'); // created while starting application
+                            await knex.schema.renameTable('_log', '_change');
+                        }
+                    case '0.2.1-beta':
+                        dropColumn(knex, '_model', 'name');
                         break;
                     default:
                 }
 
                 var regVersion = new AppVersion(sRegVersion);
                 if (MigrationController.compatible(regVersion, appVersion) || bForce) {
-                    await this._migrateAllModels(regVersion, appVersion);
+                    var definition;
+                    if (this._models) {
+                        for (var m of this._models) {
+                            definition = m.getDefinition();
+                            MigrationController.updateModelDefinition(definition, regVersion, appVersion);
+                            await this._shelf.upsertModel(undefined, definition, false);
+                        }
+                    }
                     Logger.info("[MigrationController] ✔ Updated all models in database to version '" + sAppVersion + "'");
                     await this._controller.getRegistry().upsert('version', sAppVersion);
                 } else {
@@ -90,18 +135,6 @@ class MigrationController {
             await this._controller.getRegistry().upsert('version', sAppVersion);
         }
         return Promise.resolve(true);
-    }
-
-    async _migrateAllModels(currentVersion, newVersion) {
-        var definition;
-        if (this._models) {
-            for (var m of this._models) {
-                definition = m.getDefinition();
-                MigrationController.updateModelDefinition(definition, currentVersion, newVersion);
-                await this._shelf.upsertModel(undefined, definition, false);
-            }
-        }
-        return Promise.resolve();
     }
 }
 

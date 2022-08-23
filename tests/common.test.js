@@ -1,8 +1,9 @@
-const controller = require('../src/controller/controller');
+global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
-const modelsUrl = "http://localhost:3002/models";
+const modelsUrl = "http://localhost:3002/api/_model";
+const modelsUrlPut = modelsUrl + "?v=0.3.0-beta";
 const apiUrl = "http://localhost:3002/api";
 var knex;
 var shelf;
@@ -29,15 +30,14 @@ afterAll(() => {
 test('media', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/media.json', 'utf8'));
 
-    await webclient.put(modelsUrl, model);
+    await webclient.put(modelsUrlPut, model);
 
     var data = await webclient.curl(modelsUrl);
     var res = data.filter(function (x) {
-        return x['name'] === "media";
+        return x['definition']['name'] === "media";
     })[0];
     var modelId = res['id'];
-    delete res['id'];
-    expect(res).toEqual(model);
+    expect(res['definition']).toEqual(model);
 
     var media = JSON.parse(fs.readFileSync('./tests/data/crud/media_1.json', 'utf8'));
 
@@ -59,7 +59,7 @@ test('media', async function () {
         await shelf.deleteModel(modelId);
         data = await webclient.curl(modelsUrl);
         res = data.filter(function (x) {
-            return x['name'] === "media";
+            return x['definition']['name'] === "media";
         });
         expect(res.length).toEqual(0);
 
@@ -75,15 +75,14 @@ test('media', async function () {
 test('snippets', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/snippets.json', 'utf8'));
 
-    await webclient.put(modelsUrl, model);
+    await webclient.put(modelsUrlPut, model);
 
     var data = await webclient.curl(modelsUrl);
     var res = data.filter(function (x) {
-        return x['name'] === "snippets";
+        return x['definition']['name'] === "snippets";
     })[0];
     var modelId = res['id'];
-    delete res['id'];
-    expect(res).toEqual(model);
+    expect(res['definition']).toEqual(model);
 
     var snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_1.json', 'utf8'));
 
@@ -107,7 +106,7 @@ test('snippets', async function () {
         await shelf.deleteModel(modelId);
         data = await webclient.curl(modelsUrl);
         res = data.filter(function (x) {
-            return x['name'] === "snippets";
+            return x['definition']['name'] === "snippets";
         });
         expect(res.length).toEqual(0);
 

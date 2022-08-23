@@ -1,7 +1,15 @@
 {
     "name": "wing-cms-api",
-    "version": "0.2.1-beta",
+    "version": "0.3.0-beta",
     "description": "Headless CMS",
+    "keywords": [
+        "CMS",
+        "headless",
+        "Jamstack",
+        "nodejs",
+        "express",
+        "javascript"
+    ],
     "author": "Patrick Bauer <patrick.bauer@pb-it.at>",
     "license": "MIT",
     "repository": {
@@ -29,7 +37,6 @@
         "cors": "^2.8.5",
         "eval": "^0.1.8",
         "express": "^4.17.1",
-        "jsdom": "^19.0.0",
         "knex": "^0.95.11",
         "mysql": "^2.18.1",
         "mysql2": "^2.3.3"

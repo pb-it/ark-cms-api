@@ -9,7 +9,7 @@ var database = {
                     host: 'localhost',
                     user: 'root',
                     password: '',
-                    database: 'xcms',
+                    database: 'cms',
                     charset: 'utf8mb4'
                 },
             },
