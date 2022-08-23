@@ -379,14 +379,22 @@ class Controller {
         systemRouter.get('/reload', async function (req, res) {
             var bForceMigration = (req.query['forceMigration'] === 'true');
             try {
+                if (this._info['state'] === 'openRestartRequest') {
+                    res.send("Restarting instead of reloading because of open request.");
+                    this.restart();
+                }
+
                 Logger.info("[App] Reloading models");
                 await this._shelf.loadAllModels();
                 if (await this._migrationsController.migrateDatabase(bForceMigration)) {
                     await this._shelf.initAllModels();
-                    res.send("Reload done");
+                    var msg = "Reload done.";
 
-                    if (this._info['state'] === 'openRestartRequest')
+                    if (this._info['state'] === 'openRestartRequest') {
+                        res.send(msg + " Restarting now.");
                         this.restart();
+                    } else
+                        res.send(msg);
                 } else
                     res.send("Reload aborted");
             } catch (error) {
@@ -396,7 +404,7 @@ class Controller {
             }
             return Promise.resolve();
         }.bind(this));
-        systemRouter.post('/shutdown', async () => {
+        systemRouter.get('/shutdown', async () => {
             process.exit();
         });
         app.use('/system', systemRouter);
