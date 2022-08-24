@@ -169,8 +169,11 @@ class Controller {
             } else if (this._vcs === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
-            if (updateCmd)
+            if (updateCmd) {
+                if (bForce)
+                    updateCmd += " rm -r node_modules";
                 response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
+            }
         } else
             throw new Error('No version control system detected');
         return Promise.resolve(response);
