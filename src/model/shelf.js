@@ -109,7 +109,7 @@ class Shelf {
     async initAllModels() {
         if (this._models) {
             for (var m of this._models) {
-                if (m.getName() !== '_model' && m.getName() !== '_registy') {
+                if (m.getName() !== '_model' && m.getName() !== '_registry') {
                     try {
                         await m.initModel();
                     } catch (error) {

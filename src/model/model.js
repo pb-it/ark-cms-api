@@ -630,7 +630,7 @@ class Model {
             data = await this._extension.preCreateHook(data);
 
         if (this._definition.options.increments) {
-            var forge = this._createForge(data);
+            var forge = await this._createForge(data);
 
             var obj = await this._book.forge(forge).save(null, { method: 'insert' });
 
@@ -666,7 +666,7 @@ class Model {
         }
 
         if (this._definition.options.increments) {
-            var forge = this._createForge(data);
+            var forge = await this._createForge(data);
 
             if (id) {
                 if (!forge['id'])
@@ -711,7 +711,7 @@ class Model {
         return Promise.resolve(res);
     }
 
-    _createForge(data) {
+    async _createForge(data) {
         var forge = {};
         var attr;
         for (var str in data) {
@@ -723,29 +723,40 @@ class Model {
                     } else if (attr['dataType'] === "base64") {
                         forge[str] = data[str]['base64'];
                     } else if (attr['dataType'] === "file") {
-                        if (attr['localPath']) {
-                            var localPath;
-                            if (attr['localPath'].startsWith('.'))
-                                localPath = path.join(__dirname, '../../', attr['localPath']);
-                            else {
-                                if (process.platform === 'linux') {
-                                    if (attr['localPath'].startsWith('/'))
-                                        localPath = attr['localPath'];
-                                    else
-                                        throw new Error("Invalid CDN path!");
-                                } else
-                                    localPath = attr['localPath'];
-                            }
-                            if (localPath) {
-                                var fileName = data[str]['filename'];
-                                if (!fileName)
-                                    fileName = this._createRandomFilename(localPath, data[str]);
+                        if (attr['cdn']) {
+                            var cdnConfig = controller.getCdnConfig();
+                            if (cdnConfig) {
+                                var localPath;
+                                var p;
+                                for (var c of cdnConfig) {
+                                    if (c['url'] === attr['cdn']) {
+                                        p = c['path'];
+                                        break;
+                                    }
+                                }
+                                if (p) {
+                                    if (p.startsWith('.'))
+                                        localPath = path.join(controller.getAppRoot(), p);
+                                    else {
+                                        if (process.platform === 'linux') {
+                                            if (p.startsWith('/'))
+                                                localPath = p;
+                                        } else
+                                            localPath = p;
+                                    }
+                                    if (localPath) {
+                                        var fileName = data[str]['filename'];
+                                        if (!fileName)
+                                            fileName = this._createRandomFilename(localPath, data[str]);
 
-                                if (fileName) {
-                                    var filePath = path.join(localPath, fileName);
-                                    //console.log(filePath);
-                                    this._createFile(filePath, data[str]);
-                                    forge[str] = fileName;
+                                        if (fileName) {
+                                            var filePath = path.join(localPath, fileName);
+                                            //console.log(filePath);
+                                            await this._createFile(filePath, data[str]);
+                                            forge[str] = fileName;
+                                        }
+                                    } else
+                                        throw new Error("Invalid CDN path!");
                                 }
                             }
                         }
@@ -757,7 +768,7 @@ class Model {
                     throw new Error("Undefined Attribute '" + str + "'");
             }
         }
-        return forge;
+        return Promise.resolve(forge);
     }
 
     _createRandomFilename(localPath, data) {
@@ -789,12 +800,13 @@ class Model {
         return filename;
     }
 
-    _createFile(filePath, data) {
+    async _createFile(filePath, data) {
         if (data['url'] && data['url'].startsWith("http")) {
-            webclient.download(data['url'], filePath);
+            await webclient.download(data['url'], filePath);
         } else if (data['base64'] && data['base64'].startsWith("data:")) {
             base64.createFile(filePath, data['base64']);
         }
+        return Promise.resolve();
     }
 
     async _updateHasManyRelation(attr, ids, id) {

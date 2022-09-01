@@ -5,7 +5,7 @@
     "keywords": [
         "CMS",
         "headless",
-        "Jamstack",
+        "ORM",
         "nodejs",
         "express",
         "javascript"
@@ -26,7 +26,7 @@
         "start-win-prod": "set NODE_ENV=production&& node --max_old_space_size=8192 server.js",
         "start-unix-dev": "node --max_old_space_size=8192 server.js",
         "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 server.js",
-        "test": "jest tests/common.test.js",
+        "test": "jest tests",
         "test-relations": "jest tests/relations.test.js",
         "lint": "eslint src/js"
     },
@@ -37,9 +37,14 @@
         "cors": "^2.8.5",
         "eval": "^0.1.8",
         "express": "^4.17.1",
+        "fluent-ffmpeg": "^2.1.2",
+        "jsdom": "^20.0.0",
         "knex": "^0.95.11",
         "mysql": "^2.18.1",
-        "mysql2": "^2.3.3"
+        "mysql2": "^2.3.3",
+        "progress": "^2.0.3",
+        "ytdl-core": "github:GreepTheSheep/node-ytdl-core",
+        "ytdl-core-muxer": "^1.0.1"
     },
     "devDependencies": {
         "eslint": "^7.32.0",

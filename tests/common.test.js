@@ -1,4 +1,5 @@
-global.controller = require('../src/controller/controller');
+if (!global.controller)
+    global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
@@ -11,11 +12,13 @@ const bCleanupBeforeTests = false;
 const bCleanupAfterTest = false;
 
 beforeAll(async () => {
-    const server = require('./config/server-config');
-    const database = require('./config/database-config');
-    await controller.setup(server, database);
-    knex = controller.getKnex();
-    shelf = controller.getShelf();
+    if (!controller.isRunning()) {
+        const server = require('./config/server-config');
+        const database = require('./config/database-config');
+        await controller.setup(server, database);
+        knex = controller.getKnex();
+        shelf = controller.getShelf();
+    }
 
     if (bCleanupBeforeTests)
         ; //TODO:
@@ -23,8 +26,9 @@ beforeAll(async () => {
     return Promise.resolve();
 });
 
-afterAll(() => {
+afterAll(async () => {
     controller.teardown();
+    return new Promise(r => setTimeout(r, 2000));
 });
 
 test('media', async function () {

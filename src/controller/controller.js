@@ -28,6 +28,9 @@ class Controller {
 
     _serverConfig;
     _databaseConfig;
+    _cdnConfig;
+
+    _bIsRunning;
 
     _knex;
     _svr;
@@ -45,11 +48,6 @@ class Controller {
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
-
-        if (fs.existsSync(path.join(this._appRoot, '.git')))
-            this._vcs = VcsEnum.GIT;
-        else if (fs.existsSync(path.join(this._appRoot, '.svn')))
-            this._vcs = VcsEnum.SVN;
     }
 
     async setup(serverConfig, databaseConfig) {
@@ -57,9 +55,22 @@ class Controller {
         this._databaseConfig = databaseConfig;
 
         this._info = {
-            'state': 'starting',
-            'vcs': this._vcs
+            'state': 'starting'
         };
+
+        if (fs.existsSync(path.join(this._appRoot, '.git')))
+            this._vcs = VcsEnum.GIT;
+        else if (fs.existsSync(path.join(this._appRoot, '.svn')))
+            this._vcs = VcsEnum.SVN;
+
+        if (this._vcs)
+            this._info['vcs'] = this._vcs;
+
+        var file = path.join(this._appRoot, './config/cdn-config.js');
+        if (fs.existsSync(file)) {
+            this._cdnConfig = require(file);
+            this._info['cdn'] = this._cdnConfig.map(function (x) { return { 'url': x['url'] } });
+        }
 
         this._routes = [];
 
@@ -106,11 +117,12 @@ class Controller {
                 await this._shelf.initAllModels();
 
             if (this._info['state'] === 'openRestartRequest')
-                this.restart();
-            else if (this._info['state'] === 'starting') {
-                this._startExpress();
+                ;// this.restart(); // restart request direct after starting possible? how to prevent boot loop
+            else if (this._info['state'] === 'starting')
                 this._info['state'] = 'running';
-            }
+
+            this._startExpress();
+            this._bIsRunning = true;
         } catch (error) {
             Logger.parseError(error);
         }
@@ -127,6 +139,10 @@ class Controller {
 
     getDatabaseConfig() {
         return this._databaseConfig;
+    }
+
+    getCdnConfig() {
+        return this._cdnConfig;
     }
 
     getKnex() {
@@ -184,6 +200,11 @@ class Controller {
             this._svr.close();
         if (this._knex)
             this._knex.destroy();
+        this._bIsRunning = false;
+    }
+
+    isRunning() {
+        return this._bIsRunning;
     }
 
     restart() {
@@ -222,13 +243,41 @@ class Controller {
         var pkg = JSON.parse(str);
         var installed = Object.keys(pkg['dependencies']);
         var missing = [];
+        var split;
+        var name;
+        var version;
         for (var x of arr) {
-            if (!installed.includes(x))
-                missing.push(x)
+            name = null;
+            version = null;
+            split = x.split('@');
+            if (split.length == 1)
+                name = split[0];
+            else {
+                if (split[0] === '') {
+                    name = '@' + split[1]; // @ at the first position indicates submodules
+                    if (split.length == 3)
+                        version = split[2];
+                } else {
+                    name = split[0];
+                    version = split[1];
+                }
+            }
+            if (version && version.startsWith('https://github.com/'))
+                version = 'github:' + version.substring('https://github.com/'.length);
+            if (!installed.includes(name) || (version && version !== pkg['dependencies'][name]))
+                missing.push({ 'ident': x, 'name': name, 'version': version })
         }
+
         if (missing.length > 0) {
-            Logger.info('[App] Installing missing dependencies');
-            await common.exec('cd ' + this._appRoot + ' && npm install ' + missing.join(' ') + ' --legacy-peer-deps');
+            var idents = missing.map(function (x) { return x['ident'] });
+            Logger.info('[App] Installing missing dependencies \'' + idents.join('\', \'') + '\'');
+            var dir;
+            for (var x of missing) {
+                dir = path.join(this._appRoot, x['name']);
+                if (fs.existsSync(dir))
+                    fs.rmSync(dir, { recursive: true, force: true });
+            }
+            await common.exec('cd ' + this._appRoot + ' && npm install ' + idents.join(' ') + ' --legacy-peer-deps');
             this.setRestartRequest();
         }
         return Promise.resolve();
@@ -659,6 +708,14 @@ class Controller {
                                         definition['defaults'] = defaults;
                                     }
                                     defaults['view'] = req.body;
+                                } else if (str === "sort") {
+                                    definition = model.getDefinition();
+                                    var defaults = definition['defaults'];
+                                    if (!defaults) {
+                                        defaults = {};
+                                        definition['defaults'] = defaults;
+                                    }
+                                    defaults['sort'] = req.body['sort'];
                                 }
                             }
                             if (definition) {
