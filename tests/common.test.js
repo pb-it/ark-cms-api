@@ -3,13 +3,16 @@ if (!global.controller)
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
-const modelsUrl = "http://localhost:3002/api/_model";
-const modelsUrlPut = modelsUrl + "?v=0.3.0-beta";
+const ApiHelper = require('./helper/api-helper.js');
+const DatabaseHelper = require('./helper/database-helper');
+
 const apiUrl = "http://localhost:3002/api";
+var apiHelper;
+var databaseHelper;
 var knex;
 var shelf;
 const bCleanupBeforeTests = false;
-const bCleanupAfterTest = false;
+const bCleanupAfterTests = true;
 
 beforeAll(async () => {
     if (!controller.isRunning()) {
@@ -20,6 +23,9 @@ beforeAll(async () => {
         shelf = controller.getShelf();
     }
 
+    apiHelper = new ApiHelper(apiUrl);
+    databaseHelper = new DatabaseHelper(shelf);
+
     if (bCleanupBeforeTests)
         ; //TODO:
 
@@ -27,16 +33,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    controller.teardown();
-    return new Promise(r => setTimeout(r, 2000));
+    if (bCleanupAfterTests) {
+        var models = await apiHelper.getAllModels();
+        for (var model of models)
+            await databaseHelper.deleteModel(model);
+    }
+
+    return controller.teardown();
 });
 
 test('media', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/media.json', 'utf8'));
 
-    await webclient.put(modelsUrlPut, model);
+    await apiHelper.uploadModel(model);
 
-    var data = await webclient.curl(modelsUrl);
+    var data = await apiHelper.getAllModels();
     var res = data.filter(function (x) {
         return x['definition']['name'] === "media";
     })[0];
@@ -59,35 +70,25 @@ test('media', async function () {
 
     expect(res).toEqual(media);
 
-    if (bCleanupAfterTest) {
-        await shelf.deleteModel(modelId);
-        data = await webclient.curl(modelsUrl);
-        res = data.filter(function (x) {
-            return x['definition']['name'] === "media";
-        });
-        expect(res.length).toEqual(0);
-
-        try {
-            await knex.schema.dropTable('media');
-        } catch (err) {
-            console.log(err.message);
-        }
-    }
     return Promise.resolve();
 });
 
+/**
+ * mostly tests for testing visual representation of data after test run
+ */
 test('snippets', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/snippets.json', 'utf8'));
 
-    await webclient.put(modelsUrlPut, model);
+    var def = await apiHelper.uploadModel(model);
 
-    var data = await webclient.curl(modelsUrl);
+    var data = await apiHelper.getAllModels();
     var res = data.filter(function (x) {
         return x['definition']['name'] === "snippets";
     })[0];
     var modelId = res['id'];
     expect(res['definition']).toEqual(model);
 
+    // 1
     var snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_1.json', 'utf8'));
 
     var url = apiUrl + "/snippets";
@@ -103,22 +104,35 @@ test('snippets', async function () {
 
     expect(res).toEqual(snippet);
 
+    // 2
     snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_2.json', 'utf8'));
     await webclient.post(url, snippet);
 
-    if (bCleanupAfterTest) {
-        await shelf.deleteModel(modelId);
-        data = await webclient.curl(modelsUrl);
-        res = data.filter(function (x) {
-            return x['definition']['name'] === "snippets";
-        });
-        expect(res.length).toEqual(0);
-
-        try {
-            await knex.schema.dropTable('snippets');
-        } catch (err) {
-            console.log(err.message);
-        }
+    // 3
+    snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_3.json', 'utf8'));
+    //expect(async () => { return webclient.post(url, snippet); }).toThrow(Error);
+    var err;
+    try {
+        res = await webclient.post(url, snippet);
+    } catch (error) {
+        err = error;
     }
+    expect(err['message']).toEqual('Request failed with status code 500');
+
+    await databaseHelper.deleteModel(def);
+
+    model['charEncoding'] = 'utf8mb4';
+    await apiHelper.uploadModel(model);
+
+    res = await webclient.post(url, snippet);
+    var id = res['data']['id'];
+
+    res = await webclient.curl(url + "/" + id);
+    delete res['id'];
+    delete res['created_at'];
+    delete res['updated_at'];
+
+    expect(res).toEqual(snippet);
+
     return Promise.resolve();
 });

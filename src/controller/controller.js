@@ -10,6 +10,7 @@ const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
 const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
+const { resolve } = require('path');
 
 const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
 
@@ -195,19 +196,26 @@ class Controller {
         return Promise.resolve(response);
     }
 
-    teardown() {
-        if (this._svr)
-            this._svr.close();
-        if (this._knex)
-            this._knex.destroy();
-        this._bIsRunning = false;
+    async teardown() {
+        return new Promise(function (resolve, reject) {
+            if (this._svr)
+                this._svr.close(function (err) {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            if (this._knex)
+                this._knex.destroy();
+            this._bIsRunning = false;
+        }.bind(this));
     }
 
     isRunning() {
         return this._bIsRunning;
     }
 
-    restart() {
+    async restart() {
         Logger.info("[App] Restarting..");
         if (!this._serverConfig['processManager']) {
             process.on("exit", function () {
@@ -218,7 +226,12 @@ class Controller {
                 });
             });
         }
-        this.teardown();
+        try {
+            await this.teardown();
+        } catch (err) {
+            console.log(err);
+            Logger.error("[App] ✘ An error occurred while shutting down");
+        }
         process.exit();
     }
 
@@ -434,21 +447,21 @@ class Controller {
                 if (this._info['state'] === 'openRestartRequest') {
                     res.send("Restarting instead of reloading because of open request.");
                     this.restart();
-                }
+                } else {
+                    Logger.info("[App] Reloading models");
+                    await this._shelf.loadAllModels();
+                    if (await this._migrationsController.migrateDatabase(bForceMigration)) {
+                        await this._shelf.initAllModels();
+                        var msg = "Reload done.";
 
-                Logger.info("[App] Reloading models");
-                await this._shelf.loadAllModels();
-                if (await this._migrationsController.migrateDatabase(bForceMigration)) {
-                    await this._shelf.initAllModels();
-                    var msg = "Reload done.";
-
-                    if (this._info['state'] === 'openRestartRequest') {
-                        res.send(msg + " Restarting now.");
-                        this.restart();
+                        if (this._info['state'] === 'openRestartRequest') {
+                            res.send(msg + " Restarting now.");
+                            this.restart();
+                        } else
+                            res.send(msg);
                     } else
-                        res.send(msg);
-                } else
-                    res.send("Reload aborted");
+                        res.send("Reload aborted");
+                }
             } catch (error) {
                 Logger.parseError(error);
                 res.status(500);

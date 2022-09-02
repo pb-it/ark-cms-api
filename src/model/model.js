@@ -74,15 +74,15 @@ class Model {
                 switch (this._definition.charEncoding) {
                     case 'latin1':
                         table.charset('latin1');
-                        table.collate('latin1_bin');
+                        //table.collate('latin1_bin');
                         break;
                     case 'utf8':
                         table.charset('utf8');
-                        table.collate('utf8_general_ci');
+                        //table.collate('utf8_general_ci');
                         break;
                     case 'utf8mb4':
                         table.charset('utf8mb4');
-                        table.collate('utf8mb4_0900_ai_ci');
+                        //table.collate('utf8mb4_0900_ai_ci');
                         break;
                     default:
                 }

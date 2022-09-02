@@ -3,13 +3,17 @@ if (!global.controller)
 const webclient = require('../src/common/webclient.js');
 const fs = require('fs');
 
-const modelsUrl = "http://localhost:3002/api/_model";
-const modelsUrlPut = modelsUrl + "?v=0.3.0-beta";
+const ApiHelper = require('./helper/api-helper.js');
+const DatabaseHelper = require('./helper/database-helper');
+
 const apiUrl = "http://localhost:3002/api";
+var apiHelper;
+var databaseHelper;
 var knex;
 var shelf;
 const bCleanupBeforeTests = false;
-const bCleanupAfterTest = false;
+const bCleanupAfterTests = true;
+
 
 beforeAll(async () => {
     if (!controller.isRunning()) {
@@ -20,6 +24,9 @@ beforeAll(async () => {
         shelf = controller.getShelf();
     }
 
+    apiHelper = new ApiHelper(apiUrl);
+    databaseHelper = new DatabaseHelper(shelf);
+
     if (bCleanupBeforeTests)
         ; //TODO:
 
@@ -27,24 +34,29 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    controller.teardown();
-    return new Promise(r => setTimeout(r, 2000));
+    if (bCleanupAfterTests) {
+        var models = await apiHelper.getAllModels();
+        for (var model of models)
+            await databaseHelper.deleteModel(model);
+    }
+
+    return controller.teardown();
 });
 
 test('movie_db', async function () {
     var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
-    await uploadModel(modelMovies);
+    await apiHelper.uploadModel(modelMovies);
 
     var modelStudios = JSON.parse(fs.readFileSync('./tests/data/models/studios.json', 'utf8'));
-    await uploadModel(modelStudios);
+    await apiHelper.uploadModel(modelStudios);
 
     var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
-    await uploadModel(modelStars);
+    await apiHelper.uploadModel(modelStars);
 
     await shelf.loadAllModels();
     await shelf.initAllModels();
 
-    var data = await webclient.curl(modelsUrl);
+    var data = await apiHelper.getAllModels();
 
     var res = data.filter(function (x) {
         return x['definition']['name'] === "movies";
@@ -137,39 +149,5 @@ test('movie_db', async function () {
     expect(res['movies'].length).toEqual(1);
     expect(res['movies'][0]['id']).toEqual(movieId);
 
-    if (bCleanupAfterTest) {
-        await shelf.deleteModel(modelStarsId);
-        data = await webclient.curl(modelsUrl);
-        res = data.filter(function (x) {
-            return x['name'] === "stars";
-        });
-        expect(res.length).toEqual(0);
-
-        try {
-            await knex.schema.dropTable('stars');
-        } catch (err) {
-            console.log(err.message);
-        }
-    }
     return Promise.resolve();
 });
-
-async function uploadModel(model) {
-    try {
-        await webclient.put(modelsUrlPut, model);
-    } catch (error) {
-        console.log(error);
-        var msg;
-        if (error['message']) {
-            msg = error['message'];
-            if (error['response'] && error['response']['data'])
-                msg += ": " + error['response']['data'];
-        }
-
-        if (msg)
-            throw new Error(msg);
-        else
-            throw error;
-    }
-    return Promise.resolve();
-}

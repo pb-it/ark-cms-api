@@ -1,5 +1,6 @@
 {
     "name": "snippets",
+    "charEncoding": "latin1",
     "options": {
         "increments": true,
         "timestamps": true
