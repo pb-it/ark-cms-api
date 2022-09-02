@@ -25,6 +25,10 @@ module.exports.put = async function (url, obj) {
     return axios.put(url, obj);
 }
 
+module.exports.delete = async function (url) {
+    return axios.delete(url);
+}
+
 async function download(url, file) {
     var opt = {
         'responseType': 'stream',

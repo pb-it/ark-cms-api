@@ -63,3 +63,32 @@ module.exports.preCreateHook = async function (data) {
     return data;
 }
 ```
+
+## Merging example (web scraper / crawler with jsdom)
+
+```js
+var jsdom;
+try {
+    jsdom = require("jsdom");
+} catch (e) {
+    if (e.code !== 'MODULE_NOT_FOUND')
+        throw e;
+}
+
+const { JSDOM } = jsdom || {};
+
+const controller = require("../../src/controller/controller");
+const WebClient = require("../../src/common/webclient");
+
+module.exports.init = async function () {
+    await controller.installDependencies(['jsdom']);
+    return Promise.resolve();
+}
+
+module.exports.preCreateHook = async function (data) {
+    var body = await WebClient.curl(data['url']);
+    const doc = new JSDOM(body).window.document;
+    ... // manipulate the data here!
+    return data;
+}
+```

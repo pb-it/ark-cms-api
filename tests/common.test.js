@@ -1,7 +1,8 @@
+const fs = require('fs');
+
 if (!global.controller)
     global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
-const fs = require('fs');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
