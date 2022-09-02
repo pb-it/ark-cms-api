@@ -81,7 +81,7 @@ class Controller {
                 databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
             else
                 throw new Error('Faulty database configuration!');
-            this._info['db_client'] = this._databaseConfig.connections.default.settings.client
+            this._info['db_client'] = databaseSettings['client'];
 
             this._knex = require('knex')({
                 client: databaseSettings['client'],

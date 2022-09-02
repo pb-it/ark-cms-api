@@ -71,6 +71,21 @@ class Model {
                         //table.dateTime('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'));
                     }
                 }
+                switch (this._definition.charEncoding) {
+                    case 'latin1':
+                        table.charset('latin1');
+                        table.collate('latin1_bin');
+                        break;
+                    case 'utf8':
+                        table.charset('utf8');
+                        table.collate('utf8_general_ci');
+                        break;
+                    case 'utf8mb4':
+                        table.charset('utf8mb4');
+                        table.collate('utf8mb4_0900_ai_ci');
+                        break;
+                    default:
+                }
 
                 if (this._definition.attributes)
                     await this._addColumns(table, null, this._definition.attributes);
@@ -217,6 +232,20 @@ class Model {
                         column = table.text(attribute.name, 'longtext');
                 } else
                     column = table.text(attribute.name);
+                if (attribute.charEncoding) {
+                    switch (attribute.charEncoding) {
+                        case 'latin1':
+                            column.collate('latin1_bin');
+                            break;
+                        case 'utf8':
+                            column.collate('utf8_general_ci');
+                            break;
+                        case 'utf8mb4':
+                            column.collate('utf8mb4_0900_ai_ci');
+                            break;
+                        default:
+                    }
+                }
                 if (attribute.defaultValue)
                     column.defaultTo(attribute.defaultValue);
                 if (attribute.required)
