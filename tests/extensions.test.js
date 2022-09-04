@@ -17,29 +17,34 @@ const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
 
 beforeAll(async () => {
-    if (!controller.isRunning()) {
-        const server = require('./config/server-config');
-        const database = require('./config/database-config');
-        await controller.setup(server, database);
-        shelf = controller.getShelf();
+    try {
+        if (!controller.isRunning()) {
+            const server = require('./config/server-config');
+            const database = require('./config/database-config');
+            await controller.setup(server, database);
+            shelf = controller.getShelf();
+        }
+
+        const cdnConfig = require('./config/cdn-config');
+        var cdns = cdnConfig.filter(function (x) {
+            return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
+        });
+        if (cdns.length == 1)
+            cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
+
+        apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
+        apiHelper = new ApiHelper(apiUrl);
+        databaseHelper = new DatabaseHelper(shelf);
+
+        if (bCleanupBeforeTests)
+            ; //TODO:
+
+    } catch (error) {
+        console.log(error);
     }
 
-    const cdnConfig = require('./config/cdn-config');
-    var cdns = cdnConfig.filter(function (x) {
-        return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
-    });
-    if (cdns.length == 1)
-        cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
-
-    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
-    apiHelper = new ApiHelper(apiUrl);
-    databaseHelper = new DatabaseHelper(shelf);
-
-    if (bCleanupBeforeTests)
-        ; //TODO:
-
     return Promise.resolve();
-});
+}, 30000);
 
 afterAll(async () => {
     if (bCleanupAfterTests) {
@@ -82,4 +87,4 @@ test('youtube', async function () {
     expect(fs.existsSync(fPath)).toEqual(false);
 
     return Promise.resolve();
-}, 30000);
+}, 60000);

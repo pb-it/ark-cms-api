@@ -26,7 +26,7 @@
         "start-win-prod": "set NODE_ENV=production&& node --max_old_space_size=8192 server.js",
         "start-unix-dev": "node --max_old_space_size=8192 server.js",
         "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 server.js",
-        "test": "jest --runInBand tests",
+        "test": "jest --runInBand ./tests/common.test.js ./tests/relations.test.js",
         "test-common": "jest tests/common.test.js",
         "test-relations": "jest tests/relations.test.js",
         "test-extensions": "jest tests/extensions.test.js",
