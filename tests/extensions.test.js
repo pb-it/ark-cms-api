@@ -8,25 +8,30 @@ const webclient = require('../src/common/webclient.js');
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
 
-const apiUrl = "http://localhost:3002/api";
+var cdn;
+var apiUrl;
 var apiHelper;
 var databaseHelper;
-var knex;
 var shelf;
 const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
-
-const cdn = path.join(controller.getAppRoot(), '../cdn/');
 
 beforeAll(async () => {
     if (!controller.isRunning()) {
         const server = require('./config/server-config');
         const database = require('./config/database-config');
         await controller.setup(server, database);
-        knex = controller.getKnex();
         shelf = controller.getShelf();
     }
 
+    const cdnConfig = require('./config/cdn-config');
+    var cdns = cdnConfig.filter(function (x) {
+        return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
+    });
+    if (cdns.length == 1)
+        cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
+
+    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
     apiHelper = new ApiHelper(apiUrl);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -38,12 +43,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
     if (bCleanupAfterTests) {
-        var models = await apiHelper.getAllModels();
-        for (var model of models)
-            await databaseHelper.deleteModel(model);
+        try {
+            var models = await apiHelper.getAllModels();
+            for (var model of models)
+                await databaseHelper.deleteModel(model);
+        } catch (error) {
+            console.log(error);
+        }
     }
-
-    return controller.teardown();
+    try {
+        await controller.teardown();
+    } catch (error) {
+        console.log(error);
+    }
+    return Promise.resolve();
 });
 
 test('youtube', async function () {
@@ -59,13 +72,14 @@ test('youtube', async function () {
     var res = await webclient.post(url, video);
     var file = 'dQw4w9WgXcQ.mp4';
     expect(res['data']['video']).toEqual(file);
-    expect(fs.existsSync(cdn + file)).toEqual(true);
+    var fPath = cdn + "/" + file;
+    expect(fs.existsSync(fPath)).toEqual(true);
 
     var idUrl = url + '/' + res['data']['id'];
     await webclient.delete(idUrl);
     data = await webclient.curl(url);
     expect(data.length).toEqual(0);
-    expect(fs.existsSync(cdn + file)).toEqual(false);
+    expect(fs.existsSync(fPath)).toEqual(false);
 
     return Promise.resolve();
 }, 30000);

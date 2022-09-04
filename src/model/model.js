@@ -715,7 +715,7 @@ class Model {
                     if (coll.relatedData.type === 'hasMany') { //relation via
                         var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                         if (attr)
-                            this._updateHasManyRelation(attr, data[str], id);
+                            await this._updateHasManyRelation(attr, data[str], id);
                     } else {
                         await coll.detach();
                         await coll.attach(data[str]);

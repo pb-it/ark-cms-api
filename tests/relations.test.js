@@ -1,30 +1,30 @@
 const fs = require('fs');
+const { endianness } = require('os');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
+const controller = require('../src/controller/controller');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
 
-const apiUrl = "http://localhost:3002/api";
+var apiUrl;
 var apiHelper;
 var databaseHelper;
-var knex;
 var shelf;
 const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
-
 
 beforeAll(async () => {
     if (!controller.isRunning()) {
         const server = require('./config/server-config');
         const database = require('./config/database-config');
         await controller.setup(server, database);
-        knex = controller.getKnex();
         shelf = controller.getShelf();
     }
 
+    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
     apiHelper = new ApiHelper(apiUrl);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -36,12 +36,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
     if (bCleanupAfterTests) {
-        var models = await apiHelper.getAllModels();
-        for (var model of models)
-            await databaseHelper.deleteModel(model);
+        try {
+            var models = await apiHelper.getAllModels();
+            for (var model of models)
+                await databaseHelper.deleteModel(model);
+        } catch (error) {
+            console.log(error);
+        }
     }
-
-    return controller.teardown();
+    try {
+        await controller.teardown();
+    } catch (error) {
+        console.log(error);
+    }
+    return Promise.resolve();
 });
 
 test('movie_db', async function () {

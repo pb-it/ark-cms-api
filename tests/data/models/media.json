@@ -1,17 +1,17 @@
 {
-	"name": "media",
-	"options": {
-		"increments": true,
-		"timestamps": true
-	},
-	"attributes": [
-		{
-			"name": "url",
-			"dataType": "url"
-		},
-		{
-			"name": "file",
-			"dataType": "base64"
-		}
-	]
+    "name": "media",
+    "options": {
+        "increments": true,
+        "timestamps": true
+    },
+    "attributes": [
+        {
+            "name": "url",
+            "dataType": "url"
+        },
+        {
+            "name": "base64",
+            "dataType": "base64"
+        }
+    ]
 }

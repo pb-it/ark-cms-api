@@ -29,6 +29,7 @@ class Controller {
 
     _serverConfig;
     _databaseConfig;
+    _databaseSettings;
     _cdnConfig;
 
     _bIsRunning;
@@ -77,16 +78,15 @@ class Controller {
 
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
-            var databaseSettings;
             if (defaultConnection && this._databaseConfig['connections'] && this._databaseConfig['connections'][defaultConnection])
-                databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
+                this._databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
             else
                 throw new Error('Faulty database configuration!');
-            this._info['db_client'] = databaseSettings['client'];
+            this._info['db_client'] = this._databaseSettings['client'];
 
             this._knex = require('knex')({
-                client: databaseSettings['client'],
-                connection: databaseSettings['connection']
+                client: this._databaseSettings['client'],
+                connection: this._databaseSettings['connection']
             });
             /*this._knex.on('query', function (queryData) {
                 console.log(queryData);
@@ -94,7 +94,7 @@ class Controller {
 
             try {
                 await this._knex.raw('select 1+1 as result');
-                Logger.info("[knex] ✔ Successfully connected to " + databaseSettings['client'] + " on " + databaseSettings['connection']['host']);
+                Logger.info("[knex] ✔ Successfully connected to " + this._databaseSettings['client'] + " on " + this._databaseSettings['connection']['host']);
             } catch (error) {
                 Logger.parseError(error, "[knex]");
                 process.exit(1);
@@ -140,6 +140,10 @@ class Controller {
 
     getDatabaseConfig() {
         return this._databaseConfig;
+    }
+
+    getDatabaseSettings() {
+        return this._databaseSettings;
     }
 
     getCdnConfig() {

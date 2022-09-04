@@ -1,16 +1,18 @@
+const path = require('path');
 const fs = require('fs');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
 const webclient = require('../src/common/webclient.js');
+const base64 = require('../src/common/base64');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
 
-const apiUrl = "http://localhost:3002/api";
+var cdn;
+var apiUrl;
 var apiHelper;
 var databaseHelper;
-var knex;
 var shelf;
 const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
@@ -20,10 +22,17 @@ beforeAll(async () => {
         const server = require('./config/server-config');
         const database = require('./config/database-config');
         await controller.setup(server, database);
-        knex = controller.getKnex();
         shelf = controller.getShelf();
     }
 
+    const cdnConfig = require('./config/cdn-config');
+    var cdns = cdnConfig.filter(function (x) {
+        return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
+    });
+    if (cdns.length == 1)
+        cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
+
+    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
     apiHelper = new ApiHelper(apiUrl);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -35,14 +44,25 @@ beforeAll(async () => {
 
 afterAll(async () => {
     if (bCleanupAfterTests) {
-        var models = await apiHelper.getAllModels();
-        for (var model of models)
-            await databaseHelper.deleteModel(model);
+        try {
+            var models = await apiHelper.getAllModels();
+            for (var model of models)
+                await databaseHelper.deleteModel(model);
+        } catch (error) {
+            console.log(error);
+        }
     }
-
-    return controller.teardown();
+    try {
+        await controller.teardown();
+    } catch (error) {
+        console.log(error);
+    }
+    return Promise.resolve();
 });
 
+/**
+ * url & base64
+ */
 test('media', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/media.json', 'utf8'));
 
@@ -56,6 +76,16 @@ test('media', async function () {
     expect(res['definition']).toEqual(model);
 
     var media = JSON.parse(fs.readFileSync('./tests/data/crud/media_1.json', 'utf8'));
+    var blob = await webclient.fetchBlob(media['url']);
+    var base64 = "data:" + blob.type + ';base64,' + Buffer.from(blob).toString('base64');
+    media['base64'] = { 'base64': base64 };
+    /*await fetch(url)
+        .then((response) => response.buffer())
+        .then((buffer) => {
+            const b64 = buffer.toString('base64');
+            return b64;
+        })
+        .catch(console.error);*/
 
     var url = apiUrl + "/media";
     await webclient.post(url, media);
@@ -63,13 +93,37 @@ test('media', async function () {
     data = await webclient.curl(url);
     expect(data.length).toEqual(1);
 
-    res = data[0];
-    delete res['id'];
-    delete res['created_at'];
-    delete res['updated_at'];
-    delete res['file'];
+    expect(data[0]['base64']).toEqual(base64);
 
-    expect(res).toEqual(media);
+    return Promise.resolve();
+});
+
+test('files', async function () {
+    var model = JSON.parse(fs.readFileSync('./tests/data/models/files.json', 'utf8'));
+
+    await apiHelper.uploadModel(model);
+
+    var data = await apiHelper.getAllModels();
+    var res = data.filter(function (x) {
+        return x['definition']['name'] === "files";
+    })[0];
+    var modelId = res['id'];
+    expect(res['definition']).toEqual(model);
+
+    var fData = JSON.parse(fs.readFileSync('./tests/data/crud/files_1.json', 'utf8'));
+
+    var url = apiUrl + "/files";
+    await webclient.post(url, fData);
+
+    data = await webclient.curl(url);
+    expect(data.length).toEqual(1);
+
+    var file = data[0]['file'];
+    //expect(res).toEqual(media);
+    var fPath = cdn + "/" + file;
+    expect(fs.existsSync(fPath)).toEqual(true);
+
+    fs.unlinkSync(fPath);
 
     return Promise.resolve();
 });
@@ -110,6 +164,7 @@ test('snippets', async function () {
     await webclient.post(url, snippet);
 
     // 3
+    //jest.spyOn(console, 'error').mockImplementation(() => { });
     snippet = JSON.parse(fs.readFileSync('./tests/data/crud/snippets_3.json', 'utf8'));
     //expect(async () => { return webclient.post(url, snippet); }).toThrow(Error);
     var err;

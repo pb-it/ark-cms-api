@@ -29,6 +29,16 @@ module.exports.delete = async function (url) {
     return axios.delete(url);
 }
 
+module.exports.fetchBlob = async function (url) {
+    var data;
+    if (url) {
+        var resp = await axios.get(url, { responseType: 'blob' });
+        if (resp && resp.data)
+            data = resp.data;
+    }
+    return Promise.resolve(data);
+}
+
 async function download(url, file) {
     var opt = {
         'responseType': 'stream',

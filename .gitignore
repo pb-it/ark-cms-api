@@ -9,6 +9,7 @@ config/cdn-config.js
 
 tests/config/server-config.js
 tests/config/database-config.js
+tests/config/cdn-config.js
 
 
 _*

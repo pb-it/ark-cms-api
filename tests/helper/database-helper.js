@@ -12,15 +12,22 @@ class DatabaseHelper {
         var id = model['id'];
         var name = model['definition']['name'];
         if (!name.startsWith('_')) {
-            if (id)
-                await this._shelf.deleteModel(id);
-            if (name)
-                await this._knex.schema.dropTable(name);
-            var junctions = model['definition']['attributes'].filter(function (attribute) {
-                return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
-            });
-            for (var j of junctions) {
-                await this._deleteJunctionTable(model['definition'], j);
+            try {
+                await this._knex.raw('SET FOREIGN_KEY_CHECKS=0;');
+                if (id)
+                    await this._shelf.deleteModel(id);
+                if (name)
+                    await this._knex.schema.dropTable(name);
+                var junctions = model['definition']['attributes'].filter(function (attribute) {
+                    return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+                });
+                for (var j of junctions) {
+                    await this._deleteJunctionTable(model['definition'], j);
+                }
+            } catch (error) {
+                console.log(error);
+            } finally {
+                await this._knex.raw('SET FOREIGN_KEY_CHECKS=1;');
             }
         }
         return Promise.resolve();

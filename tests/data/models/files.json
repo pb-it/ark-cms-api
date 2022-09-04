@@ -1,0 +1,14 @@
+{
+    "name": "files",
+    "options": {
+        "increments": true,
+        "timestamps": true
+    },
+    "attributes": [
+        {
+            "name": "file",
+            "dataType": "file",
+            "cdn": "/cdn"
+        }
+    ]
+}
