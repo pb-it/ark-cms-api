@@ -1,7 +1,7 @@
 var cdn = [{
     name: "localhost",
     url: "/cdn",
-    path: "../cdn"
+    path: "../cdn/"
 }];
 
 module.exports = cdn;

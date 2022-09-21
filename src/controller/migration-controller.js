@@ -75,7 +75,7 @@ class MigrationController {
     }
 
     static compatible(oldVersion, newVersion) {
-        return (oldVersion.major === newVersion.major && oldVersion.minor === newVersion.minor);
+        return (oldVersion.major === newVersion.major && oldVersion.minor === newVersion.minor && oldVersion.patch <= newVersion.patch);
     }
 
     _controller;

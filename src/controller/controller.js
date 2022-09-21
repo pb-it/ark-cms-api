@@ -670,8 +670,12 @@ class Controller {
                     if (MigrationController.compatible(modelVersion, appVersion) || bForceMigration) {
                         definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
                         Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
-                    } else
-                        throw new ValidationError("An update of the minor release version may result in faulty models! Force only after studying changelog!");
+                    } else {
+                        if (modelVersion.major > appVersion.major || modelVersion.minor > appVersion.minor || modelVersion.patch > appVersion.patch)
+                            throw new ValidationError("Model version newer than application version! Force only after studying changelog!");
+                        else
+                            throw new ValidationError("An update of the minor release version may result in faulty models! Force only after studying changelog!");
+                    }
                 }
                 var model = await this._shelf.upsertModel(undefined, definition);
                 var id = model.getId();

@@ -7,7 +7,6 @@ class Shelf {
     _knex;
     _bookshelf;
 
-    _mModel;
     _models;
 
     constructor(knex) {
@@ -29,12 +28,12 @@ class Shelf {
                 }
             ]
         }
-        this._mModel = new Model(this, null, definition);
-        await this._mModel.initModel(); // creates model database if not exists
+        var mModel = new Model(this, null, definition);
+        await mModel.initModel(); // creates model database if not exists
         await this.loadAllModels();
         if (!this.getModel('_model')) {
-            this._models.push(this._mModel);
             await this.upsertModel(null, definition, false);
+            this._models.push(mModel);
         }
 
         if (!this.getModel('_change')) {
@@ -95,13 +94,8 @@ class Shelf {
                 definition = def;
             else if (typeof def === 'string' || def instanceof String) //mysql
                 definition = JSON.parse(def);
-            if (definition['name'] === '_model') {
-                this._mModel.setId(row['id']);
-                this._models.push(this._mModel);
-            } else {
-                model = new Model(this, row['id'], definition);
-                this._models.push(model);
-            }
+            model = new Model(this, row['id'], definition);
+            this._models.push(model);
         }
         return Promise.resolve();
     }
@@ -109,7 +103,7 @@ class Shelf {
     async initAllModels() {
         if (this._models) {
             for (var m of this._models) {
-                if (m.getName() !== '_model' && m.getName() !== '_registry') {
+                if (!m.initDone()) {
                     try {
                         await m.initModel();
                     } catch (error) {

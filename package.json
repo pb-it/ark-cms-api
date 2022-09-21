@@ -39,9 +39,14 @@
         "cors": "^2.8.5",
         "eval": "^0.1.8",
         "express": "^4.17.1",
+        "fluent-ffmpeg": "^2.1.2",
+        "jsdom": "^20.0.0",
         "knex": "^0.95.11",
         "mysql": "^2.18.1",
-        "mysql2": "^2.3.3"
+        "mysql2": "^2.3.3",
+        "progress": "^2.0.3",
+        "ytdl-core": "github:GreepTheSheep/node-ytdl-core",
+        "ytdl-core-muxer": "^1.0.1"
     },
     "devDependencies": {
         "eslint": "^7.32.0",
