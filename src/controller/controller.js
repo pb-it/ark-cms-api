@@ -10,7 +10,6 @@ const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
 const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
-const { resolve } = require('path');
 
 const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
 
@@ -252,6 +251,31 @@ class Controller {
                 x['regex'] !== route['regex'];
             });
         }
+    }
+
+    async require(module) {
+        var name;
+        var version;
+        var split = module.split('@');
+        if (split.length == 1)
+            name = split[0];
+        else {
+            if (split[0] === '') {
+                name = '@' + split[1]; // @ at the first position indicates submodules
+                if (split.length == 3)
+                    version = split[2];
+            } else {
+                name = split[0];
+                version = split[1];
+            }
+        }
+        try {
+            require.resolve(name);
+        } catch (e) {
+            require('child_process').execSync(`npm install --legacy-peer-deps ${module}`);
+            await setImmediate(() => { });
+        }
+        return require(name);
     }
 
     async installDependencies(arr) {

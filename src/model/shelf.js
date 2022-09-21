@@ -31,10 +31,8 @@ class Shelf {
         var mModel = new Model(this, null, definition);
         await mModel.initModel(); // creates model database if not exists
         await this.loadAllModels();
-        if (!this.getModel('_model')) {
-            await this.upsertModel(null, definition, false);
-            this._models.push(mModel);
-        }
+        if (!this.getModel('_model'))
+            await this.upsertModel(null, definition);
 
         if (!this.getModel('_change')) {
             definition = {
