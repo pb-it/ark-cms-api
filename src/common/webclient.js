@@ -10,7 +10,7 @@ async function getHeaders() {
     headers = {
         'User-Agent': userAgent
     }
-    Promise.resolve(headers);
+    return Promise.resolve(headers);
 }
 
 module.exports.curl = async function (url) {
