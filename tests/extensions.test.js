@@ -9,6 +9,7 @@ const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
 
 var cdn;
+var rootUrl;
 var apiUrl;
 var apiHelper;
 var databaseHelper;
@@ -32,7 +33,8 @@ beforeAll(async () => {
         if (cdns.length == 1)
             cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
 
-        apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
+        rootUrl = "http://localhost:" + controller.getServerConfig()['port'];
+        apiUrl = rootUrl + "/api";
         apiHelper = new ApiHelper(apiUrl);
         databaseHelper = new DatabaseHelper(shelf);
 
@@ -70,6 +72,14 @@ test('youtube', async function () {
     var model = JSON.parse(fs.readFileSync('./tests/data/models/youtube.json', 'utf8'));
 
     await apiHelper.uploadModel(model);
+
+    var urlInfo = rootUrl + "/system/info";
+    var data = await webclient.curl(urlInfo);
+    if (data['state'] === 'openRestartRequest') {
+        var urlRestart = rootUrl + "/system/restart";
+        data = await webclient.curl(urlRestart); //TODO: find functioning restart procedure
+        await new Promise(r => setTimeout(r, 5000));
+    }
 
     var video = JSON.parse(fs.readFileSync('./tests/data/crud/youtube_1.json', 'utf8'));
 

@@ -2,9 +2,15 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios').default;
 
-const headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3750.0 Iron Safari/537.36'
-    //Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0
+async function getHeaders() {
+    var headers;
+    var userAgent = await this._controller.getRegistry().get('user-agent');
+    if (!userAgent)
+        userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0';
+    headers = {
+        'User-Agent': userAgent
+    }
+    Promise.resolve(headers);
 }
 
 module.exports.curl = async function (url) {
@@ -42,7 +48,7 @@ module.exports.fetchBlob = async function (url) {
 async function download(url, file) {
     var opt = {
         'responseType': 'stream',
-        'headers': headers
+        'headers': await getHeaders()
     }
     var stream = await axios.get(url, opt);
 
@@ -108,7 +114,7 @@ module.exports.isImage = function (url) {
     return new Promise(async function (resolve) {
         var opt = {
             'responseType': 'stream',
-            'headers': headers
+            'headers': await getHeaders()
         }
         var stream = await axios.get(url, opt);
         console.log(stream.headers['content-type']);

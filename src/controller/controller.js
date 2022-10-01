@@ -319,7 +319,11 @@ class Controller {
                     fs.rmSync(dir, { recursive: true, force: true });
             }
             await common.exec('cd ' + this._appRoot + ' && npm install ' + idents.join(' ') + ' --legacy-peer-deps');
-            this.setRestartRequest();
+            try {
+                var x = require(name);
+            } catch (error) {
+                this.setRestartRequest();
+            }
         }
         return Promise.resolve();
     }
