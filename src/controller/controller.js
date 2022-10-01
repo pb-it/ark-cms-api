@@ -191,7 +191,7 @@ class Controller {
 
             if (updateCmd) {
                 if (bForce)
-                    updateCmd += " rm -r node_modules";
+                    updateCmd += " && rm -r node_modules";
                 response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
             }
         } else
