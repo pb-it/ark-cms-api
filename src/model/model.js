@@ -131,8 +131,20 @@ class Model {
                             this._addColumn(table, attribute);
                     }
                 }
-            } else if ((!attribute.hasOwnProperty("persistent") || attribute.persistent === true) && (!tableInfo || !tableInfo.hasOwnProperty(attribute['name'])))
-                this._addColumn(table, attribute);
+            } else if (!attribute.hasOwnProperty("persistent") || attribute.persistent === true) {
+                if (!tableInfo || !tableInfo.hasOwnProperty(attribute['name']))
+                    this._addColumn(table, attribute);
+                else {
+                    switch (attribute['dataType']) {
+                        case "string":
+                            var maxLength = tableInfo[attribute['name']]['maxLength'];
+                            if (attribute.length && attribute.length != maxLength)
+                                table.string(attribute.name, attribute.length).alter();
+                            break;
+                    }
+                }
+            }
+
         }
         return Promise.resolve();
     }
@@ -338,13 +350,25 @@ class Model {
             else
                 relTable = modelTable + "_" + this._tableName;
             if (!await knex.schema.hasTable(relTable)) {
+                var id = inflection.singularize(this._tableName) + "_id";
+                var fid = inflection.singularize(modelTable) + "_id";
                 await knex.schema.createTable(relTable, function (table) {
                     table.increments('id').primary();
 
-                    table.integer(inflection.singularize(this._tableName) + "_id").unsigned().notNullable().references('id').inTable(this._tableName);
-                    table.integer(inflection.singularize(modelTable) + "_id").unsigned().notNullable().references('id').inTable(modelTable);
+                    table.integer(id).unsigned().notNullable().references('id').inTable(this._tableName);
+                    table.integer(fid).unsigned().notNullable().references('id').inTable(modelTable);
                 }.bind(this));
                 Logger.info("Added table '" + relTable + "'");
+
+                //TODO: migrate old data
+                var table = knex.table(this._tableName);
+                var tableInfo = await table.columnInfo();
+                if (tableInfo.hasOwnProperty(attribute['name'])) {
+                    var resultset = await knex.select('id as ' + id, attribute['name'] + " as " + fid).from(this._tableName).where(attribute['name'], 'is not', null);
+                    console.log(resultset);
+                    await knex(relTable).insert(resultset);
+                    return Promise.resolve();
+                }
             }
         } else {
             throw new UnknownModelError("Model '" + attribute['model'] + "' is not defined");

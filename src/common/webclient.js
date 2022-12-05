@@ -23,6 +23,10 @@ module.exports.curl = async function (url) {
     return Promise.resolve(data);
 }
 
+module.exports.get = async function (url) {
+    return axios.get(url);
+}
+
 module.exports.post = async function (url, obj) {
     return axios.post(url, obj);
 }
