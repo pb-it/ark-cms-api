@@ -25,6 +25,7 @@ class Model {
 
     _name;
     _tableName;
+
     _relationNames;
     _book;
 
@@ -42,11 +43,12 @@ class Model {
             this._tableName = this._definition.tableName;
         else
             this._tableName = this._definition.name;
-        this._relationNames = [];
     }
 
     async initModel() {
         Logger.info("Init model '" + this._name + "'");
+
+        this._relationNames = [];
 
         if (this._definition['extensions']) {
             var extension = this._definition['extensions']['server'];
@@ -92,8 +94,15 @@ class Model {
             }.bind(this));
             Logger.info("Added table '" + this._tableName + "'");
         } else {
+            var tableInfo = await knex.table(this._tableName).columnInfo();
+            if (this._definition.options.timestamps) {
+                if (!tableInfo.hasOwnProperty('created_at') || !tableInfo.hasOwnProperty('updated_at')) {
+                    await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
+                        table.timestamps(true, true);
+                    }.bind(this));
+                }
+            }
             if (this._definition.attributes) {
-                var tableInfo = await knex.table(this._tableName).columnInfo();
                 await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
                     await this._addColumns(table, tableInfo, this._definition.attributes);
                 }.bind(this));
@@ -370,9 +379,8 @@ class Model {
                     return Promise.resolve();
                 }
             }
-        } else {
+        } else
             throw new UnknownModelError("Model '" + attribute['model'] + "' is not defined");
-        }
     }
 
     getAttribute(name) {
@@ -389,32 +397,32 @@ class Model {
                     if (attribute.via) {
                         obj[attribute.name] = function () {
                             var book;
-                            var model = shelf.getModel(attribute.model);
+                            var model = shelf.getModel(attribute['model']);
                             if (model && model.initDone())
                                 book = model.getBook();
                             else
-                                throw new Error('Faulty model \'' + model.getName() + '\'');
+                                throw new Error('Faulty model \'' + attribute['model'] + '\'');
                             return this.hasMany(book, attribute.via);
                         };
                     } else {
                         if (attribute.multiple) {
                             obj[attribute.name] = function () {
                                 var book;
-                                var model = shelf.getModel(attribute.model);
+                                var model = shelf.getModel(attribute['model']);
                                 if (model && model.initDone())
                                     book = model.getBook();
                                 else
-                                    throw new Error('Faulty model \'' + model.getName() + '\'');
+                                    throw new Error('Faulty model \'' + attribute['model'] + '\'');
                                 return this.belongsToMany(book);
                             };
                         } else {
                             obj[attribute.name] = function () {
                                 var book;
-                                var model = shelf.getModel(attribute.model);
+                                var model = shelf.getModel(attribute['model']);
                                 if (model && model.initDone())
                                     book = model.getBook();
                                 else
-                                    throw new Error('Faulty model \'' + model.getName() + '\'');
+                                    throw new Error('Faulty model \'' + attribute['model'] + '\'');
                                 return this.belongsTo(book, attribute.name);
                             };
                         }

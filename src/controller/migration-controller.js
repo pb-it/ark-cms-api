@@ -109,6 +109,25 @@ class MigrationController {
                         }
                     case '0.2.1-beta':
                         dropColumn(knex, '_model', 'name');
+                    case '0.3.0-beta':
+                        var mChange = this._shelf.getModel('_change');
+                        if (mChange) {
+                            var def = mChange.getDefinition();
+                            def['attributes'].push({
+                                "name": "user",
+                                "dataType": "relation",
+                                "model": "_user"
+                            });
+                            await this._shelf.upsertModel(mChange.getId(), def);
+                        }
+                        var mModel = this._shelf.getModel('_model');
+                        if (mModel) {
+                            var def = mModel.getDefinition();
+                            if (!def['options']['timestamps']) {
+                                def['options']['timestamps'] = true;
+                                await this._shelf.upsertModel(mModel.getId(), def);
+                            }
+                        }
                         break;
                     default:
                 }

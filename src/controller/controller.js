@@ -1,6 +1,7 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const session = require('express-session');
 
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
@@ -8,6 +9,7 @@ const common = require('../common/common');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
+const AuthController = require('./auth-controller');
 const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
 
@@ -41,8 +43,8 @@ class Controller {
 
     _migrationsController;
     _versionController;
+    _authController;
 
-    _profileController;
     _shelf;
 
     _routes;
@@ -116,10 +118,14 @@ class Controller {
             if (res)
                 await this._shelf.initAllModels();
 
+            this._authController = new AuthController();
+            await this._authController.initAuthController();
+
             if (this._info['state'] === 'openRestartRequest')
                 ;// this.restart(); // restart request direct after starting possible? how to prevent boot loop
             else if (this._info['state'] === 'starting')
                 this._info['state'] = 'running';
+
 
             this._startExpress();
             this._bIsRunning = true;
@@ -367,11 +373,23 @@ class Controller {
 
     _startExpress() {
         var express = require('express');
-        var cors = require('cors')
+        var cors = require('cors');
+        var corsOptions = {
+            origin: function (origin, callback) {
+                return callback(null, true);
+            },
+            credentials: true
+        };
         var bodyParser = require('body-parser');
 
         var app = express();
-        app.use(cors());
+        app.use(cors(corsOptions));
+        app.use(session({
+            secret: 'keyboard cat',
+            resave: false,
+            saveUninitialized: true
+        }));
+        app.use(this._authController.checkAuthorization.bind(this._authController));
         app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
         app.use(bodyParser.json({ limit: '100mb' }));
 
@@ -380,6 +398,53 @@ class Controller {
             res.send("User-agent: *\nDisallow: /");
         });
         //app.use('/robots.txt', express.static('robots.txt'));
+
+        app.get('/', function (req, res) {
+            res.send('hello, ' + req.session.user.username + '!' +
+                ' <a href="/logout">Logout</a>')
+        });
+
+        app.get('/login', function (req, res) {
+            res.send('<form action="/login" method="post">' +
+                'Username: <input name="user"><br>' +
+                'Password: <input name="pass" type="password"><br>' +
+                '<input type="submit" text="Login"></form>');
+        });
+
+        app.post('/login', express.urlencoded({ extended: false }), async function (req, res) {
+            var username = req.body.user;
+            var password = req.body.pass;
+            var user;
+            if (username && password)
+                user = await this._authController.checkAuthentication(username, password);
+            if (user) {
+                req.session.regenerate(function (err) {
+                    if (err)
+                        next(err);
+                    req.session.user = user;
+                    req.session.save(function (err) {
+                        if (err)
+                            return next(err);
+                        res.redirect('/');
+                    });
+                });
+            } else
+                res.redirect('/login');
+            return Promise.resolve();
+        }.bind(this));
+
+        app.get('/logout', function (req, res, next) {
+            req.session.user = null;
+            req.session.save(function (err) {
+                if (err)
+                    next(err);
+                req.session.regenerate(function (err) {
+                    if (err)
+                        next(err);
+                    res.redirect('/');
+                });
+            });
+        });
 
         var systemRouter = express.Router();
         systemRouter.get('/info', function (req, res) {
@@ -572,46 +637,44 @@ class Controller {
         if (str === '') {
             name = arr.shift();
             if (name) {
-                if (name.startsWith('_') && req.method !== "GET" && name !== '_registry') {
-                    if (name === '_model') {
-                        if (req.method === "PUT") {
-                            id = await this.putModel(req, res);
-                            res.json(id);
+                if (name === '_model' && req.method !== "GET") {
+                    if (req.method === "PUT") {
+                        id = await this.putModel(req, res);
+                        res.json(id);
 
-                            /*if (this._info['state'] === 'openRestartRequest')
-                                this.restart(); */ // dont restart in case of importing multiple models at once 
-                            return Promise.resolve();
-                        } else if (req.method === "DELETE") {
-                            str = arr.shift();
-                            if (str) {
-                                try {
-                                    id = parseInt(str);
-                                } catch (error) {
-                                    Logger.parseError(error);
-                                }
+                        /*if (this._info['state'] === 'openRestartRequest')
+                            this.restart(); */ // dont restart in case of importing multiple models at once 
+                        return Promise.resolve();
+                    } else if (req.method === "DELETE") {
+                        str = arr.shift();
+                        if (str) {
+                            try {
+                                id = parseInt(str);
+                            } catch (error) {
+                                Logger.parseError(error);
                             }
-                            if (id) {
-                                try {
-                                    var foo = await this._shelf.deleteModel(id);
-                                    var change = {
-                                        'method': req.method,
-                                        'model': '_models',
-                                        'record_id': id,
-                                        'data': JSON.stringify(req.body)
-                                    };
-                                    await this._shelf.getModel('_change').create(change);
-                                    Logger.info("[App] ✔ Deleted model '" + foo + "'");
-                                    res.send("OK");
-                                    return Promise.resolve();
-                                } catch (error) {
-                                    Logger.parseError(error);
-                                    throw new ValidationError("Deletion of model failed");
-                                }
-                            } else
-                                throw new ValidationError("Invalid model ID");
                         }
-                    } else
-                        throw new ValidationError("Modification of system models prohibited!");
+                        if (id) {
+                            try {
+                                var foo = await this._shelf.deleteModel(id);
+                                var change = {
+                                    'method': req.method,
+                                    'model': '_model',
+                                    'record_id': id,
+                                    'data': JSON.stringify(req.body),
+                                    'user': req.session.user.id
+                                };
+                                await this._shelf.getModel('_change').create(change);
+                                Logger.info("[App] ✔ Deleted model '" + foo + "'");
+                                res.send("OK");
+                                return Promise.resolve();
+                            } catch (error) {
+                                Logger.parseError(error);
+                                throw new ValidationError("Deletion of model failed");
+                            }
+                        } else
+                            throw new ValidationError("Invalid model ID");
+                    }
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model) {
@@ -664,7 +727,8 @@ class Controller {
                                 'method': req.method,
                                 'model': name,
                                 'record_id': id,
-                                'data': JSON.stringify(req.body)
+                                'data': JSON.stringify(req.body),
+                                'user': req.session.user.id
                             };
                             await this._shelf.getModel('_change').create(change);
                         }
@@ -690,6 +754,9 @@ class Controller {
             var bForceMigration = (req.query['forceMigration'] === 'true');
             if (version) {
                 var definition = req.body;
+                var bNew = true;
+                if (definition['id'])
+                    bNew = false;
                 var name = definition['name'];
                 var appVersion = this._versionController.getVersion();
                 var sAppVersion = appVersion.toString();
@@ -707,13 +774,38 @@ class Controller {
                 }
                 var model = await this._shelf.upsertModel(undefined, definition);
                 var id = model.getId();
+                var data = await this._shelf.getModel('_model').read(id);
+                var timestamp = data['updated_at'];
                 var change = {
+                    'timestamp': timestamp,
                     'method': req.method,
-                    'model': '_models',
+                    'model': '_model',
                     'record_id': id,
-                    'data': JSON.stringify(req.body)
+                    'data': JSON.stringify(req.body),
+                    'user': req.session.user.id
                 };
                 await this._shelf.getModel('_change').create(change);
+                if (bNew && req.session.user.username !== 'admin') {
+                    var permission = {
+                        'user': req.session.user.id,
+                        'model': id,
+                        'read': true,
+                        'write': true
+                    };
+                    model = this._shelf.getModel('_permission');
+                    data = await model.create(permission);
+                    var pid = data['id'];
+                    timestamp = data['created_at'];
+                    change = {
+                        'timestamp': timestamp,
+                        'method': 'POST',
+                        'model': '_permission',
+                        'record_id': pid,
+                        'data': JSON.stringify(permission),
+                        'user': req.session.user.id
+                    };
+                    await this._shelf.getModel('_change').create(change);
+                }
                 Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
                 return Promise.resolve(id);
             } else
@@ -772,9 +864,10 @@ class Controller {
                                     await this._shelf.upsertModel(id, definition, false);
                                     var change = {
                                         'method': req.method,
-                                        'model': '_models',
+                                        'model': '_model',
                                         'record_id': id,
-                                        'data': JSON.stringify(req.body)
+                                        'data': JSON.stringify(req.body),
+                                        'user': req.session.user.id
                                     };
                                     await this._shelf.getModel('_change').create(change);
                                     Logger.info("[App] ✔ Updated model '" + model.getName() + "'");

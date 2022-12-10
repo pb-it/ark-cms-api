@@ -19,14 +19,29 @@ class Shelf {
             "name": "_model",
             "options": {
                 "increments": true,
-                "timestamps": false
+                "timestamps": true
             },
             "attributes": [
                 {
                     "name": "definition",
                     "dataType": "json"
+                },
+                {
+                    "name": "name",
+                    "dataType": "string",
+                    "persistent": false,
+                    "hidden": true
                 }
-            ]
+            ],
+            "defaults": {
+                "title": "name",
+                "view": {
+                    "details": "title"
+                }
+            },
+            "extensions": {
+                "client": "this._prepareDataAction = function (data) {\n    if (data['definition'])\n        data['name'] = data['definition']['name'];\n    return data;\n}"
+            }
         }
         var mModel = new Model(this, null, definition);
         await mModel.initModel(); // creates model database if not exists
@@ -63,8 +78,22 @@ class Shelf {
                     {
                         "name": "data",
                         "dataType": "json"
+                    },
+                    {
+                        "name": "user",
+                        "dataType": "relation",
+                        "model": "_user"
+                    },
+                    {
+                        "name": "title",
+                        "dataType": "string",
+                        "persistent": false,
+                        "hidden": true
                     }
-                ]
+                ],
+                "extensions": {
+                    "client": "this._prepareDataAction = function (data) {\n    var str = \"\";\n    if (data['method'])\n        str += data['method'] + \": \";\n    if (data['model'])\n        str += data['model'];\n    if (data['record_id'])\n\tstr += \"(\" + data['record_id'] + \")\";\n    data['title'] = str;\n    return data;\n}"
+                }
             }
             await this.upsertModel(null, definition);
         }
