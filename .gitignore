@@ -3,6 +3,7 @@ node_modules
 package-lock.json
 
 
+config/sslcert/*
 config/server-config.js
 config/database-config.js
 config/cdn-config.js

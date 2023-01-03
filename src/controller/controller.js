@@ -1,6 +1,8 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
 const session = require('express-session');
 
 const Logger = require('../common/logger/logger');
@@ -380,15 +382,24 @@ class Controller {
             },
             credentials: true
         };
+        var sessOptions = {
+            secret: 'keyboard cat',
+            //name: "sessionID",
+            //proxy: true,
+            resave: false,
+            saveUninitialized: true
+        };
+        if (this._serverConfig.ssl) { // Chrome only allows cookie forwarding for https
+            sessOptions['cookie'] = {
+                sameSite: "none",
+                secure: true
+            };
+        }
         var bodyParser = require('body-parser');
 
         var app = express();
         app.use(cors(corsOptions));
-        app.use(session({
-            secret: 'keyboard cat',
-            resave: false,
-            saveUninitialized: true
-        }));
+        app.use(session(sessOptions));
         app.use(this._authController.checkAuthorization.bind(this._authController));
         app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
         app.use(bodyParser.json({ limit: '100mb' }));
@@ -612,10 +623,32 @@ class Controller {
             }.bind(this));
         app.use('/api', apiRouter);
 
-        this._svr = app.listen(this._serverConfig.port, function () {
-            Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
-        }.bind(this));
+        if (this._serverConfig.ssl) {
+            var privateKey;
+            var pathKey = path.join(this._appRoot, 'config/sslcert/key.pem');
+            if (fs.existsSync(pathKey))
+                privateKey = fs.readFileSync(pathKey, 'utf8');
+            var certificate;
+            var crtPath = path.join(this._appRoot, 'config/sslcert/cert.pem');
+            if (fs.existsSync(crtPath))
+                var certificate = fs.readFileSync(crtPath);
 
+            if (privateKey && certificate) {
+                this._svr = https.createServer({ key: privateKey, cert: certificate }, app);
+                this._svr.listen(this._serverConfig.port, function () {
+                    Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
+                }.bind(this));
+            } else {
+                var msg = "No SSL certificate found";
+                console.error(msg);
+                Logger.error("[App] ✘ " + msg);
+            }
+        } else {
+            this._svr = http.createServer(app);
+            this._svr.listen(this._serverConfig.port, function () {
+                Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
+            }.bind(this));
+        }
         this._svr.setTimeout(600 * 1000);
     }
 
