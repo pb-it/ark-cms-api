@@ -348,16 +348,25 @@ class Model {
         Logger.info("Added column '" + attribute.name + "' to table '" + this._tableName + "'");
     }
 
+    getJunctionTableName(attribute) {
+        var relTable;
+        var model = this._shelf.getModel(attribute['model']);
+        if (model) {
+            var modelTable = model.getTableName();
+            if (this._tableName.localeCompare(modelTable) == -1)
+                relTable = this._tableName + "_" + modelTable;
+            else
+                relTable = modelTable + "_" + this._tableName;
+        }
+        return relTable;
+    }
+
     async _addJunctionTable(attribute) {
         var knex = this._shelf.getKnex();
         var model = this._shelf.getModel(attribute['model']);
         if (model) {
             var modelTable = model.getTableName();
-            var relTable;
-            if (this._tableName.localeCompare(modelTable) == -1)
-                relTable = this._tableName + "_" + modelTable;
-            else
-                relTable = modelTable + "_" + this._tableName;
+            var relTable = this.getJunctionTableName(attribute);
             if (!await knex.schema.hasTable(relTable)) {
                 var id = inflection.singularize(this._tableName) + "_id";
                 var fid = inflection.singularize(modelTable) + "_id";
@@ -554,43 +563,113 @@ class Model {
                         index = prop.indexOf('.');
                         if (index > 0) {
                             var propName = prop.substring(0, index);
-                            var subAttr;
-                            for (var attribute of this._definition.attributes) {
-                                if (attribute['dataType'] === "relation" && attribute.name === propName) {
-                                    subAttr = attribute;
-                                    break;
-                                }
-                            }
-                            if (subAttr) {
-                                var subProp = prop.substring(index + 1);
-                                if (subAttr.multiple) {
-                                    var subType = subAttr.model;
-                                    var relModel = this._shelf.getModel(subType);
-                                    if (relModel) {
-                                        if (subAttr.via) {
-                                            if (subProp === 'id') {
-                                                var relObj = await relModel.read(query[prop]);
-                                                if (relObj && relObj[subAttr.via]) {
-                                                    var id = relObj[subAttr.via].id;
-                                                    if (id)
-                                                        book = book.where({ 'id': id })
-                                                } else
-                                                    return Promise.resolve();
-                                            }
-                                        } else {
-                                            var subOpt = {};
-                                            subOpt[subProp] = query[prop];
-                                            return relModel.readRel(subOpt, this._name, query['_sort']);
+                            if (propName === this._name) {
+                                var iUnder = prop.lastIndexOf('_');
+                                if (iUnder == -1) {
+                                    var subProp = prop.substring(index + 1);
+                                    var subAttr;
+                                    for (var attribute of this._definition.attributes) {
+                                        if (attribute['dataType'] === "relation" && attribute.name === subProp) {
+                                            subAttr = attribute;
+                                            break;
                                         }
-                                    } else
-                                        return Promise.reject(new Error(`unkown type: ${subType}`));
+                                    }
+                                    if (subAttr) {
+                                        var model = this._shelf.getModel(subAttr['model']);
+                                        if (model) {
+                                            var modelTable = model.getTableName();
+                                            var relTable = this.getJunctionTableName(subAttr);
+                                            var id = inflection.singularize(this._tableName) + "_id";
+                                            var fid = inflection.singularize(modelTable) + "_id";
+                                            if (Array.isArray(query[prop])) {
+                                                book = book.query(function (qb) {
+                                                    qb.leftJoin(relTable, this._tableName + '.id', id).whereIn(fid, query[prop]);
+                                                    if (query.hasOwnProperty(prop + '_null')) {
+                                                        if (query[prop + '_null'] === 'true')
+                                                            qb.orWhere(fid, 'is', null);
+                                                        else
+                                                            qb.orWhere(fid, 'is not', null);
+                                                    }
+                                                }.bind(this));
+                                            } else {
+                                                book = book.query(function (qb) {
+                                                    qb.leftJoin(relTable, this._tableName + '.id', id).where(fid, query[prop]);
+                                                    if (query.hasOwnProperty(prop + '_null')) {
+                                                        if (query[prop + '_null'] === 'true')
+                                                            qb.orWhere(fid, 'is', null);
+                                                        else
+                                                            qb.orWhere(fid, 'is not', null);
+                                                    }
+                                                }.bind(this));
+                                            }
+                                        }
+                                    }
                                 } else {
-                                    if (subProp === 'id') {
-                                        book = book.where(propName, query[prop]);
+                                    /*var subProp = prop.substring(index + 1, iUnder);
+                                    var subAttr;
+                                    for (var attribute of this._definition.attributes) {
+                                        if (attribute['dataType'] === "relation" && attribute.name === subProp) {
+                                            subAttr = attribute;
+                                            break;
+                                        }
+                                    }
+                                    if (subAttr) {
+                                        var model = this._shelf.getModel(subAttr['model']);
+                                        if (model) {
+                                            var modelTable = model.getTableName();
+                                            var relTable = this.getJunctionTableName(subAttr);
+                                            var id = inflection.singularize(this._tableName) + "_id";
+                                            var fid = inflection.singularize(modelTable) + "_id";
+                                            if (query[prop] === "false")
+                                                book = book.query(function (qb) {
+                                                    qb.join(relTable, this._tableName + '.id', id).orWhere(fid, 'is not', null);
+                                                }.bind(this));
+                                            else
+                                                book = book.query(function (qb) {
+                                                    qb.join(relTable, this._tableName + '.id', id).orWhere(fid, 'is', null);
+                                                }.bind(this));
+                                        }
+                                    }*/
+                                }
+                            } else {
+                                var subAttr;
+                                for (var attribute of this._definition.attributes) {
+                                    if (attribute['dataType'] === "relation" && attribute.name === propName) {
+                                        subAttr = attribute;
+                                        break;
                                     }
                                 }
-                            } else
-                                return Promise.reject(new Error(`unkown attribute '${propName}' of type '${this._name}'`));
+                                if (subAttr) {
+                                    var subProp = prop.substring(index + 1);
+                                    if (subAttr.multiple) {
+                                        var subType = subAttr.model;
+                                        var relModel = this._shelf.getModel(subType);
+                                        if (relModel) {
+                                            if (subAttr.via) {
+                                                if (subProp === 'id') {
+                                                    var relObj = await relModel.read(query[prop]);
+                                                    if (relObj && relObj[subAttr.via]) {
+                                                        var id = relObj[subAttr.via].id;
+                                                        if (id)
+                                                            book = book.where({ 'id': id });
+                                                    } else
+                                                        return Promise.resolve();
+                                                }
+                                            } else {
+                                                var subOpt = {};
+                                                subOpt[subProp] = query[prop];
+                                                return relModel.readRel(subOpt, this._name, query['_sort']); // only works if backlink property which equals modelname exists
+                                            }
+                                        } else
+                                            return Promise.reject(new Error(`unkown type: ${subType}`));
+                                    } else {
+                                        if (subProp === 'id') {
+                                            book = book.where(propName, query[prop]);
+                                        }
+                                    }
+                                } else
+                                    return Promise.reject(new Error(`unkown attribute '${propName}' of type '${this._name}'`));
+                            }
                         } else {
                             var index = prop.lastIndexOf('_');
                             if (index == -1) {
@@ -606,10 +685,10 @@ class Model {
                                 var str = prop.substring(0, index);
                                 switch (end) {
                                     case 'null':
-                                        if (query[prop] === "false")
-                                            book = book.where(str, 'is not', null); // whereNotNull
+                                        if (query[prop] === 'true')
+                                            book = book.where(str, 'is', null); // whereNotNull
                                         else
-                                            book = book.where(str, 'is', null);
+                                            book = book.where(str, 'is not', null);
                                         break;
                                     case 'in':
                                         throw new Error("Not Implemented Yet");
