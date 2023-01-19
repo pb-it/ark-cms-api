@@ -91,9 +91,10 @@ class Controller {
                 client: this._databaseSettings['client'],
                 connection: this._databaseSettings['connection']
             });
-            this._knex.on('query', function (queryData) {
+
+            /*this._knex.on('query', function (queryData) {
                 console.log(queryData);
-            });
+            });*/
 
             try {
                 await this._knex.raw('select 1+1 as result');
