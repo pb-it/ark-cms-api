@@ -594,33 +594,38 @@ class Model {
                                             break;
                                         }
                                     }
-                                    if (relAttr) {
-                                        if (end === 'null') {
-                                            var subType = relAttr['model'];
-                                            var relModel = this._shelf.getModel(subType);
-                                            if (relModel) {
-                                                var modelTable = relModel.getTableName();
-                                                var junctionTable = this.getJunctionTableName(relAttr);
-                                                var id = inflection.singularize(this._tableName) + "_id";
-                                                var fid = inflection.singularize(modelTable) + "_id";
-                                                book = book.query(function (qb) {
-                                                    if (joins.indexOf(junctionTable) == -1) {
-                                                        qb.leftJoin(junctionTable, this._tableName + '.id', id);
-                                                        joins.push(junctionTable);
-                                                        if (value === 'true')
-                                                            qb.where(fid, 'is', null);
-                                                        else
-                                                            qb.where(fid, 'is not', null);
-                                                    } else {
-                                                        // TODO: distinct [or] and [and]
-                                                        if (value === 'true')
-                                                            qb.orWhere(fid, 'is', null);
-                                                        else
-                                                            qb.orWhere(fid, 'is not', null);
-                                                    }
-                                                }.bind(this));
-                                            } else
-                                                return Promise.reject(new Error(`unkown type: ${subType}`));
+                                    if (relAttr && relAttr['multiple']) {
+                                        var via = relAttr['via'];
+                                        if (via) {
+                                            throw new Error("Not Implemented Yet");
+                                        } else {
+                                            if (end === 'null') {
+                                                var subType = relAttr['model'];
+                                                var relModel = this._shelf.getModel(subType);
+                                                if (relModel) {
+                                                    var modelTable = relModel.getTableName();
+                                                    var junctionTable = this.getJunctionTableName(relAttr);
+                                                    var id = inflection.singularize(this._tableName) + "_id";
+                                                    var fid = inflection.singularize(modelTable) + "_id";
+                                                    book = book.query(function (qb) {
+                                                        if (joins.indexOf(junctionTable) == -1) {
+                                                            qb.leftJoin(junctionTable, this._tableName + '.id', id);
+                                                            joins.push(junctionTable);
+                                                            if (value === 'true')
+                                                                qb.where(fid, 'is', null);
+                                                            else
+                                                                qb.where(fid, 'is not', null);
+                                                        } else {
+                                                            // TODO: distinct [or] and [and]
+                                                            if (value === 'true')
+                                                                qb.orWhere(fid, 'is', null);
+                                                            else
+                                                                qb.orWhere(fid, 'is not', null);
+                                                        }
+                                                    }.bind(this));
+                                                } else
+                                                    return Promise.reject(new Error(`unkown type: ${subType}`));
+                                            }
                                         }
                                     } else {
                                         switch (end) {
