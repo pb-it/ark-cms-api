@@ -28,3 +28,8 @@
 #### Restart
 
 `http://localhost:3002/system/restart`
+
+
+#### Shutdown
+
+`http://localhost:3002/system/shutdown`

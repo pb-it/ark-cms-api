@@ -16,8 +16,5 @@ RUN npm install --legacy-peer-deps
 # Bundle app source
 COPY . .
 
-RUN mv ./config/database.js ./config/_database.js && \
-    mv ./config/database_docker.js ./config/database.js
-
 EXPOSE 3002
 CMD [ "node", "server.js" ]

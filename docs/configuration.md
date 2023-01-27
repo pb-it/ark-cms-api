@@ -30,6 +30,6 @@ Possible values:
 
 ## Database: /config/database-config.js
 
-Template: `/config/database-config-template.js`
+Templates: `/config/database-config-template-localhost.js`, `/config/database-config-template-docker.js`
 
 Edit your DBMS settings and credentials.

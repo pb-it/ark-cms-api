@@ -579,6 +579,7 @@ class Controller {
             return Promise.resolve();
         }.bind(this));
         systemRouter.get('/shutdown', async () => {
+            res.send("Shutdown initiated");
             process.exit();
         });
         app.use('/system', systemRouter);
