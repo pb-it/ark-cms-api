@@ -1,3 +1,4 @@
+const v8 = require('v8');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -58,6 +59,9 @@ class Controller {
     async setup(serverConfig, databaseConfig) {
         this._serverConfig = serverConfig;
         this._databaseConfig = databaseConfig;
+
+        //console.log(v8.getHeapStatistics());
+        Logger.info("[node] Heap size limit: " + (v8.getHeapStatistics().heap_size_limit / (1024 * 1024))) + " MB";
 
         this._info = {
             'state': 'starting'
@@ -399,6 +403,10 @@ class Controller {
         var bodyParser = require('body-parser');
 
         var app = express();
+
+        //app.set("json spaces", 2);
+        //app.set("query parser", "simple");
+
         app.use(cors(corsOptions));
         app.use(session(sessOptions));
         app.use(this._authController.checkAuthorization.bind(this._authController));

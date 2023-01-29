@@ -1,7 +1,7 @@
 var database = {
-    defaultConnection: 'default',
+    defaultConnection: 'localhost',
     connections: {
-        default: {
+        localhost: {
             connector: 'bookshelf',
             settings: {
                 client: 'mysql2',

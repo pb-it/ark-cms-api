@@ -549,7 +549,6 @@ class Model {
                 var keys = Object.keys(query);
                 if (keys.length > 0) {
                     var value;
-                    var index;
                     var joins = [];
                     for (let prop in query) { // prop of keys
                         value = query[prop];
@@ -565,149 +564,17 @@ class Model {
                                 });
                             }
                         } else {
-                            index = prop.indexOf('.');
-                            if (index == -1) {
-                                index = prop.lastIndexOf('_');
-                                if (index == -1) {
-                                    var relAttr;
-                                    for (var attribute of this._definition.attributes) {
-                                        if (attribute['dataType'] === "relation" && attribute.name === prop) {
-                                            relAttr = attribute;
-                                            break;
-                                        }
-                                    }
-                                    if (relAttr)
-                                        book = this._readAllRelation(book, joins, relAttr, value);
-                                    else {
-                                        if (Array.isArray(value))
-                                            book = book.where(prop, 'in', value);
-                                        else
-                                            book = book.where(prop, value);
-                                    }
-                                } else {
-                                    var propName = prop.substring(0, index);
-                                    var end = prop.substring(index + 1);
-                                    var relAttr;
-                                    for (var attribute of this._definition.attributes) {
-                                        if (attribute['dataType'] === "relation" && attribute.name === propName) {
-                                            relAttr = attribute;
-                                            break;
-                                        }
-                                    }
-                                    if (relAttr && relAttr['multiple']) {
-                                        var via = relAttr['via'];
-                                        if (via) {
-                                            throw new Error("Not Implemented Yet");
-                                        } else {
-                                            if (end === 'null') {
-                                                var subType = relAttr['model'];
-                                                var relModel = this._shelf.getModel(subType);
-                                                if (relModel) {
-                                                    var modelTable = relModel.getTableName();
-                                                    var junctionTable = this.getJunctionTableName(relAttr);
-                                                    var id = inflection.singularize(this._tableName) + "_id";
-                                                    var fid = inflection.singularize(modelTable) + "_id";
-                                                    book = book.query(function (qb) {
-                                                        if (joins.indexOf(junctionTable) == -1) {
-                                                            qb.leftJoin(junctionTable, this._tableName + '.id', id);
-                                                            joins.push(junctionTable);
-                                                            if (value === 'true')
-                                                                qb.where(fid, 'is', null);
-                                                            else
-                                                                qb.where(fid, 'is not', null);
-                                                        } else {
-                                                            // TODO: distinct [or] and [and]
-                                                            if (value === 'true')
-                                                                qb.orWhere(fid, 'is', null);
-                                                            else
-                                                                qb.orWhere(fid, 'is not', null);
-                                                        }
-                                                    }.bind(this));
-                                                } else
-                                                    return Promise.reject(new Error(`unkown type: ${subType}`));
-                                            }
-                                        }
-                                    } else {
-                                        switch (end) {
-                                            case 'null':
-                                                if (value === 'true')
-                                                    book = book.where(propName, 'is', null); // whereNotNull
-                                                else
-                                                    book = book.where(propName, 'is not', null);
-                                                break;
-                                            case 'in':
-                                                throw new Error("Not Implemented Yet");
-                                                break;
-                                            case 'nin':
-                                                throw new Error("Not Implemented Yet");
-                                                break;
-                                            case 'contains':
-                                                book = book.query(function (qb) {
-                                                    qb.where(propName, 'is not', null).where(propName, 'like', `%${value}%`);
-                                                });
-                                                break;
-                                            case 'ncontains':
-                                                book = book.query(function (qb) {
-                                                    qb.where(function () {
-                                                        this.where(propName, 'is', null).orWhere(propName, 'not like', `%${value}%`);
-                                                    });
-                                                });
-                                                break;
-                                            case 'eq':
-                                                book = book.query(function () {
-                                                    this.where(propName, 'is not', null).where(propName, 'like', value);
-                                                });
-                                                break;
-                                            case 'neq':
-                                                if (Array.isArray(value)) {
-                                                    book = book.query(function (qb) {
-                                                        qb.where(function () {
-                                                            this.where(propName, 'is', null).orWhere(propName, 'not in', value); // <> / !=
-                                                        });
-                                                    });
-                                                } else {
-                                                    book = book.query(function (qb) {
-                                                        qb.where(function () {
-                                                            this.where(propName, 'is', null).orWhere(propName, 'not like', value); // <> / !=
-                                                        });
-                                                    });
-                                                }
-                                                break;
-                                            case 'lt':
-                                                book = book.where(propName, '<', value);
-                                                break;
-                                            case 'gt':
-                                                book = book.where(propName, '>', value);
-                                                break;
-                                            case 'lte':
-                                                book = book.where(propName, '<=', value);
-                                                break;
-                                            case 'gte':
-                                                book = book.where(propName, '>=', value);
-                                                break;
-                                            default:
-                                                book = book.where(prop, value);
-                                        }
-                                    }
+                            if (prop === 'or') {
+                                var v;
+                                var orCount = 0;
+                                for (let p in value) {
+                                    if (orCount < 2)
+                                        orCount++;
+                                    v = value[p];
+                                    book = this._readAllProp(book, joins, p, v, orCount);
                                 }
-                            } else {
-                                var propName = prop.substring(0, index);
-                                var relAttr;
-                                for (var attribute of this._definition.attributes) {
-                                    if (attribute['dataType'] === "relation" && attribute.name === propName) {
-                                        relAttr = attribute;
-                                        break;
-                                    }
-                                }
-                                if (relAttr) {
-                                    var subProp = prop.substring(index + 1);
-                                    if (subProp === 'id')
-                                        book = this._readAllRelation(book, joins, relAttr, value);
-                                    else
-                                        throw new Error("Not Implemented Yet");
-                                } else
-                                    return Promise.reject(new Error(`unkown attribute '${propName}' of type '${this._name}'`));
-                            }
+                            } else
+                                book = this._readAllProp(book, joins, prop, value);
                         }
                     }
                 }
@@ -722,7 +589,156 @@ class Model {
         return Promise.resolve(res.toJSON());
     }
 
-    _readAllRelation(book, joins, relAttr, value) {
+    _readAllProp(book, joins, prop, value, orCount) {
+        var index = prop.indexOf('.');
+        if (index == -1) {
+            index = prop.lastIndexOf('_');
+            if (index == -1) {
+                var relAttr;
+                for (var attribute of this._definition.attributes) {
+                    if (attribute['dataType'] === "relation" && attribute.name === prop) {
+                        relAttr = attribute;
+                        break;
+                    }
+                }
+                if (relAttr)
+                    book = this._readAllRelation(book, joins, relAttr, value, orCount);
+                else {
+                    if (Array.isArray(value))
+                        book = book.where(prop, 'in', value);
+                    else
+                        book = book.where(prop, value);
+                }
+            } else {
+                var propName = prop.substring(0, index);
+                var end = prop.substring(index + 1);
+                var relAttr;
+                for (var attribute of this._definition.attributes) {
+                    if (attribute['dataType'] === "relation" && attribute.name === propName) {
+                        relAttr = attribute;
+                        break;
+                    }
+                }
+                if (relAttr && relAttr['multiple']) {
+                    var via = relAttr['via'];
+                    if (via) {
+                        throw new Error("Not Implemented Yet");
+                    } else {
+                        if (end === 'in') {
+                            book = this._readAllRelation(book, joins, relAttr, value.split(','), 1);
+                        } else if (end === 'null') {
+                            var subType = relAttr['model'];
+                            var relModel = this._shelf.getModel(subType);
+                            if (relModel) {
+                                var modelTable = relModel.getTableName();
+                                var junctionTable = this.getJunctionTableName(relAttr);
+                                var id = inflection.singularize(this._tableName) + "_id";
+                                var fid = inflection.singularize(modelTable) + "_id";
+                                book = book.query(function (qb) {
+                                    if (joins.indexOf(junctionTable) == -1) {
+                                        qb.leftJoin(junctionTable, this._tableName + '.id', id);
+                                        joins.push(junctionTable);
+
+                                    }
+                                    if (orCount > 1) {
+                                        if (value === 'true')
+                                            qb.orWhere(fid, 'is', null);
+                                        else
+                                            qb.orWhere(fid, 'is not', null);
+                                    } else {
+                                        if (value === 'true')
+                                            qb.where(fid, 'is', null);
+                                        else
+                                            qb.where(fid, 'is not', null);
+                                    }
+                                }.bind(this));
+                            } else
+                                throw new Error(`unkown type: ${subType}`);
+                        }
+                    }
+                } else {
+                    switch (end) {
+                        case 'null':
+                            if (value === 'true')
+                                book = book.where(propName, 'is', null); // whereNotNull
+                            else
+                                book = book.where(propName, 'is not', null);
+                            break;
+                        case 'in':
+                            throw new Error("Not Implemented Yet");
+                        case 'nin':
+                            throw new Error("Not Implemented Yet");
+                        case 'contains':
+                            book = book.query(function (qb) {
+                                qb.where(propName, 'is not', null).where(propName, 'like', `%${value}%`);
+                            });
+                            break;
+                        case 'ncontains':
+                            book = book.query(function (qb) {
+                                qb.where(function () {
+                                    this.where(propName, 'is', null).orWhere(propName, 'not like', `%${value}%`);
+                                });
+                            });
+                            break;
+                        case 'eq':
+                            book = book.query(function () {
+                                this.where(propName, 'is not', null).where(propName, 'like', value);
+                            });
+                            break;
+                        case 'neq':
+                            if (Array.isArray(value)) {
+                                book = book.query(function (qb) {
+                                    qb.where(function () {
+                                        this.where(propName, 'is', null).orWhere(propName, 'not in', value); // <> / !=
+                                    });
+                                });
+                            } else {
+                                book = book.query(function (qb) {
+                                    qb.where(function () {
+                                        this.where(propName, 'is', null).orWhere(propName, 'not like', value); // <> / !=
+                                    });
+                                });
+                            }
+                            break;
+                        case 'lt':
+                            book = book.where(propName, '<', value);
+                            break;
+                        case 'gt':
+                            book = book.where(propName, '>', value);
+                            break;
+                        case 'lte':
+                            book = book.where(propName, '<=', value);
+                            break;
+                        case 'gte':
+                            book = book.where(propName, '>=', value);
+                            break;
+                        default:
+                            book = book.where(prop, value);
+                    }
+                }
+            }
+        } else {
+            var propName = prop.substring(0, index);
+            var relAttr;
+            for (var attribute of this._definition.attributes) {
+                if (attribute['dataType'] === "relation" && attribute.name === propName) {
+                    relAttr = attribute;
+                    break;
+                }
+            }
+            if (relAttr) {
+                var subProp = prop.substring(index + 1);
+                if (subProp === 'id')
+                    book = this._readAllRelation(book, joins, relAttr, value, orCount);
+                else
+                    throw new Error("Not Implemented Yet");
+            } else
+                throw new Error(`unkown attribute '${propName}' of type '${this._name}'`);
+        }
+        return book;
+    }
+
+    _readAllRelation(book, joins, relAttr, value, orCount) {
         if (relAttr['multiple']) {
             var via = relAttr['via'];
             if (via) {
@@ -741,10 +757,20 @@ class Model {
                             qb.leftJoin(junctionTable, this._tableName + '.id', id);
                             joins.push(junctionTable);
                         }
-                        if (Array.isArray(value))
-                            qb.whereIn(fid, value); // TODO: distinct [or] and [and]
-                        else
-                            qb.where(fid, value);
+                        if (Array.isArray(value)) {
+                            if (orCount && orCount > 0)
+                                qb.orWhereIn(fid, value);
+                            else {
+                                qb.whereIn(fid, value)
+                                    .groupBy(id)
+                                    .havingRaw('COUNT(*) >= ?', value.length);
+                            }
+                        } else {
+                            if (orCount && orCount > 1)
+                                qb.orWhere(fid, value);
+                            else
+                                qb.where(fid, value);
+                        }
                     }.bind(this));
                 } else
                     throw new Error(`unkown type: ${subType}`);
