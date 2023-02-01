@@ -2,6 +2,18 @@ const crypto = require('crypto');
 
 class AuthController {
 
+    static greeting(req, res) {
+        res.send('Hello, ' + req.session.user.username + '!' +
+            ' <a href="/sys/auth/logout">Logout</a>');
+    }
+
+    static showLoginDialog(res) {
+        res.send('<form action="/sys/auth/login" method="post">' +
+            'Username: <input name="user"><br>' +
+            'Password: <input name="pass" type="password"><br>' +
+            '<input type="submit" text="Login"></form>');
+    }
+
     _userModel;
     _roleModel;
     _permissionModel;
@@ -225,59 +237,56 @@ class AuthController {
     }
 
     async checkAuthorization(req, res, next) {
-        if (true) {
-            if (req.originalUrl == "/") {
-                if (req.session.user)
-                    next();
-                else
-                    res.redirect('/login');
-            } else if (req.originalUrl == "/login" || req.originalUrl == "/logout")
+        if (req.originalUrl == "/") {
+            if (req.session.user)
                 next();
-            else {
-                if (req.session.user) {
-                    var bAllow = false;
-                    if (req.session.user.roles.includes('administrator'))
-                        bAllow = true;
-                    else if (req.path == '/system/info')
-                        bAllow = true;
-                    else if (req.originalUrl.startsWith('/api/')) {
-                        var arr = req.path.split('/');
-                        if (arr.length >= 3) {
-                            var modelName = arr[2];
-                            var model = controller.getShelf().getModel(modelName);
-                            if (model) {
-                                var permissions;
-                                if (req.method === 'GET')
-                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
-                                else
-                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
-                                if (permissions && permissions.length > 0) {
-                                    for (var permission of permissions) {
-                                        if (permission['user']) {
-                                            if (req.session.user.username == permission['user']['username']) {
-                                                bAllow = true;
-                                                break;
-                                            }
-                                        } else if (permission['role']) {
-                                            if (req.session.user.roles.includes(permission['role']['role'])) {
-                                                bAllow = true;
-                                                break;
-                                            }
+            else
+                res.redirect('/sys/auth/login');
+        } else if (req.originalUrl == "/sys/auth/login" || req.originalUrl == "/sys/auth/logout")
+            next();
+        else {
+            if (req.session.user) {
+                var bAllow = false;
+                if (req.session.user.roles.includes('administrator'))
+                    bAllow = true;
+                else if (req.path == '/sys/info')
+                    bAllow = true;
+                else if (req.originalUrl.startsWith('/api/')) {
+                    var arr = req.path.split('/');
+                    if (arr.length >= 3) {
+                        var modelName = arr[2];
+                        var model = controller.getShelf().getModel(modelName);
+                        if (model) {
+                            var permissions;
+                            if (req.method === 'GET')
+                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
+                            else
+                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
+                            if (permissions && permissions.length > 0) {
+                                for (var permission of permissions) {
+                                    if (permission['user']) {
+                                        if (req.session.user.username == permission['user']['username']) {
+                                            bAllow = true;
+                                            break;
+                                        }
+                                    } else if (permission['role']) {
+                                        if (req.session.user.roles.includes(permission['role']['role'])) {
+                                            bAllow = true;
+                                            break;
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    if (bAllow)
-                        next();
-                    else
-                        res.sendStatus(403); //Forbidden //TODO:
-                } else
-                    res.sendStatus(401); //Unauthorized
-            }
-        } else
-            next();
+                }
+                if (bAllow)
+                    next();
+                else
+                    res.sendStatus(403); //Forbidden //TODO:
+            } else
+                res.sendStatus(401); //Unauthorized
+        }
         return Promise.resolve();
     }
 }

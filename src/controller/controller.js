@@ -420,50 +420,7 @@ class Controller {
         //app.use('/robots.txt', express.static('robots.txt'));
 
         app.get('/', function (req, res) {
-            res.send('hello, ' + req.session.user.username + '!' +
-                ' <a href="/logout">Logout</a>')
-        });
-
-        app.get('/login', function (req, res) {
-            res.send('<form action="/login" method="post">' +
-                'Username: <input name="user"><br>' +
-                'Password: <input name="pass" type="password"><br>' +
-                '<input type="submit" text="Login"></form>');
-        });
-
-        app.post('/login', express.urlencoded({ extended: false }), async function (req, res) {
-            var username = req.body.user;
-            var password = req.body.pass;
-            var user;
-            if (username && password)
-                user = await this._authController.checkAuthentication(username, password);
-            if (user) {
-                req.session.regenerate(function (err) {
-                    if (err)
-                        next(err);
-                    req.session.user = user;
-                    req.session.save(function (err) {
-                        if (err)
-                            return next(err);
-                        res.redirect('/');
-                    });
-                });
-            } else
-                res.redirect('/login');
-            return Promise.resolve();
-        }.bind(this));
-
-        app.get('/logout', function (req, res, next) {
-            req.session.user = null;
-            req.session.save(function (err) {
-                if (err)
-                    next(err);
-                req.session.regenerate(function (err) {
-                    if (err)
-                        next(err);
-                    res.redirect('/');
-                });
-            });
+            AuthController.greeting(req, res);
         });
 
         var systemRouter = express.Router();
@@ -590,7 +547,46 @@ class Controller {
             res.send("Shutdown initiated");
             process.exit();
         });
-        app.use('/system', systemRouter);
+        app.use('/sys', systemRouter);
+
+        var authRouter = express.Router();
+        authRouter.get('/login', function (req, res) {
+            AuthController.showLoginDialog(res);
+        });
+        authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res) {
+            var username = req.body.user;
+            var password = req.body.pass;
+            var user;
+            if (username && password)
+                user = await this._authController.checkAuthentication(username, password);
+            if (user) {
+                req.session.regenerate(function (err) {
+                    if (err)
+                        next(err);
+                    req.session.user = user;
+                    req.session.save(function (err) {
+                        if (err)
+                            return next(err);
+                        res.redirect('/');
+                    });
+                });
+            } else
+                res.redirect('/sys/auth/login');
+            return Promise.resolve();
+        }.bind(this));
+        authRouter.get('/logout', function (req, res, next) {
+            req.session.user = null;
+            req.session.save(function (err) {
+                if (err)
+                    next(err);
+                req.session.regenerate(function (err) {
+                    if (err)
+                        next(err);
+                    res.redirect('/');
+                });
+            });
+        });
+        systemRouter.use('/auth', authRouter);
 
         var apiRouter = express.Router();
         apiRouter.route('*')
@@ -634,22 +630,18 @@ class Controller {
         app.use('/api', apiRouter);
 
         if (this._serverConfig.ssl) {
-            var privateKey;
-            var pathKey = path.join(this._appRoot, 'config/sslcert/key.pem');
-            if (fs.existsSync(pathKey))
-                privateKey = fs.readFileSync(pathKey, 'utf8');
-            var certificate;
-            var crtPath = path.join(this._appRoot, 'config/sslcert/cert.pem');
-            if (fs.existsSync(crtPath))
-                var certificate = fs.readFileSync(crtPath);
+            const options = {
+                key: fs.readFileSync(path.join(this._appRoot, 'config/ssl/key.pem'), 'utf8'),
+                cert: fs.readFileSync(path.join(this._appRoot, 'config/ssl/cert.pem'), 'utf8')
+            };
 
-            if (privateKey && certificate) {
-                this._svr = https.createServer({ key: privateKey, cert: certificate }, app);
+            if (options) {
+                this._svr = https.createServer(options, app);
                 this._svr.listen(this._serverConfig.port, function () {
                     Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
                 }.bind(this));
             } else {
-                var msg = "No SSL certificate found";
+                var msg = "No valid SSL certificate found";
                 console.error(msg);
                 Logger.error("[App] ✘ " + msg);
             }
