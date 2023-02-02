@@ -5,7 +5,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.4.0-beta](https://github.com/pb-it/wing-cms-api/0.4.0-beta) (2023-02-01)
 
-* Refactored system routes 
+### BREAKING CHANGES
+
+* Refactored system routes
 
 
 ## [0.3.0-beta](https://github.com/pb-it/wing-cms-api/0.3.0-beta) (2022-08-23)

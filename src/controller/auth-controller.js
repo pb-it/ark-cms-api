@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 
+const Logger = require('../common/logger/logger');
+
 class AuthController {
 
     static greeting(req, res) {
@@ -73,6 +75,8 @@ class AuthController {
             this._userModel = await shelf.upsertModel(null, definition);
             bCreateAdminUser = true;
         }
+        if (!this._userModel.initDone())
+            await this._userModel.initModel();
 
         this._roleModel = shelf.getModel('_role');
         if (!this._roleModel) {
@@ -107,6 +111,8 @@ class AuthController {
             this._roleModel = await shelf.upsertModel(null, definition);
             bCreateRoles = true;
         }
+        if (!this._roleModel.initDone())
+            await this._roleModel.initModel();
 
         this._permissionModel = shelf.getModel('_permission');
         if (!this._permissionModel) {
@@ -164,6 +170,8 @@ class AuthController {
             this._permissionModel = await shelf.upsertModel(null, definition);
             bCreatePermissions = true;
         }
+        if (!this._permissionModel.initDone())
+            await this._permissionModel.initModel();
 
         var adminUser;
         if (bCreateAdminUser)
@@ -221,15 +229,19 @@ class AuthController {
 
     async checkAuthentication(username, password) {
         var user;
-        var res = await this._userModel.readAll({ 'username': username });
-        if (res && res.length == 1) {
-            if (res[0]['password'] == this._hashPassword(password)) {
-                user = { 'username': username };
-                user['id'] = res[0]['id'];
-                user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
+        try {
+            var res = await this._userModel.readAll({ 'username': username });
+            if (res && res.length == 1) {
+                if (res[0]['password'] == this._hashPassword(password)) {
+                    user = { 'username': username };
+                    user['id'] = res[0]['id'];
+                    user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
+                }
             }
+        } catch (error) {
+            Logger.parseError(error);
         }
-        return user;
+        return Promise.resolve(user);
     }
 
     _hashPassword(password) {
@@ -237,55 +249,59 @@ class AuthController {
     }
 
     async checkAuthorization(req, res, next) {
-        if (req.originalUrl == "/") {
-            if (req.session.user)
+        try {
+            if (req.originalUrl == "/") {
+                if (req.session.user)
+                    next();
+                else
+                    res.redirect('/sys/auth/login');
+            } else if (req.originalUrl == "/sys/auth/login" || req.originalUrl == "/sys/auth/logout")
                 next();
-            else
-                res.redirect('/sys/auth/login');
-        } else if (req.originalUrl == "/sys/auth/login" || req.originalUrl == "/sys/auth/logout")
-            next();
-        else {
-            if (req.session.user) {
-                var bAllow = false;
-                if (req.session.user.roles.includes('administrator'))
-                    bAllow = true;
-                else if (req.path == '/sys/info')
-                    bAllow = true;
-                else if (req.originalUrl.startsWith('/api/')) {
-                    var arr = req.path.split('/');
-                    if (arr.length >= 3) {
-                        var modelName = arr[2];
-                        var model = controller.getShelf().getModel(modelName);
-                        if (model) {
-                            var permissions;
-                            if (req.method === 'GET')
-                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
-                            else
-                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
-                            if (permissions && permissions.length > 0) {
-                                for (var permission of permissions) {
-                                    if (permission['user']) {
-                                        if (req.session.user.username == permission['user']['username']) {
-                                            bAllow = true;
-                                            break;
-                                        }
-                                    } else if (permission['role']) {
-                                        if (req.session.user.roles.includes(permission['role']['role'])) {
-                                            bAllow = true;
-                                            break;
+            else {
+                if (req.session.user) {
+                    var bAllow = false;
+                    if (req.session.user.roles.includes('administrator'))
+                        bAllow = true;
+                    else if (req.path == '/sys/info')
+                        bAllow = true;
+                    else if (req.originalUrl.startsWith('/api/')) {
+                        var arr = req.path.split('/');
+                        if (arr.length >= 3) {
+                            var modelName = arr[2];
+                            var model = controller.getShelf().getModel(modelName);
+                            if (model) {
+                                var permissions;
+                                if (req.method === 'GET')
+                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
+                                else
+                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
+                                if (permissions && permissions.length > 0) {
+                                    for (var permission of permissions) {
+                                        if (permission['user']) {
+                                            if (req.session.user.username == permission['user']['username']) {
+                                                bAllow = true;
+                                                break;
+                                            }
+                                        } else if (permission['role']) {
+                                            if (req.session.user.roles.includes(permission['role']['role'])) {
+                                                bAllow = true;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                if (bAllow)
-                    next();
-                else
-                    res.sendStatus(403); //Forbidden //TODO:
-            } else
-                res.sendStatus(401); //Unauthorized
+                    if (bAllow)
+                        next();
+                    else
+                        res.sendStatus(403); //Forbidden //TODO:
+                } else
+                    res.sendStatus(401); //Unauthorized
+            }
+        } catch (error) {
+            Logger.parseError(error);
         }
         return Promise.resolve();
     }
