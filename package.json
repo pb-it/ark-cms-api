@@ -42,7 +42,8 @@
         "express-session": "^1.17.3",
         "knex": "^0.95.11",
         "mysql": "^2.18.1",
-        "mysql2": "^2.3.3"
+        "mysql2": "^2.3.3",
+        "node-fetch": "^3.3.0"
     },
     "devDependencies": {
         "eslint": "^7.32.0",
