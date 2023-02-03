@@ -76,9 +76,9 @@ test('media', async function () {
     expect(res['definition']).toEqual(model);
 
     var media = JSON.parse(fs.readFileSync('./tests/data/crud/media_1.json', 'utf8'));
-    var blob = await webclient.fetchBlob(media['url']);
-    var base64 = "data:" + blob.type + ';base64,' + Buffer.from(blob).toString('base64');
-    media['base64'] = { 'base64': base64 };
+    var base64 = await webclient.fetchBase64(media['url']);
+    //media['base64'] = { 'base64': base64 };
+    media['base64'] = { 'url': media['url'] };
     /*await fetch(url)
         .then((response) => response.buffer())
         .then((buffer) => {

@@ -1,6 +1,9 @@
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios').default;
+const fetch = require("node-fetch");
+
+const base64 = require(path.join(__dirname, './base64'));
 
 async function getHeaders() {
     var headers;
@@ -40,13 +43,14 @@ module.exports.delete = async function (url) {
 }
 
 module.exports.fetchBlob = async function (url) {
-    var data;
-    if (url) {
-        var resp = await axios.get(url, { responseType: 'blob' });
-        if (resp && resp.data)
-            data = resp.data;
-    }
-    return Promise.resolve(data);
+    return fetch(url).then(r => r.blob());
+}
+
+module.exports.fetchBase64 = async function (url) {
+    var response = await fetch(url);
+    var contentType = response.headers.get("Content-Type");
+    var buffer = await response.buffer();
+    return base64.getStringFromBuffer(contentType, buffer);
 }
 
 async function download(url, file) {

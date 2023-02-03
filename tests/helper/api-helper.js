@@ -9,7 +9,7 @@ class ApiHelper {
     constructor(api) {
         this._api = api;
         this._modelsUrl = this._api + "/_model";
-        this._modelsUrlPut = this._modelsUrl + "?v=0.3.0-beta";
+        this._modelsUrlPut = this._modelsUrl + "?v=0.4.0-beta";
     }
 
     async getAllModels() {

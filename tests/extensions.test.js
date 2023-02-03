@@ -77,7 +77,7 @@ test('youtube', async function () {
     var data = await webclient.curl(urlInfo);
     if (data['state'] === 'openRestartRequest') {
         var urlRestart = rootUrl + "/system/restart";
-        data = await webclient.curl(urlRestart); //TODO: find functioning restart procedure
+        data = await webclient.curl(urlRestart); //TODO: find server restart procedure without terminating test
         await new Promise(r => setTimeout(r, 5000));
     }
 

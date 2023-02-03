@@ -409,7 +409,8 @@ class Controller {
 
         app.use(cors(corsOptions));
         app.use(session(sessOptions));
-        app.use(this._authController.checkAuthorization.bind(this._authController));
+        if (this._serverConfig['auth'] == undefined || this._serverConfig['auth'] == true)
+            app.use(this._authController.checkAuthorization.bind(this._authController));
         app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
         app.use(bodyParser.json({ limit: '100mb' }));
 
@@ -692,12 +693,18 @@ class Controller {
                         if (id) {
                             try {
                                 var foo = await this._shelf.deleteModel(id);
+                                var user = req.session.user;
+                                var uid;
+                                if (user)
+                                    uid = user['id'];
+                                else
+                                    uid = null;
                                 var change = {
                                     'method': req.method,
                                     'model': '_model',
                                     'record_id': id,
                                     'data': JSON.stringify(req.body),
-                                    'user': req.session.user.id
+                                    'user': uid
                                 };
                                 await this._shelf.getModel('_change').create(change);
                                 Logger.info("[App] ✔ Deleted model '" + foo + "'");
@@ -757,13 +764,19 @@ class Controller {
                         }
 
                         if (timestamp) { //req.method !== "GET"
+                            var user = req.session.user;
+                            var uid;
+                            if (user)
+                                uid = user['id'];
+                            else
+                                uid = null;
                             var change = {
                                 'timestamp': timestamp,
                                 'method': req.method,
                                 'model': name,
                                 'record_id': id,
                                 'data': JSON.stringify(req.body),
-                                'user': req.session.user.id
+                                'user': uid
                             };
                             await this._shelf.getModel('_change').create(change);
                         }
@@ -811,18 +824,24 @@ class Controller {
                 var id = model.getId();
                 var data = await this._shelf.getModel('_model').read(id);
                 var timestamp = data['updated_at'];
+                var user = req.session.user;
+                var uid;
+                if (user)
+                    uid = user['id'];
+                else
+                    uid = null;
                 var change = {
                     'timestamp': timestamp,
                     'method': req.method,
                     'model': '_model',
                     'record_id': id,
                     'data': JSON.stringify(req.body),
-                    'user': req.session.user.id
+                    'user': uid
                 };
                 await this._shelf.getModel('_change').create(change);
-                if (bNew && req.session.user.username !== 'admin') {
+                if (bNew && user && user.username !== 'admin') {
                     var permission = {
-                        'user': req.session.user.id,
+                        'user': uid,
                         'model': id,
                         'read': true,
                         'write': true
@@ -837,7 +856,7 @@ class Controller {
                         'model': '_permission',
                         'record_id': pid,
                         'data': JSON.stringify(permission),
-                        'user': req.session.user.id
+                        'user': uid
                     };
                     await this._shelf.getModel('_change').create(change);
                 }
@@ -897,12 +916,18 @@ class Controller {
                             if (definition) {
                                 try {
                                     await this._shelf.upsertModel(id, definition, false);
+                                    var user = req.session.user;
+                                    var uid;
+                                    if (user)
+                                        uid = user['id'];
+                                    else
+                                        uid = null;
                                     var change = {
                                         'method': req.method,
                                         'model': '_model',
                                         'record_id': id,
                                         'data': JSON.stringify(req.body),
-                                        'user': req.session.user.id
+                                        'user': uid
                                     };
                                     await this._shelf.getModel('_change').create(change);
                                     Logger.info("[App] ✔ Updated model '" + model.getName() + "'");

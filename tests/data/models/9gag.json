@@ -4,6 +4,17 @@
         "increments": true,
         "timestamps": true
     },
+    "defaults": {
+        "view": {
+            "float": "left",
+            "width": 100,
+            "format": "custom",
+            "height": 100,
+            "details": "none",
+            "panelType": "MediaPanel"
+        },
+        "thumbnail": "thumbnail"
+    },
     "attributes": [
         {
             "name": "Title",
@@ -18,20 +29,7 @@
             "dataType": "base64"
         }
     ],
-    "defaults": {
-        "paneltype": "MediaPanel",
-        "thumbnail": "thumbnail",
-        "view": {
-            "format": "16/9",
-            "width": 320,
-            "height": 180,
-            "details": "none",
-            "display": "",
-            "float": ""
-        }
-    },
-    "actions": {
-        "prepare": "",
-        "check": "var url = data.url;\nif (url) {\n    var surl;\n    if (url.startsWith(\"http://\")) {\n        surl = url.substring(7);\n    } else if (url.startsWith(\"https://\")) {\n        surl = url.substring(8);\n    } else {\n        surl = url;\n    }\n\n\tif (surl.startsWith(\"9gag.com/gag/\")) {\n\t\tvar id = surl.substring(13, 21);\n\t\tdata.thumbnail = \"https://img-9gag-fun.9cache.com/photo/\" + id + \"_700b.jpg\";\n\t}\n}\nreturn Promise.resolve(data);"
+    "extensions": {
+        "client": "var checkAction = {\n    'name': 'Check',\n    'fn': async function (data) {\n        var url = data.url;\n        if (url) {\n            var surl;\n            if (url.startsWith(\"http://\")) {\n                surl = url.substring(7);\n            } else if (url.startsWith(\"https://\")) {\n                surl = url.substring(8);\n            } else {\n                surl = url;\n            }\n\n            if (surl.startsWith(\"9gag.com/gag/\")) {\n                var id = surl.substring(13, 21);\n                data.thumbnail = { url: \"https://img-9gag-fun.9cache.com/photo/\" + id + \"_700b.jpg\" };\n            }\n        }\n        return Promise.resolve(data);\n    }\n};\nthis._crudDialogActions.push(checkAction);"
     }
 }

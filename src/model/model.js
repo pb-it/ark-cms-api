@@ -887,7 +887,10 @@ class Model {
                     if (attr['dataType'] === "blob") {
                         forge[str] = data[str]['blob'];
                     } else if (attr['dataType'] === "base64") {
-                        forge[str] = data[str]['base64'];
+                        if (data[str]['url'])
+                            forge[str] = await webclient.fetchBase64(data[str]['url']);
+                        else if (data[str]['base64'])
+                            forge[str] = data[str]['base64'];
                     } else if (attr['dataType'] === "file") {
                         if (attr['cdn']) {
                             var cdnConfig = controller.getCdnConfig();

@@ -1,5 +1,15 @@
 const fs = require('fs');
 
+function getStringFromBuffer(type, buffer) {
+    return 'data:' + type + ';base64,' + buffer.toString('base64');
+}
+module.exports.getStringFromBuffer = getStringFromBuffer;
+
+module.exports.getStringFromBlob = async function (blob) {
+    var buffer = Buffer.from(await blob.text());
+    return Promise.resolve(getStringFromBuffer(blob.type, buffer.toString('base64')));
+}
+
 module.exports.getExtension = function (data) {
     var ext;
     if (data.startsWith("data:")) {
