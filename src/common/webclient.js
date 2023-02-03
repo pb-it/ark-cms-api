@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios').default;
-const fetch = require("node-fetch");
+const fetch = require("cross-fetch");
 
 const base64 = require(path.join(__dirname, './base64'));
 
