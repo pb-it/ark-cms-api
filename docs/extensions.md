@@ -80,15 +80,30 @@ const { JSDOM } = jsdom || {};
 const controller = require("../../src/controller/controller");
 const WebClient = require("../../src/common/webclient");
 
+/**
+ * executed in the context of the model
+ */ 
 module.exports.init = async function () {
     await controller.installDependencies(['jsdom']);
+
+    var attributes = this._definition['attributes'];
+    var attr = ...
+    var path = controller.getPathForFile(attr);
+
     return Promise.resolve();
 }
 
 module.exports.preCreateHook = async function (data) {
+    
+    ... // manipulate the data here!
+
+    // as example curl a given website
     var body = await WebClient.curl(data['url']);
     const doc = new JSDOM(body).window.document;
-    ... // manipulate the data here!
+    ...
+
+    controller.getShelf().getModel("test");
+
     return data;
 }
 ```

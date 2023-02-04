@@ -55,7 +55,7 @@ class Model {
             if (extension) {
                 this._extension = _eval(extension, true);
                 if (this._extension.init)
-                    await this._extension.init();
+                    await this._extension.init.bind(this)();
             }
         }
 
@@ -793,7 +793,7 @@ class Model {
         var res;
 
         if (this._extension && this._extension.preCreateHook)
-            data = await this._extension.preCreateHook(data);
+            data = await this._extension.preCreateHook.bind(this)(data);
 
         if (this._definition.options.increments) {
             var forge = await this._createForge(data);
@@ -828,7 +828,7 @@ class Model {
                 'require': true
             });
             var current = obj.toJSON();
-            data = await this._extension.preUpdateHook(current, data);
+            data = await this._extension.preUpdateHook.bind(this)(current, data);
         }
 
         if (this._definition.options.increments) {
@@ -887,48 +887,28 @@ class Model {
                     if (attr['dataType'] === "blob") {
                         forge[str] = data[str]['blob'];
                     } else if (attr['dataType'] === "base64") {
-                        if (data[str]['url'])
-                            forge[str] = await webclient.fetchBase64(data[str]['url']);
-                        else if (data[str]['base64'])
-                            forge[str] = data[str]['base64'];
+                        if (data[str]) {
+                            if (data[str]['url'])
+                                forge[str] = await webclient.fetchBase64(data[str]['url']);
+                            else if (data[str]['base64'])
+                                forge[str] = data[str]['base64'];
+                        } else
+                            forge[str] = null;
                     } else if (attr['dataType'] === "file") {
-                        if (attr['cdn']) {
-                            var cdnConfig = controller.getCdnConfig();
-                            if (cdnConfig) {
-                                var localPath;
-                                var p;
-                                for (var c of cdnConfig) {
-                                    if (c['url'] === attr['cdn']) {
-                                        p = c['path'];
-                                        break;
-                                    }
-                                }
-                                if (p) {
-                                    if (p.startsWith('.'))
-                                        localPath = path.join(controller.getAppRoot(), p);
-                                    else {
-                                        if (process.platform === 'linux') {
-                                            if (p.startsWith('/'))
-                                                localPath = p;
-                                        } else
-                                            localPath = p;
-                                    }
-                                    if (localPath) {
-                                        var fileName = data[str]['filename'];
-                                        if (!fileName)
-                                            fileName = this._createRandomFilename(localPath, data[str]);
+                        var localPath = controller.getPathForFile(attr);
+                        if (localPath) {
+                            var fileName = data[str]['filename'];
+                            if (!fileName)
+                                fileName = this._createRandomFilename(localPath, data[str]);
 
-                                        if (fileName) {
-                                            var filePath = path.join(localPath, fileName);
-                                            //console.log(filePath);
-                                            await this._createFile(filePath, data[str]);
-                                            forge[str] = fileName;
-                                        }
-                                    } else
-                                        throw new Error("Invalid CDN path!");
-                                }
+                            if (fileName) {
+                                var filePath = path.join(localPath, fileName);
+                                //console.log(filePath);
+                                await this._createFile(filePath, data[str]);
+                                forge[str] = fileName;
                             }
-                        }
+                        } else
+                            throw new Error("Invalid CDN path!");
                     } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
                         forge[str] = data[str];
                 } else if (str === 'id' && this._definition.options.increments) {
@@ -1006,7 +986,7 @@ class Model {
         res = obj.toJSON();
 
         if (this._extension && this._extension.preDeleteHook)
-            await this._extension.preDeleteHook(res);
+            await this._extension.preDeleteHook.bind(this)(res);
 
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {

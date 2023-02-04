@@ -96,9 +96,11 @@ class Controller {
                 connection: this._databaseSettings['connection']
             });
 
-            /*this._knex.on('query', function (queryData) {
-                console.log(queryData);
-            });*/
+            if (this._serverConfig['debug'] && this._serverConfig['debug']['knex']) {
+                this._knex.on('query', function (queryData) {
+                    console.log(queryData);
+                });
+            }
 
             try {
                 await this._knex.raw('select 1+1 as result');
@@ -180,6 +182,31 @@ class Controller {
 
     getShelf() {
         return this._shelf;
+    }
+
+    getPathForFile(attr) {
+        var localPath;
+        if (this._cdnConfig) {
+            var p;
+            for (var c of this._cdnConfig) {
+                if (c['url'] === attr['cdn']) {
+                    p = c['path'];
+                    break;
+                }
+            }
+            if (p) {
+                if (p.startsWith('.'))
+                    localPath = path.join(controller.getAppRoot(), p);
+                else {
+                    if (process.platform === 'linux') {
+                        if (p.startsWith('/'))
+                            localPath = p;
+                    } else
+                        localPath = p;
+                }
+            }
+        }
+        return localPath;
     }
 
     async update(version, bForce) {
@@ -292,50 +319,52 @@ class Controller {
     }
 
     async installDependencies(arr) {
-        var file = path.join(this._appRoot, 'package.json');
-        var str = fs.readFileSync(file, 'utf8');
-        var pkg = JSON.parse(str);
-        var installed = Object.keys(pkg['dependencies']);
-        var missing = [];
-        var split;
-        var name;
-        var version;
-        for (var x of arr) {
-            name = null;
-            version = null;
-            split = x.split('@');
-            if (split.length == 1)
-                name = split[0];
-            else {
-                if (split[0] === '') {
-                    name = '@' + split[1]; // @ at the first position indicates submodules
-                    if (split.length == 3)
-                        version = split[2];
-                } else {
+        if (!this._serverConfig['debug']) {
+            var file = path.join(this._appRoot, 'package.json');
+            var str = fs.readFileSync(file, 'utf8');
+            var pkg = JSON.parse(str);
+            var installed = Object.keys(pkg['dependencies']);
+            var missing = [];
+            var split;
+            var name;
+            var version;
+            for (var x of arr) {
+                name = null;
+                version = null;
+                split = x.split('@');
+                if (split.length == 1)
                     name = split[0];
-                    version = split[1];
+                else {
+                    if (split[0] === '') {
+                        name = '@' + split[1]; // @ at the first position indicates submodules
+                        if (split.length == 3)
+                            version = split[2];
+                    } else {
+                        name = split[0];
+                        version = split[1];
+                    }
                 }
+                if (version && version.startsWith('https://github.com/'))
+                    version = 'github:' + version.substring('https://github.com/'.length);
+                if (!installed.includes(name) || (version && version !== pkg['dependencies'][name]))
+                    missing.push({ 'ident': x, 'name': name, 'version': version })
             }
-            if (version && version.startsWith('https://github.com/'))
-                version = 'github:' + version.substring('https://github.com/'.length);
-            if (!installed.includes(name) || (version && version !== pkg['dependencies'][name]))
-                missing.push({ 'ident': x, 'name': name, 'version': version })
-        }
 
-        if (missing.length > 0) {
-            var idents = missing.map(function (x) { return x['ident'] });
-            Logger.info('[App] Installing missing dependencies \'' + idents.join('\', \'') + '\'');
-            var dir;
-            for (var x of missing) {
-                dir = path.join(this._appRoot, x['name']);
-                if (fs.existsSync(dir))
-                    fs.rmSync(dir, { recursive: true, force: true });
-            }
-            await common.exec('cd ' + this._appRoot + ' && npm install ' + idents.join(' ') + ' --legacy-peer-deps');
-            try {
-                var x = require(name);
-            } catch (error) {
-                this.setRestartRequest();
+            if (missing.length > 0) {
+                var idents = missing.map(function (x) { return x['ident'] });
+                Logger.info('[App] Installing missing dependencies \'' + idents.join('\', \'') + '\'');
+                var dir;
+                for (var x of missing) {
+                    dir = path.join(this._appRoot, x['name']);
+                    if (fs.existsSync(dir))
+                        fs.rmSync(dir, { recursive: true, force: true });
+                }
+                await common.exec('cd ' + this._appRoot + ' && npm install ' + idents.join(' ') + ' --legacy-peer-deps');
+                try {
+                    var x = require(name);
+                } catch (error) {
+                    this.setRestartRequest();
+                }
             }
         }
         return Promise.resolve();
@@ -544,10 +573,30 @@ class Controller {
             }
             return Promise.resolve();
         }.bind(this));
-        systemRouter.get('/shutdown', async () => {
+        systemRouter.get('/shutdown', (req, res) => {
             res.send("Shutdown initiated");
             process.exit();
         });
+        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+            const form = '<form action="/sys/cmd" method="post">' +
+                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+                '<input type="submit" text="Execute"></form>';
+
+            systemRouter.get('/cmd', (req, res) => {
+                res.send(form);
+            });
+            systemRouter.post('/cmd', async (req, res) => {
+                var cmd = req.body['cmd'];
+                var response;
+                if (cmd) {
+                    Logger.info("[App] Executing command '" + cmd + "'");
+                    response = await common.exec(req.body['cmd']);
+                    response = response.replaceAll('\n', '<br>');
+                }
+                res.send(response + '<br>' + form);
+                return Promise.resolve();
+            });
+        }
         app.use('/sys', systemRouter);
 
         var authRouter = express.Router();
