@@ -8,6 +8,7 @@
         {
             "name": "file",
             "dataType": "file",
+            "storage": "filesystem",
             "cdn": "/cdn"
         }
     ]

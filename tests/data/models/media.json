@@ -11,7 +11,9 @@
         },
         {
             "name": "base64",
-            "dataType": "base64"
+            "dataType": "file",
+            "storage": "base64",
+            "url_prop": "url"
         }
     ]
 }

@@ -314,33 +314,41 @@ class Model {
             case "relation":
                 table.integer(attribute.name);
                 break;
-            case "blob":
-                if (attribute.length) {
-                    if (attribute.length <= 65535)
-                        table.binary(attribute.name, attribute.length);
-                    else if (attribute.length <= 16777215)
-                        table.specificType(attribute.name, "MEDIUMBLOB");
-                    else
-                        table.specificType(attribute.name, "LONGBLOB");
-                } else {
-                    table.binary(attribute.name);
-                }
-                break;
-            case "base64":
-                table.text(attribute.name, 'longtext');
-                break;
             case "file":
                 var column;
-                if (attribute.length)
-                    column = table.string(attribute.name, attribute.length);
-                else
-                    column = table.string(attribute.name);
-                if (attribute.defaultValue)
-                    column.defaultTo(attribute.defaultValue);
-                if (attribute.required)
+                if (attribute['storage']) {
+                    if (attribute['storage'] == 'base64') {
+                        column = table.text(attribute['name'], 'longtext');
+                    } else if (attribute['storage'] == 'blob') {
+                        if (attribute['length']) {
+                            if (attribute['length'] <= 65535)
+                                column = table.binary(attribute['name'], attribute['length']);
+                            else if (attribute['length'] <= 16777215)
+                                column = table.specificType(attribute['name'], "MEDIUMBLOB");
+                            else
+                                column = table.specificType(attribute['name'], "LONGBLOB");
+                        } else {
+                            column = table.binary(attribute['name']);
+                        }
+                    } else if (attribute['storage'] == 'filesystem') {
+                        if (attribute['length'])
+                            column = table.string(attribute['name'], attribute['length']);
+                        else
+                            column = table.string(attribute['name']);
+
+                        /*if (attribute['defaultValue'])
+                            column.defaultTo(attribute.defaultValue);*/
+                        if (attribute['unique'])
+                            column.unique();
+                    }
+                } else
+                    throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] missing storage information'");
+
+                if (attribute['required'])
                     column.notNullable();
-                if (attribute.unique)
-                    column.unique();
+
+                //if (attribute['filename_prop']) 
+                //if (attribute['url_prop'])
                 break;
             default:
                 throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
@@ -884,31 +892,44 @@ class Model {
             if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
                 attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                 if (attr) {
-                    if (attr['dataType'] === "blob") {
-                        forge[str] = data[str]['blob'];
-                    } else if (attr['dataType'] === "base64") {
-                        if (data[str]) {
-                            if (data[str]['url'])
-                                forge[str] = await webclient.fetchBase64(data[str]['url']);
-                            else if (data[str]['base64'])
-                                forge[str] = data[str]['base64'];
-                        } else
-                            forge[str] = null;
-                    } else if (attr['dataType'] === "file") {
-                        var localPath = controller.getPathForFile(attr);
-                        if (localPath) {
-                            var fileName = data[str]['filename'];
-                            if (!fileName)
-                                fileName = this._createRandomFilename(localPath, data[str]);
-
-                            if (fileName) {
-                                var filePath = path.join(localPath, fileName);
-                                //console.log(filePath);
-                                await this._createFile(filePath, data[str]);
-                                forge[str] = fileName;
-                            }
-                        } else
-                            throw new Error("Invalid CDN path!");
+                    if (attr['dataType'] === "file") {
+                        if (attr['storage'] == 'base64') {
+                            if (data[str]) {
+                                if (data[str]['url'] && data[str]['url'].startsWith("http"))
+                                    forge[str] = await webclient.fetchBase64(data[str]['url']);
+                                else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
+                                    forge[str] = data[str]['base64'];
+                            } else
+                                forge[str] = null;
+                        } else if (attr['storage'] == 'blob') {
+                            forge[str] = data[str]['blob'];
+                        } else if (attr['storage'] == 'filesystem') {
+                            var localPath = controller.getPathForFile(attr);
+                            if (localPath) {
+                                if (data[str]) {
+                                    var fileName = data[str]['filename'];
+                                    if (!fileName)
+                                        fileName = this._createRandomFilename(localPath, data[str]); //TODO: useful?
+                                    if (fileName) {
+                                        var filePath = path.join(localPath, fileName);
+                                        if (data[str]['url'] && data[str]['url'].startsWith("http")) {
+                                            await webclient.download(data[str]['url'], filePath);
+                                        } else if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
+                                            base64.createFile(filePath, data[str]['base64']);
+                                        }
+                                        forge[str] = fileName;
+                                    }
+                                } else {
+                                    //TODO: delete file if old entry exists
+                                    forge[str] = null;
+                                }
+                            } else
+                                throw new Error("Invalid CDN path!");
+                        }
+                        if (attr['filename_prop'] && data[str]['filename'])
+                            forge[attr['filename_prop']] = data[str]['filename'];
+                        if (attr['url_prop'] && data[str]['url'])
+                            forge[attr['url_prop']] = data[str]['url'];
                     } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
                         forge[str] = data[str];
                 } else if (str === 'id' && this._definition.options.increments) {
@@ -947,15 +968,6 @@ class Model {
         } else
             throw new Error("Path to local CDN incorrect!");
         return filename;
-    }
-
-    async _createFile(filePath, data) {
-        if (data['url'] && data['url'].startsWith("http")) {
-            await webclient.download(data['url'], filePath);
-        } else if (data['base64'] && data['base64'].startsWith("data:")) {
-            base64.createFile(filePath, data['base64']);
-        }
-        return Promise.resolve();
     }
 
     async _updateHasManyRelation(attr, ids, id) {
@@ -1003,7 +1015,7 @@ class Model {
             await this._shelf.getKnex()(this._tableName).where(id).del();
 
         if (this._extension && this._extension.postDeleteHook)
-            await this._extension.postDeleteHook(res);
+            await this._extension.postDeleteHook.bind(this)(res);
 
         return Promise.resolve(res);
     }

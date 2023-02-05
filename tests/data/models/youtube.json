@@ -26,14 +26,16 @@
         },
         {
             "name": "thumbnail",
-            "dataType": "base64"
+            "dataType": "file",
+            "storage": "base64"
         },
         {
-            "cdn": "/cdn",
             "name": "video",
+            "dataType": "file",
+            "storage": "filesystem",
+            "cdn": "/cdn",
             "length": "250",
-            "unique": true,
-            "dataType": "file"
+            "unique": true
         }
     ],
     "extensions": {
