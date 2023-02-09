@@ -912,10 +912,10 @@ class Model {
                                         fileName = this._createRandomFilename(localPath, data[str]); //TODO: useful?
                                     if (fileName) {
                                         var filePath = path.join(localPath, fileName);
-                                        if (data[str]['url'] && data[str]['url'].startsWith("http")) {
-                                            await webclient.download(data[str]['url'], filePath);
-                                        } else if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
+                                        if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
                                             base64.createFile(filePath, data[str]['base64']);
+                                        } else if (data[str]['url'] && data[str]['url'].startsWith("http")) {
+                                            await webclient.download(data[str]['url'], filePath);
                                         }
                                         forge[str] = fileName;
                                     }
@@ -947,12 +947,8 @@ class Model {
         var ext;
         if (data['url'] && data['url'].startsWith("http"))
             ext = common.getFileExtensionFromUrl(data['url']);
-        else if (data['base64'] && data['base64'].startsWith("data:")) {
-            var start = data['base64'].indexOf("/");
-            var end = data['base64'].indexOf(";");
-            if (start > 0 && end > 0)
-                ext = data['base64'].substring(start + 1, end);
-        }
+        else if (data['base64'] && data['base64'].startsWith("data:"))
+            ext = base64.getExtension(data['base64']);
         if (!ext)
             throw new Error("Failed to determine file extension!");
 
