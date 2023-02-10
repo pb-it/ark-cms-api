@@ -64,7 +64,7 @@ module.exports.preCreateHook = async function (data) {
 }
 ```
 
-## Merging example (web scraper / crawler with jsdom)
+## Summarizing example (web scraper / crawler with jsdom)
 
 ```js
 var jsdom;
@@ -78,7 +78,6 @@ try {
 const { JSDOM } = jsdom || {};
 
 const controller = require("../../src/controller/controller");
-const WebClient = require("../../src/common/webclient");
 
 /**
  * executed in the context of the model
@@ -98,7 +97,7 @@ module.exports.preCreateHook = async function (data) {
     ... // manipulate the data here!
 
     // as example curl a given website
-    var body = await WebClient.curl(data['url']);
+    var body = await controller.getWebClient().curl(data['url']);
     const doc = new JSDOM(body).window.document;
     ...
 

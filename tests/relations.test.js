@@ -3,7 +3,7 @@ const { endianness } = require('os');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
-const webclient = require('../src/common/webclient.js');
+const WebClient = require('../src/common/webclient.js');
 const controller = require('../src/controller/controller');
 
 const ApiHelper = require('./helper/api-helper.js');
@@ -13,6 +13,7 @@ var apiUrl;
 var apiHelper;
 var databaseHelper;
 var shelf;
+var webclient;
 const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
 
@@ -24,8 +25,10 @@ beforeAll(async () => {
         shelf = controller.getShelf();
     }
 
+    webclient = new WebClient();
+
     apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
-    apiHelper = new ApiHelper(apiUrl);
+    apiHelper = new ApiHelper(apiUrl, webclient);
     databaseHelper = new DatabaseHelper(shelf);
 
     if (bCleanupBeforeTests)

@@ -8,7 +8,6 @@ const inflection = require('inflection');
 const Logger = require(path.join(__dirname, '../common/logger/logger'));
 const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
-const webclient = require(path.join(__dirname, '../common/webclient'));
 
 class UnknownModelError extends Error {
     constructor(message) {
@@ -896,7 +895,7 @@ class Model {
                         if (attr['storage'] == 'base64') {
                             if (data[str]) {
                                 if (data[str]['url'] && data[str]['url'].startsWith("http"))
-                                    forge[str] = await webclient.fetchBase64(data[str]['url']);
+                                    forge[str] = await controller.getWebClient().fetchBase64(data[str]['url']);
                                 else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
                                     forge[str] = data[str]['base64'];
                             } else
@@ -915,7 +914,7 @@ class Model {
                                         if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
                                             base64.createFile(filePath, data[str]['base64']);
                                         } else if (data[str]['url'] && data[str]['url'].startsWith("http")) {
-                                            await webclient.download(data[str]['url'], filePath);
+                                            await controller.getWebClient().download(data[str]['url'], null, filePath);
                                         }
                                         forge[str] = fileName;
                                     }

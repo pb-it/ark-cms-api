@@ -9,6 +9,7 @@ const session = require('express-session');
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
 const common = require('../common/common');
+const WebClient = require('../common/webclient');
 const Registry = require('./registry');
 const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
@@ -43,6 +44,7 @@ class Controller {
 
     _logger;
     _registry;
+    _webclient;
 
     _migrationsController;
     _versionController;
@@ -119,6 +121,8 @@ class Controller {
             this._registry = new Registry(this._knex);
             await this._registry.initRegistry();
 
+            this._webclient = new WebClient();
+
             this._versionController = new VersionController(this);
             this._info['version'] = this._versionController.getVersion().toString();
             this._migrationsController = new MigrationController(this);
@@ -170,6 +174,10 @@ class Controller {
 
     getRegistry() {
         return this._registry;
+    }
+
+    getWebClient() {
+        return this._webclient;
     }
 
     getMigrationsController() {

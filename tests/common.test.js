@@ -3,7 +3,7 @@ const fs = require('fs');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
-const webclient = require('../src/common/webclient.js');
+const WebClient = require('../src/common/webclient.js');
 const base64 = require('../src/common/base64');
 
 const ApiHelper = require('./helper/api-helper.js');
@@ -14,6 +14,7 @@ var apiUrl;
 var apiHelper;
 var databaseHelper;
 var shelf;
+var webclient;
 const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
 
@@ -32,8 +33,10 @@ beforeAll(async () => {
     if (cdns.length == 1)
         cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
 
+    webclient = new WebClient();
+
     apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
-    apiHelper = new ApiHelper(apiUrl);
+    apiHelper = new ApiHelper(apiUrl, webclient);
     databaseHelper = new DatabaseHelper(shelf);
 
     if (bCleanupBeforeTests)
