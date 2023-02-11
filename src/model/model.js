@@ -830,16 +830,15 @@ class Model {
     async update(id, data) {
         var res;
 
-        if (this._extension && this._extension.preUpdateHook) {
-            var obj = await await this._book.where({ 'id': id }).fetch({
-                'require': true
-            });
-            var current = obj.toJSON();
+        var obj = await await this._book.where({ 'id': id }).fetch({
+            'require': true
+        });
+        var current = obj.toJSON();
+        if (this._extension && this._extension.preUpdateHook)
             data = await this._extension.preUpdateHook.bind(this)(current, data);
-        }
 
         if (this._definition.options.increments) {
-            var forge = await this._createForge(data);
+            var forge = await this._createForge(data, current);
 
             if (id) {
                 if (!forge['id'])
@@ -884,7 +883,7 @@ class Model {
         return Promise.resolve(res);
     }
 
-    async _createForge(data) {
+    async _createForge(data, old) {
         var forge = {};
         var attr;
         for (var str in data) {
@@ -906,18 +905,47 @@ class Model {
                             var localPath = controller.getPathForFile(attr);
                             if (localPath) {
                                 if (data[str]) {
-                                    var fileName = data[str]['filename'];
-                                    if (!fileName)
-                                        fileName = this._createRandomFilename(localPath, data[str]); //TODO: useful?
-                                    if (fileName) {
-                                        var filePath = path.join(localPath, fileName);
-                                        if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
-                                            base64.createFile(filePath, data[str]['base64']);
-                                        } else if (data[str]['url'] && data[str]['url'].startsWith("http")) {
-                                            await controller.getWebClient().download(data[str]['url'], null, filePath);
+                                    var tmpDir = await controller.getTmpDir();
+                                    var tmpFilePath;
+                                    var fileName;
+                                    if (data[str]['filename'])
+                                        fileName = data[str]['filename'];
+                                    if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
+                                        if (!fileName) {
+                                            var ext = base64.getExtension(data[str]['base64']);
+                                            do {
+                                                fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
+                                                tmpFilePath = path.join(tmpDir, fileName);
+                                            } while (fs.existsSync(tmpFilePath));
                                         }
-                                        forge[str] = fileName;
+                                        base64.createFile(tmpFilePath, data[str]['base64']);
+                                    } else if (data[str]['url'] && data[str]['url'].startsWith("http")) {
+                                        var bRename = false;
+                                        if (data[str]['filename'] && old && old[str] && data[str]['filename'] != old[str]) {
+                                            if (data[str]['url'] && attr['url_prop'] && data[str]['url'] == old[attr['url_prop']])
+                                                bRename = true;
+                                        }
+                                        if (bRename) {
+                                            fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
+                                        } else {
+                                            if (!fileName) {
+                                                var ext = common.getFileExtensionFromUrl(data[str]['url']);
+                                                do {
+                                                    fileName = crypto.randomBytes(16).toString("hex");
+                                                    if (ext)
+                                                        fileName += '.' + ext;
+                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                } while (fs.existsSync(tmpFilePath));
+                                            }
+                                            fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
+                                            tmpFilePath = path.join(tmpDir, fileName);
+                                        }
                                     }
+
+                                    if (tmpFilePath)
+                                        fs.renameSync(tmpFilePath, path.join(localPath, fileName));
+
+                                    forge[str] = fileName;
                                 } else {
                                     //TODO: delete file if old entry exists
                                     forge[str] = null;
@@ -927,8 +955,10 @@ class Model {
                         }
                         if (attr['filename_prop'] && data[str]['filename'])
                             forge[attr['filename_prop']] = data[str]['filename'];
-                        if (attr['url_prop'] && data[str]['url'])
-                            forge[attr['url_prop']] = data[str]['url'];
+                        if (attr['url_prop'] && data[str]['url']) {
+                            if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
+                                forge[attr['url_prop']] = data[str]['url'];
+                        }
                     } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
                         forge[str] = data[str];
                 } else if (str === 'id' && this._definition.options.increments) {
@@ -938,31 +968,6 @@ class Model {
             }
         }
         return Promise.resolve(forge);
-    }
-
-    _createRandomFilename(localPath, data) {
-        var filename;
-
-        var ext;
-        if (data['url'] && data['url'].startsWith("http"))
-            ext = common.getFileExtensionFromUrl(data['url']);
-        else if (data['base64'] && data['base64'].startsWith("data:"))
-            ext = base64.getExtension(data['base64']);
-        if (!ext)
-            throw new Error("Failed to determine file extension!");
-
-        if (fs.existsSync(localPath)) {
-            try {
-                do {
-                    filename = crypto.randomBytes(16).toString("hex") + '.' + ext;
-                } while (fs.existsSync(path.join(localPath, filename)));
-            } catch (err) {
-                console.error(err);
-                return null;
-            }
-        } else
-            throw new Error("Path to local CDN incorrect!");
-        return filename;
     }
 
     async _updateHasManyRelation(attr, ids, id) {

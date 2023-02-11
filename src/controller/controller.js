@@ -45,6 +45,7 @@ class Controller {
     _logger;
     _registry;
     _webclient;
+    _tmpDir;
 
     _migrationsController;
     _versionController;
@@ -190,6 +191,12 @@ class Controller {
 
     getShelf() {
         return this._shelf;
+    }
+
+    getTmpDir() {
+        if (!this._tmpDir)
+            this._tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-'));
+        return this._tmpDir;
     }
 
     getPathForFile(attr) {
