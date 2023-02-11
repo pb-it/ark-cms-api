@@ -911,7 +911,11 @@ class Model {
                                     if (data[str]['filename'])
                                         fileName = data[str]['filename'];
                                     if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
-                                        if (!fileName) {
+                                        if (fileName) {
+                                            tmpFilePath = path.join(tmpDir, fileName);
+                                            if (fs.existsSync(tmpFilePath))
+                                                throw new Error("File already exists!");
+                                        } else {
                                             var ext = base64.getExtension(data[str]['base64']);
                                             do {
                                                 fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
@@ -928,12 +932,25 @@ class Model {
                                         if (bRename) {
                                             fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
                                         } else {
-                                            if (!fileName) {
+                                            if (fileName) {
+                                                tmpFilePath = path.join(tmpDir, fileName);
+                                                if (fs.existsSync(tmpFilePath))
+                                                    throw new Error("File already exists!");
+                                            } else {
                                                 var ext = common.getFileExtensionFromUrl(data[str]['url']);
+                                                if (ext) {
+                                                    ext = ext.toLowerCase();
+                                                    if (ext === "jpg!d")
+                                                        ext = "jpg";
+                                                    fileName = `${uid}.${ext}`;
+                                                }
+                                                var uid;
                                                 do {
-                                                    fileName = crypto.randomBytes(16).toString("hex");
+                                                    uid = crypto.randomBytes(16).toString("hex");
                                                     if (ext)
-                                                        fileName += '.' + ext;
+                                                        fileName = `${uid}.${ext}`;
+                                                    else
+                                                        fileName = uid;
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                 } while (fs.existsSync(tmpFilePath));
                                             }
