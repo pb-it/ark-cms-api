@@ -959,8 +959,11 @@ class Model {
                                         }
                                     }
 
-                                    if (tmpFilePath)
-                                        fs.renameSync(tmpFilePath, path.join(localPath, fileName));
+                                    if (tmpFilePath) {
+                                        // fs.rename fails if two separate partitions are involved
+                                        fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), constants.COPYFILE_EXCL);
+                                        fs.unlinkSync(tmpFilePath);
+                                    }
 
                                     forge[str] = fileName;
                                 } else {
