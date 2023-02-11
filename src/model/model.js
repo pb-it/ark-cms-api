@@ -961,7 +961,7 @@ class Model {
 
                                     if (tmpFilePath) {
                                         // fs.rename fails if two separate partitions are involved
-                                        fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), constants.COPYFILE_EXCL);
+                                        fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
                                         fs.unlinkSync(tmpFilePath);
                                     }
 
