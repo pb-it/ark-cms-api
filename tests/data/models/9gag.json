@@ -27,8 +27,7 @@
         {
             "name": "thumbnail",
             "dataType": "file",
-            "storage": "base64",
-            "url_prop": "url"
+            "storage": "base64"
         }
     ],
     "extensions": {

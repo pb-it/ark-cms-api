@@ -830,10 +830,27 @@ class Model {
     async update(id, data) {
         var res;
 
-        var obj = await await this._book.where({ 'id': id }).fetch({
-            'require': true
-        });
-        var current = obj.toJSON();
+        var current;
+        var obj;
+        if (this._definition.options.increments) {
+            obj = await await this._book.where({ 'id': id }).fetch({
+                'require': true
+            });
+        } else {
+            var key = {};
+            var name;
+            for (var attribute of this._definition.attributes) {
+                if (attribute['primary']) {
+                    name = attribute['name'];
+                    key[name] = data[name];
+                }
+            }
+            obj = await await this._book.where(key).fetch({
+                'require': true
+            });
+        }
+        if (obj)
+            current = obj.toJSON();
         if (this._extension && this._extension.preUpdateHook)
             data = await this._extension.preUpdateHook.bind(this)(current, data);
 
