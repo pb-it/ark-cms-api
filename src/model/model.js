@@ -927,59 +927,61 @@ class Model {
                                     var fileName;
                                     if (data[str]['filename'])
                                         fileName = data[str]['filename'];
-                                    if (data[str]['base64'] && data[str]['base64'].startsWith("data:")) {
-                                        if (fileName) {
-                                            tmpFilePath = path.join(tmpDir, fileName);
-                                            if (fs.existsSync(tmpFilePath))
-                                                throw new Error("File already exists!");
-                                        } else {
-                                            var ext = base64.getExtension(data[str]['base64']);
-                                            do {
-                                                fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
-                                                tmpFilePath = path.join(tmpDir, fileName);
-                                            } while (fs.existsSync(tmpFilePath));
-                                        }
-                                        base64.createFile(tmpFilePath, data[str]['base64']);
-                                    } else if (data[str]['url'] && data[str]['url'].startsWith("http")) {
-                                        var bRename = false;
-                                        if (data[str]['filename'] && old && old[str] && data[str]['filename'] != old[str]) {
-                                            if (data[str]['url'] && attr['url_prop'] && data[str]['url'] == old[attr['url_prop']])
-                                                bRename = true;
-                                        }
-                                        if (bRename) {
-                                            fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
-                                        } else {
+                                    if (data[str]['base64']) {
+                                        if (data[str]['base64'].startsWith("data:")) {
                                             if (fileName) {
                                                 tmpFilePath = path.join(tmpDir, fileName);
                                                 if (fs.existsSync(tmpFilePath))
                                                     throw new Error("File already exists!");
                                             } else {
-                                                var ext = common.getFileExtensionFromUrl(data[str]['url']);
-                                                if (ext) {
-                                                    ext = ext.toLowerCase();
-                                                    if (ext === "jpg!d")
-                                                        ext = "jpg";
-                                                    fileName = `${uid}.${ext}`;
-                                                }
-                                                var uid;
+                                                var ext = base64.getExtension(data[str]['base64']);
                                                 do {
-                                                    uid = crypto.randomBytes(16).toString("hex");
-                                                    if (ext)
-                                                        fileName = `${uid}.${ext}`;
-                                                    else
-                                                        fileName = uid;
+                                                    fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                 } while (fs.existsSync(tmpFilePath));
                                             }
-                                            fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
-                                            tmpFilePath = path.join(tmpDir, fileName);
-                                        }
+                                            base64.createFile(tmpFilePath, data[str]['base64']);
+                                        } else
+                                            throw new Error("Invalid base64 data!");
+                                    } else if (data[str]['url']) {
+                                        if (data[str]['url'].startsWith("http")) {
+                                            if (!attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
+                                                if (fileName) {
+                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                    if (fs.existsSync(tmpFilePath))
+                                                        throw new Error("File already exists!");
+                                                } else {
+                                                    var ext = common.getFileExtensionFromUrl(data[str]['url']);
+                                                    if (ext) {
+                                                        ext = ext.toLowerCase();
+                                                        if (ext === "jpg!d")
+                                                            ext = "jpg";
+                                                        fileName = `${uid}.${ext}`;
+                                                    }
+                                                    var uid;
+                                                    do {
+                                                        uid = crypto.randomBytes(16).toString("hex");
+                                                        if (ext)
+                                                            fileName = `${uid}.${ext}`;
+                                                        else
+                                                            fileName = uid;
+                                                        tmpFilePath = path.join(tmpDir, fileName);
+                                                    } while (fs.existsSync(tmpFilePath));
+                                                }
+                                                fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
+                                                tmpFilePath = path.join(tmpDir, fileName);
+                                            }
+                                        } else
+                                            throw new Error("Invalid URL!");
                                     }
 
                                     if (tmpFilePath) {
                                         // fs.rename fails if two separate partitions are involved
                                         fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
                                         fs.unlinkSync(tmpFilePath);
+                                    } else {
+                                        if (data[str]['filename'] && old && old[str] && old[str] != data[str]['filename'])
+                                            fs.renameSync(path.join(localPath, old[str]), path.join(localPath, data[str]['filename']));
                                     }
 
                                     forge[str] = fileName;
