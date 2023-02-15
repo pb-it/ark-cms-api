@@ -44,9 +44,21 @@
 `/sys/auth/logout`
 
 
-#### CMD (env:development)
+#### Database
 
-`/sys/cmd`
+`/sys/db/backup`
+
+`/sys/db/restore`
+
+
+#### RUN (env:development)
+
+`/sys/run`
+
+
+#### EXEC (env:development)
+
+`/sys/exec`
 
 
 ### API

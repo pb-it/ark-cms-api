@@ -976,12 +976,19 @@ class Model {
                                     }
 
                                     if (tmpFilePath) {
+                                        if (old && old[str])
+                                            fs.unlinkSync(path.join(localPath, old[str]));
                                         // fs.rename fails if two separate partitions are involved
                                         fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
                                         fs.unlinkSync(tmpFilePath);
                                     } else {
-                                        if (data[str]['filename'] && old && old[str] && old[str] != data[str]['filename'])
-                                            fs.renameSync(path.join(localPath, old[str]), path.join(localPath, data[str]['filename']));
+                                        if (fileName) {
+                                            if (old && old[str] && old[str] != fileName)
+                                                fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
+                                        } else {
+                                            if (old && old[str])
+                                                fs.unlinkSync(path.join(localPath, old[str]));
+                                        }
                                     }
 
                                     forge[str] = fileName;
@@ -994,9 +1001,14 @@ class Model {
                         }
                         if (attr['filename_prop'] && data[str]['filename'])
                             forge[attr['filename_prop']] = data[str]['filename'];
-                        if (attr['url_prop'] && data[str]['url']) {
-                            if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
-                                forge[attr['url_prop']] = data[str]['url'];
+                        if (attr['url_prop']) {
+                            if (data[str]['url']) {
+                                if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
+                                    forge[attr['url_prop']] = data[str]['url'];
+                            } else {
+                                if (old && old[attr['url_prop']])
+                                    forge[attr['url_prop']] = null;
+                            }
                         }
                     } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
                         forge[str] = data[str];

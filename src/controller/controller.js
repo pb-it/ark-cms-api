@@ -26,6 +26,17 @@ class ValidationError extends Error {
     }
 }
 
+function createDateTimeString() {
+    const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
+    const seconds = `${date.getSeconds()}`.padStart(2, '0');
+    const minutes = `${date.getMinutes()}`.padStart(2, '0');
+    const hours = `${date.getHours()}`.padStart(2, '0');
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${hours}-${minutes}-${seconds}_${day}-${month}-${year}`;
+}
+
 class Controller {
 
     _info;
@@ -593,26 +604,93 @@ class Controller {
             process.exit();
         });
         if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-            const form = '<form action="/sys/cmd" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" text="Execute"></form>';
+            const form = '<form action="/sys/run" method="post">' +
+                'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
+                '<input type="submit" text="Run"></form>';
 
-            systemRouter.get('/cmd', (req, res) => {
+            systemRouter.get('/run', (req, res) => {
                 res.send(form);
             });
-            systemRouter.post('/cmd', async (req, res) => {
-                var cmd = req.body['cmd'];
+            systemRouter.post('/run', async (req, res) => {
+                var code = req.body['code'];
                 var response;
-                if (cmd) {
-                    Logger.info("[App] Executing command '" + cmd + "'");
-                    response = await common.exec(req.body['cmd']);
-                    response = response.replaceAll('\n', '<br>');
+                if (code) {
+                    Logger.info("[App] Running code '" + code + "'");
+                    try {
+                        //response = eval(code);
+                        //response = new Function(code)();
+                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+                        response = await new AsyncFunction(code)();
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    if (response && (typeof response === 'string' || response instanceof String))
+                        response = response.replaceAll('\n', '<br>');
                 }
                 res.send(response + '<br>' + form);
                 return Promise.resolve();
             });
+
+            const execForm = '<form action="/sys/exec" method="post">' +
+                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+                '<input type="submit" text="Execute"></form>';
+
+            systemRouter.get('/exec', (req, res) => {
+                res.send(execForm);
+            });
+            systemRouter.post('/exec', async (req, res) => {
+                var cmd = req.body['cmd'];
+                var response;
+                if (cmd) {
+                    Logger.info("[App] Executing command '" + cmd + "'");
+                    try {
+                        response = await common.exec(cmd);
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    if (response && (typeof response === 'string' || response instanceof String))
+                        response = response.replaceAll('\n', '<br>');
+                }
+                res.send(response + '<br>' + execForm);
+                return Promise.resolve();
+            });
         }
         app.use('/sys', systemRouter);
+
+        var dbRouter = express.Router();
+        dbRouter.get('/backup', async function (req, res) {
+            if (process.platform === 'linux' && this._databaseSettings['client'].startsWith('mysql')) {
+                try {
+                    var password;
+                    if (req.query['password'])
+                        password = req.query['password'];
+                    else
+                        password = this._databaseSettings['connection']['password'];
+                    var file = controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
+                    var cmd = `mysqldump --verbose -u root -p${password} \
+            --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
+            --databases cms > ${file}`;
+                    Logger.info("[App] Creating database dump to '" + file + "'");
+                    await common.exec(cmd);
+                } catch (error) {
+                    console.log(error);
+                    file = null;
+                }
+                if (file)
+                    res.download(file);
+                else
+                    res.send("Something went wrong!");
+            } else
+                res.send("By now backup API is only supported with mysql on local linux systems!");
+            return Promise.resolve();
+        }.bind(this));
+        dbRouter.get('/restore', function (req, res) {
+            res.send("Not Implemented Yet"); //TODO:
+        });
+        dbRouter.post('/restore', function (req, res) {
+            res.send("Not Implemented Yet"); //TODO:
+        });
+        systemRouter.use('/db', dbRouter);
 
         var authRouter = express.Router();
         authRouter.get('/login', function (req, res) {
