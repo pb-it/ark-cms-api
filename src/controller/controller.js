@@ -484,51 +484,67 @@ class Controller {
             res.json(this._info);
         }.bind(this));
         systemRouter.get('/log', function (req, res) {
-            var severity = req.query['severity'];
-            var format = req.query['_format'];
-            var sort = req.query['_sort'];
-            var entries;
-            try {
-                entries = Logger.getAllEntries(sort);
-                if (severity) {
-                    var s;
-                    switch (severity) {
-                        case 'info':
-                            s = SeverityEnum.INFO;
-                            break;
-                        case 'warning':
-                            s = SeverityEnum.WARNING;
-                            break;
-                        case 'error':
-                            s = SeverityEnum.ERROR;
-                            break;
-                        default:
-                    }
-
-                    if (s) {
-                        entries = entries.filter(function (x) {
-                            return x['severity'] === s;
-                        });
-                    } else
-                        throw new Error('Parsing severity failed');
+            if (req.query['clear'] === 'true') {
+                var response;
+                try {
+                    Logger.clear();
+                    response = "Log cleared!";
+                } catch (error) {
+                    Logger.parseError(error);
                 }
-
-                if (format && format === 'json')
-                    res.json(entries);
+                if (response)
+                    res.send(response);
                 else {
-                    var list = "";
-                    for (var entry of entries) {
-                        if (list.length > 0)
-                            list += '\r\n';
-                        list += entry.toString();
-                    }
-                    res.type('text/plain');
-                    res.send(list);
+                    res.status(500);
+                    res.send("Something went wrong!");
                 }
-            } catch (error) {
-                Logger.parseError(error);
-                res.status(500);
-                res.send("Parsing log file failed");
+            } else {
+                var severity = req.query['severity'];
+                var format = req.query['_format'];
+                var sort = req.query['_sort'];
+                var entries;
+                try {
+                    entries = Logger.getAllEntries(sort);
+                    if (severity) {
+                        var s;
+                        switch (severity) {
+                            case 'info':
+                                s = SeverityEnum.INFO;
+                                break;
+                            case 'warning':
+                                s = SeverityEnum.WARNING;
+                                break;
+                            case 'error':
+                                s = SeverityEnum.ERROR;
+                                break;
+                            default:
+                        }
+
+                        if (s) {
+                            entries = entries.filter(function (x) {
+                                return x['severity'] === s;
+                            });
+                        } else
+                            throw new Error('Parsing severity failed');
+                    }
+
+                    if (format && format === 'json')
+                        res.json(entries);
+                    else {
+                        var list = "";
+                        for (var entry of entries) {
+                            if (list.length > 0)
+                                list += '\r\n';
+                            list += entry.toString();
+                        }
+                        res.type('text/plain');
+                        res.send(list);
+                    }
+                } catch (error) {
+                    Logger.parseError(error);
+                    res.status(500);
+                    res.send("Parsing log file failed");
+                }
             }
         });
         systemRouter.get('/update', async function (req, res) {

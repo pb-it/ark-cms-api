@@ -10,6 +10,10 @@ const logFile = path.join(__dirname, "../../../logs/log.json");
 
 class Logger {
 
+    static clear() {
+        fs.unlinkSync(logFile);
+    }
+
     static getAllEntries(sort) {
         var entries = [];
         try {

@@ -833,7 +833,7 @@ class Model {
         var current;
         var obj;
         if (this._definition.options.increments) {
-            obj = await await this._book.where({ 'id': id }).fetch({
+            obj = await this._book.where({ 'id': id }).fetch({
                 'require': true
             });
         } else {
@@ -845,8 +845,8 @@ class Model {
                     key[name] = data[name];
                 }
             }
-            obj = await await this._book.where(key).fetch({
-                'require': true
+            obj = await this._book.where(key).fetch({
+                'require': false
             });
         }
         if (obj)
@@ -945,7 +945,7 @@ class Model {
                                             throw new Error("Invalid base64 data!");
                                     } else if (data[str]['url']) {
                                         if (data[str]['url'].startsWith("http")) {
-                                            if (!attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
+                                            if (!old || !old[str] || !attr['url_prop'] || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
                                                 if (fileName) {
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                     if (fs.existsSync(tmpFilePath))
@@ -986,12 +986,18 @@ class Model {
                                             if (old && old[str] && old[str] != fileName)
                                                 fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
                                         } else {
-                                            if (old && old[str])
-                                                fs.unlinkSync(path.join(localPath, old[str]));
+                                            if (old && old[str]) {
+                                                var file = path.join(localPath, old[str]);
+                                                if (fs.existsSync(file))
+                                                    fs.unlinkSync();
+                                            }
                                         }
                                     }
 
-                                    forge[str] = fileName;
+                                    if (fileName)
+                                        forge[str] = fileName;
+                                    else
+                                        forge[str] = null;
                                 } else {
                                     //TODO: delete file if old entry exists
                                     forge[str] = null;
