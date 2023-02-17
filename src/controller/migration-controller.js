@@ -128,6 +128,19 @@ class MigrationController {
                                 await this._shelf.upsertModel(mModel.getId(), def);
                             }
                         }
+                    case '0.3.2-beta':
+                    case '0.4.0-beta':
+                        var mUser = this._shelf.getModel('_user');
+                        if (mUser) {
+                            var def = mUser.getDefinition();
+                            for (var attr of def['attributes']) {
+                                if (attr['name'] == 'password') {
+                                    attr['length'] = 96;
+                                    break;
+                                }
+                            }
+                            await this._shelf.upsertModel(mUser.getId(), def);
+                        }
                         break;
                     default:
                 }

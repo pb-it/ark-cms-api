@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 const Logger = require('../common/logger/logger');
 
@@ -25,8 +26,6 @@ class AuthController {
 
     async initAuthController() {
         var shelf = controller.getShelf();
-        var bCreateAdminUser = false;
-        var bCreateRoles = false;
         var bCreatePermissions = false;
 
         this._userModel = shelf.getModel('_user');
@@ -55,7 +54,7 @@ class AuthController {
                     {
                         "name": "password",
                         "dataType": "string",
-                        "length": 44,
+                        "length": 96,
                         "required": true
                     },
                     {
@@ -73,7 +72,6 @@ class AuthController {
                 }
             }
             this._userModel = await shelf.upsertModel(null, definition);
-            bCreateAdminUser = true;
         }
         if (!this._userModel.initDone())
             await this._userModel.initModel();
@@ -109,7 +107,6 @@ class AuthController {
                 }
             }
             this._roleModel = await shelf.upsertModel(null, definition);
-            bCreateRoles = true;
         }
         if (!this._roleModel.initDone())
             await this._roleModel.initModel();
@@ -174,24 +171,21 @@ class AuthController {
             await this._permissionModel.initModel();
 
         var adminUser;
-        if (bCreateAdminUser)
-            adminUser = await this._userModel.create({ 'username': 'admin', 'password': this._hashPassword('admin'), 'email': 'admin@cms.local' });
+        var res = await this._userModel.readAll({ 'username': 'admin' });
+        if (res && res.length == 1)
+            adminUser = res[0];
+        else
+            adminUser = await this._userModel.create({ 'username': 'admin', 'password': this._createPasswordEntry('admin'), 'email': 'admin@cms.local' });
 
-        var adminRole;
         var userRole;
-        if (bCreateRoles) {
-            if (!adminUser) {
-                var res = await this._userModel.readAll({ 'username': 'admin' });
-                if (res && res.length == 1)
-                    adminUser = res[0];
-            }
-            if (adminUser)
-                adminRole = await this._roleModel.create({ 'role': 'administrator', 'users': [adminUser['id']] });
-            else
-                throw new Error("Admin user missing");
-
+        res = await this._roleModel.readAll({ 'role': 'administrator' });
+        if (res && res.length == 0)
+            await this._roleModel.create({ 'role': 'administrator', 'users': [adminUser['id']] });
+        res = await this._roleModel.readAll({ 'role': 'user' });
+        if (res && res.length == 1)
+            userRole = res[0];
+        else
             userRole = await this._roleModel.create({ 'role': 'user' });
-        }
 
         if (bCreatePermissions) {
             if (!userRole) {
@@ -232,7 +226,16 @@ class AuthController {
         try {
             var res = await this._userModel.readAll({ 'username': username });
             if (res && res.length == 1) {
-                if (res[0]['password'] == this._hashPassword(password)) {
+                var parts = res[0]['password'].split(':');
+                var salt;
+                var hash;
+                if (parts.length == 1)
+                    hash = parts[0];
+                else if (parts.length == 2) {
+                    salt = parts[0];
+                    hash = parts[1];
+                }
+                if (hash == this._hashPassword(password, salt)) {
                     user = { 'username': username };
                     user['id'] = res[0]['id'];
                     user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
@@ -244,8 +247,19 @@ class AuthController {
         return Promise.resolve(user);
     }
 
-    _hashPassword(password) {
-        return crypto.createHash('sha256').update(password).digest('base64'); //digest('hex')
+    _createPasswordEntry(password) {
+        var salt = bcrypt.genSaltSync(10);
+        var hash = this._hashPassword(password, salt);
+        return `${salt}:${hash}`;
+    }
+
+    _hashPassword(password, salt) {
+        var hash;
+        if (salt)
+            hash = bcrypt.hashSync(password, salt);
+        else
+            hash = crypto.createHash('sha256').update(password).digest('base64');
+        return hash;
     }
 
     async checkAuthorization(req, res, next) {

@@ -989,7 +989,7 @@ class Model {
                                             if (old && old[str]) {
                                                 var file = path.join(localPath, old[str]);
                                                 if (fs.existsSync(file))
-                                                    fs.unlinkSync();
+                                                    fs.unlinkSync(file);
                                             }
                                         }
                                     }
@@ -1070,6 +1070,23 @@ class Model {
             await obj.destroy();
         else
             await this._shelf.getKnex()(this._tableName).where(id).del();
+
+        var localPath;
+        var filename;
+        var file;
+        for (var attribute of this._definition.attributes) {
+            if (attribute['dataType'] == 'file' && attribute['storage'] == 'filesystem') {
+                if (res[attribute['name']]) {
+                    filename = res[attribute['name']];
+                    localPath = controller.getPathForFile(attr);
+                    if (localPath) {
+                        file = path.join(localPath, filename);
+                        if (fs.existsSync(file))
+                            fs.unlinkSync(file);
+                    }
+                }
+            }
+        }
 
         if (this._extension && this._extension.postDeleteHook)
             await this._extension.postDeleteHook.bind(this)(res);

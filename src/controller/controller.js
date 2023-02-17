@@ -476,7 +476,10 @@ class Controller {
         //app.use('/robots.txt', express.static('robots.txt'));
 
         app.get('/', function (req, res) {
-            AuthController.greeting(req, res);
+            if (req.session.user)
+                AuthController.greeting(req, res);
+            else
+                res.redirect('/sys/auth/login');
         });
 
         var systemRouter = express.Router();
