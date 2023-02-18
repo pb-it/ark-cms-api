@@ -646,7 +646,9 @@ class Controller {
                     if (response && (typeof response === 'string' || response instanceof String))
                         response = response.replaceAll('\n', '<br>');
                 }
-                res.send(response + '<br>' + form);
+                if (!response)
+                    response = 'Empty response!'; //'An error occurred while processing your request!'
+                res.send(response + '<br><br>' + form);
                 return Promise.resolve();
             });
 

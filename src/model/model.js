@@ -632,7 +632,12 @@ class Model {
                         throw new Error("Not Implemented Yet");
                     } else {
                         if (end === 'in') {
-                            book = this._readAllRelation(book, joins, relAttr, value.split(','), 1);
+                            var val;
+                            if (Array.isArray(value))
+                                val = value;
+                            else if (typeof value === 'string' || value instanceof String)
+                                val = value.split(',');
+                            book = this._readAllRelation(book, joins, relAttr, val, 1);
                         } else if (end === 'null') {
                             var subType = relAttr['model'];
                             var relModel = this._shelf.getModel(subType);
