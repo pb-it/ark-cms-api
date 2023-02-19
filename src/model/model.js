@@ -1083,7 +1083,7 @@ class Model {
             if (attribute['dataType'] == 'file' && attribute['storage'] == 'filesystem') {
                 if (res[attribute['name']]) {
                     filename = res[attribute['name']];
-                    localPath = controller.getPathForFile(attribute);
+                    localPath = controller.getPathForFile(attr);
                     if (localPath) {
                         file = path.join(localPath, filename);
                         if (fs.existsSync(file))
