@@ -453,7 +453,11 @@ class Controller {
             }
         });
         systemRouter.get('/update', async function (req, res) {
-            var version = req.query['v'];
+            var version;
+            if (req.query['v'])
+                version = req.query['v'];
+            else if (req.query['version'])
+                version = req.query['version'];
             var bForce = req.query['force'] && (req.query['force'] === 'true');
             var msg;
             var bUpdated = false;
@@ -462,7 +466,7 @@ class Controller {
                 console.log(msg);
                 var strUpToDate;
                 if (this._vcs === VcsEnum.GIT)
-                    strUpToDate = 'Already up to date.';
+                    strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
                 else if (this._vcs === VcsEnum.SVN)
                     strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
                 if (msg) {
@@ -758,20 +762,22 @@ class Controller {
                         if (id) {
                             try {
                                 var foo = await this._shelf.deleteModel(id);
-                                var user = req.session.user;
-                                var uid;
-                                if (user)
-                                    uid = user['id'];
-                                else
-                                    uid = null;
-                                var change = {
-                                    'method': req.method,
-                                    'model': '_model',
-                                    'record_id': id,
-                                    'data': JSON.stringify(req.body),
-                                    'user': uid
-                                };
-                                await this._shelf.getModel('_change').create(change);
+                                if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                                    var user = req.session.user;
+                                    var uid;
+                                    if (user)
+                                        uid = user['id'];
+                                    else
+                                        uid = null;
+                                    var change = {
+                                        'method': req.method,
+                                        'model': '_model',
+                                        'record_id': id,
+                                        'data': JSON.stringify(req.body),
+                                        'user': uid
+                                    };
+                                    await this._shelf.getModel('_change').create(change);
+                                }
                                 Logger.info("[App] ✔ Deleted model '" + foo + "'");
                                 res.send("OK");
                                 return Promise.resolve();
@@ -829,21 +835,32 @@ class Controller {
                         }
 
                         if (timestamp) { //req.method !== "GET"
-                            var user = req.session.user;
-                            var uid;
-                            if (user)
-                                uid = user['id'];
-                            else
-                                uid = null;
-                            var change = {
-                                'timestamp': timestamp,
-                                'method': req.method,
-                                'model': name,
-                                'record_id': id,
-                                'data': JSON.stringify(req.body),
-                                'user': uid
-                            };
-                            await this._shelf.getModel('_change').create(change);
+                            if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                                var user = req.session.user;
+                                var uid;
+                                if (user)
+                                    uid = user['id'];
+                                else
+                                    uid = null;
+                                var protocol = {};
+                                var attribute;
+                                for (var key in req.body) {
+                                    attribute = model.getAttribute(key);
+                                    if (attribute['dataType'] == 'file' && attribute['storage'] == 'base64')
+                                        protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
+                                    else
+                                        protocol[key] = req.body[key]
+                                }
+                                var change = {
+                                    'timestamp': timestamp,
+                                    'method': req.method,
+                                    'model': name,
+                                    'record_id': id,
+                                    'data': JSON.stringify(protocol),
+                                    'user': uid
+                                };
+                                await this._shelf.getModel('_change').create(change);
+                            }
                         }
 
                         if (req.method === "DELETE")
@@ -895,15 +912,17 @@ class Controller {
                     uid = user['id'];
                 else
                     uid = null;
-                var change = {
-                    'timestamp': timestamp,
-                    'method': req.method,
-                    'model': '_model',
-                    'record_id': id,
-                    'data': JSON.stringify(req.body),
-                    'user': uid
-                };
-                await this._shelf.getModel('_change').create(change);
+                if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                    var change = {
+                        'timestamp': timestamp,
+                        'method': req.method,
+                        'model': '_model',
+                        'record_id': id,
+                        'data': JSON.stringify(req.body),
+                        'user': uid
+                    };
+                    await this._shelf.getModel('_change').create(change);
+                }
                 if (bNew && user && user.username !== 'admin') {
                     var permission = {
                         'user': uid,
@@ -913,17 +932,19 @@ class Controller {
                     };
                     model = this._shelf.getModel('_permission');
                     data = await model.create(permission);
-                    var pid = data['id'];
-                    timestamp = data['created_at'];
-                    change = {
-                        'timestamp': timestamp,
-                        'method': 'POST',
-                        'model': '_permission',
-                        'record_id': pid,
-                        'data': JSON.stringify(permission),
-                        'user': uid
-                    };
-                    await this._shelf.getModel('_change').create(change);
+                    if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                        var pid = data['id'];
+                        timestamp = data['created_at'];
+                        change = {
+                            'timestamp': timestamp,
+                            'method': 'POST',
+                            'model': '_permission',
+                            'record_id': pid,
+                            'data': JSON.stringify(permission),
+                            'user': uid
+                        };
+                        await this._shelf.getModel('_change').create(change);
+                    }
                 }
                 Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
                 return Promise.resolve(id);
@@ -981,20 +1002,22 @@ class Controller {
                             if (definition) {
                                 try {
                                     await this._shelf.upsertModel(id, definition, false);
-                                    var user = req.session.user;
-                                    var uid;
-                                    if (user)
-                                        uid = user['id'];
-                                    else
-                                        uid = null;
-                                    var change = {
-                                        'method': req.method,
-                                        'model': '_model',
-                                        'record_id': id,
-                                        'data': JSON.stringify(req.body),
-                                        'user': uid
-                                    };
-                                    await this._shelf.getModel('_change').create(change);
+                                    if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                                        var user = req.session.user;
+                                        var uid;
+                                        if (user)
+                                            uid = user['id'];
+                                        else
+                                            uid = null;
+                                        var change = {
+                                            'method': req.method,
+                                            'model': '_model',
+                                            'record_id': id,
+                                            'data': JSON.stringify(req.body),
+                                            'user': uid
+                                        };
+                                        await this._shelf.getModel('_change').create(change);
+                                    }
                                     Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
                                     return Promise.resolve(id);
                                 } catch (error) {
@@ -1016,10 +1039,6 @@ class Controller {
             }
         }
         throw new ValidationError("Invalid path");
-    }
-
-    async installDependencies(arr) {
-        return this._dependencyController.installDependencies(arr);
     }
 }
 

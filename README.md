@@ -1,6 +1,9 @@
 # wing-cms-api
 
 ```bash
+git clone https://github.com/pb-it/wing-cms-api
+#git clone https://github.com/pb-it/wing-cms-api -b 0.4.0-beta --depth 1
+
 npm install --legacy-peer-deps
 
 //npm update

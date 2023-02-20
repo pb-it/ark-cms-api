@@ -83,7 +83,7 @@ const controller = require("../../src/controller/controller");
  * executed in the context of the model
  */ 
 module.exports.init = async function () {
-    await controller.installDependencies(['jsdom']);
+    await controller.getDependencyController().installDependencies(['jsdom']);
 
     var attributes = this._definition['attributes'];
     var attr = ...

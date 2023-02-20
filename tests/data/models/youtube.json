@@ -5,15 +5,15 @@
         "timestamps": true
     },
     "defaults": {
-        "thumbnail": "thumbnail",
         "view": {
-            "panelType": "MediaPanel",
-            "details": "none",
             "float": "left",
-            "format": "16/9",
             "width": 320,
-            "height": 180
-        }
+            "format": "16/9",
+            "height": 180,
+            "details": "none",
+            "panelType": "MediaPanel"
+        },
+        "thumbnail": "thumbnail"
     },
     "attributes": [
         {
@@ -26,19 +26,19 @@
         },
         {
             "name": "thumbnail",
-            "dataType": "file",
-            "storage": "base64"
+            "storage": "base64",
+            "dataType": "file"
         },
         {
-            "name": "video",
-            "dataType": "file",
-            "storage": "filesystem",
             "cdn": "/cdn",
+            "name": "video",
             "length": "250",
-            "unique": true
+            "unique": true,
+            "storage": "filesystem",
+            "dataType": "file"
         }
     ],
     "extensions": {
-        "server": "const path = require('path');\nconst fs = require('fs');\n\nconst webclient = require(\"../../src/common/webclient.js\");\n//const controller = require('../../../src/controller/controller.js');\n\nvar videoPath;\n\n\nvar ytdl;\ntry {\n    ytdl = require('ytdl-core');\n} catch (e) {\n    if (e.code !== 'MODULE_NOT_FOUND')\n        throw e;\n}\n\nclass Youtube {\n\n    _url;\n    _options;\n\n    _video;\n\n    constructor(url) {\n        this._url = url;\n        this._options = {\n            filter: 'audioandvideo', quality: 'highestvideo'\n        };\n    }\n\n    async downloadVideo(file) {\n        var err;\n        var writer;\n        try {\n            await new Promise(function (resolve, reject) {\n                writer = fs.createWriteStream(file);\n                writer.on('error', error => {\n                    writer.close();\n                    if (file && fs.existsSync(file))\n                        fs.unlinkSync(file);\n                    reject(error);\n                });\n                writer.on('finish', () => {\n                    writer.close();\n                    if (err) {\n                        if (file && fs.existsSync(file))\n                            fs.unlinkSync(file);\n                    } else\n                        resolve();\n                });\n                ytdl(this._url, this._options).pipe(writer);\n            }.bind(this));\n        } catch (error) {\n            writer.close();\n            throw error;\n        }\n\n        this._video = file;\n        return Promise.resolve(true);\n    }\n}\n\nmodule.exports.init = async function () {\n    await controller.installDependencies(['ytdl-core@https://github.com/GreepTheSheep/node-ytdl-core']);\n    if (!ytdl) {\n        console.log('reload');\n        try {\n            var x = require.resolve('ytdl-core');\n            if (x)\n                delete require.cache[x];\n        } catch (error) {\n            console.log(error);\n        }\n        await new Promise(resolve => setTimeout(() => resolve(), 1000));\n        await new Promise(resolve => setImmediate(() => resolve()));\n        try {\n            ytdl = require('ytdl-core');\n        } catch (error) {\n            console.log(error);\n        }\n    }\n    var videoAttr;\n    var attributes = this._definition['attributes'];\n    for (var attr of attributes) {\n        if (attr['name'] == 'video') {\n            videoAttr = attr;\n            break;\n        }\n    }\n    if (videoAttr)\n        videoPath = controller.getPathForFile(videoAttr);\n    if (!videoPath)\n        throw new Error('Storage for video not available');\n    return Promise.resolve();\n}\n\nmodule.exports.preCreateHook = async function (data) {\n    var url = data['url'];\n    if (url) {\n        if (!videoPath)\n            throw new Error('Storage for video not available');\n        var yt = new Youtube(url);\n        var file = url.substring(url.length - 11) + '.mp4';\n        await yt.downloadVideo(videoPath + file);\n        var video;\n        if (data['video'])\n            video = data['video'];\n        else\n            video = {};\n        video['filename'] = file;\n        data['video'] = video;\n    }\n    return data;\n}\n\nmodule.exports.preDeleteHook = async function (data) {\n    var file = data['video'];\n    if (file) {\n        if (!videoPath)\n            throw new Error('Storage for video not available');\n        if (fs.existsSync(videoPath + file))\n            fs.unlinkSync(videoPath + file);\n    }\n    return Promise.resolve(data);\n}"
+        "server": "const path = require('path');\nconst fs = require('fs');\n\nconst webclient = require(\"../../src/common/webclient.js\");\n\nvar videoPath;\n\n\nvar ytdl;\ntry {\n    ytdl = require('ytdl-core');\n} catch (e) {\n    if (e.code !== 'MODULE_NOT_FOUND')\n        throw e;\n}\n\nclass Youtube {\n\n    _url;\n    _options;\n\n    _video;\n\n    constructor(url) {\n        this._url = url;\n        this._options = {\n            filter: 'audioandvideo', quality: 'highestvideo'\n        };\n    }\n\n    async downloadVideo(file) {\n        var err;\n        var writer;\n        try {\n            await new Promise(function (resolve, reject) {\n                writer = fs.createWriteStream(file);\n                writer.on('error', error => {\n                    writer.close();\n                    if (file && fs.existsSync(file))\n                        fs.unlinkSync(file);\n                    reject(error);\n                });\n                writer.on('finish', () => {\n                    writer.close();\n                    if (err) {\n                        if (file && fs.existsSync(file))\n                            fs.unlinkSync(file);\n                    } else\n                        resolve();\n                });\n                ytdl(this._url, this._options).pipe(writer);\n            }.bind(this));\n        } catch (error) {\n            writer.close();\n            throw error;\n        }\n\n        this._video = file;\n        return Promise.resolve(true);\n    }\n}\n\nmodule.exports.init = async function () {\n    await controller.getDependencyController().installDependencies(['ytdl-core']);\n    if (!ytdl) {\n        console.log('reload');\n        try {\n            var x = require.resolve('ytdl-core');\n            if (x)\n                delete require.cache[x];\n        } catch (error) {\n            console.log(error);\n        }\n        await new Promise(resolve => setTimeout(() => resolve(), 1000));\n        await new Promise(resolve => setImmediate(() => resolve()));\n        try {\n            ytdl = require('ytdl-core');\n        } catch (error) {\n            console.log(error);\n        }\n    }\n    var videoAttr;\n    var attributes = this._definition['attributes'];\n    for (var attr of attributes) {\n        if (attr['name'] == 'video') {\n            videoAttr = attr;\n            break;\n        }\n    }\n    if (videoAttr)\n        videoPath = controller.getPathForFile(videoAttr);\n    if (!videoPath)\n        throw new Error('Storage for video not available');\n    return Promise.resolve();\n}\n\nmodule.exports.preCreateHook = async function (data) {\n    var url = data['url'];\n    if (url) {\n        if (!videoPath)\n            throw new Error('Storage for video not available');\n        var yt = new Youtube(url);\n        var file = url.substring(url.length - 11) + '.mp4';\n        await yt.downloadVideo(videoPath + file);\n        var video;\n        if (data['video'])\n            video = data['video'];\n        else\n            video = {};\n        video['filename'] = file;\n        data['video'] = video;\n    }\n    return data;\n}\n\nmodule.exports.preDeleteHook = async function (data) {\n    var file = data['video'];\n    if (file) {\n        if (!videoPath)\n            throw new Error('Storage for video not available');\n        if (fs.existsSync(videoPath + file))\n            fs.unlinkSync(videoPath + file);\n    }\n    return Promise.resolve(data);\n}"
     }
 }
