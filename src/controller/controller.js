@@ -11,8 +11,9 @@ const SeverityEnum = require('../common/logger/severity-enum');
 const common = require('../common/common');
 const WebClient = require('../common/webclient');
 const Registry = require('./registry');
-const MigrationController = require('./migration-controller');
 const VersionController = require('./version-controller');
+const DependencyController = require('./dependency-controller');
+const MigrationController = require('./migration-controller');
 const AuthController = require('./auth-controller');
 const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
@@ -58,8 +59,9 @@ class Controller {
     _webclient;
     _tmpDir;
 
-    _migrationsController;
     _versionController;
+    _dependencyController;
+    _migrationsController;
     _authController;
 
     _shelf;
@@ -137,8 +139,10 @@ class Controller {
 
             this._versionController = new VersionController(this);
             this._info['version'] = this._versionController.getVersion().toString();
-            this._migrationsController = new MigrationController(this);
 
+            this._dependencyController = new DependencyController(this);
+
+            this._migrationsController = new MigrationController(this);
             var res = await this._migrationsController.migrateDatabase();
             if (res)
                 await this._shelf.initAllModels();
@@ -198,6 +202,10 @@ class Controller {
 
     getVersionController() {
         return this._versionController;
+    }
+
+    getDependencyController() {
+        return this._dependencyController;
     }
 
     getShelf() {
@@ -317,112 +325,6 @@ class Controller {
                 x['regex'] !== route['regex'];
             });
         }
-    }
-
-    async require(module) {
-        var name;
-        var version;
-        var split = module.split('@');
-        if (split.length == 1)
-            name = split[0];
-        else {
-            if (split[0] === '') {
-                name = '@' + split[1]; // @ at the first position indicates submodules
-                if (split.length == 3)
-                    version = split[2];
-            } else {
-                name = split[0];
-                version = split[1];
-            }
-        }
-        try {
-            require.resolve(name);
-        } catch (e) {
-            require('child_process').execSync(`npm install --legacy-peer-deps ${module}`);
-            await setImmediate(() => { });
-        }
-        return require(name);
-    }
-
-    async installDependencies(arr) {
-        if (!this._serverConfig['debug']) {
-            var file = path.join(this._appRoot, 'package.json');
-            var str = fs.readFileSync(file, 'utf8');
-            var pkg = JSON.parse(str);
-            var installed = Object.keys(pkg['dependencies']);
-            var missing = [];
-            var split;
-            var name;
-            var version;
-            for (var x of arr) {
-                name = null;
-                version = null;
-                split = x.split('@');
-                if (split.length == 1)
-                    name = split[0];
-                else {
-                    if (split[0] === '') {
-                        name = '@' + split[1]; // @ at the first position indicates submodules
-                        if (split.length == 3)
-                            version = split[2];
-                    } else {
-                        name = split[0];
-                        version = split[1];
-                    }
-                }
-                if (version && version.startsWith('https://github.com/'))
-                    version = 'github:' + version.substring('https://github.com/'.length);
-                if (!installed.includes(name) || (version && version !== pkg['dependencies'][name]))
-                    missing.push({ 'ident': x, 'name': name, 'version': version })
-            }
-
-            if (missing.length > 0) {
-                var idents = missing.map(function (x) { return x['ident'] });
-                Logger.info('[App] Installing missing dependencies \'' + idents.join('\', \'') + '\'');
-                var dir;
-                for (var x of missing) {
-                    dir = path.join(this._appRoot, x['name']);
-                    if (fs.existsSync(dir))
-                        fs.rmSync(dir, { recursive: true, force: true });
-                }
-                await common.exec('cd ' + this._appRoot + ' && npm install ' + idents.join(' ') + ' --legacy-peer-deps');
-                try {
-                    var x = require(name);
-                } catch (error) {
-                    this.setRestartRequest();
-                }
-            }
-        }
-        return Promise.resolve();
-    }
-
-    /**
-     * add-dependencies only adds the dependency to package.json without installing it
-     * still has to fork npm processes for version checks which are quite time-consuming
-     */
-    async installWithAddDependencies() {
-        var bInstall = true;
-        //var res = await exec('npm list --location=global add-dependencies');
-        var json = await common.exec('npm list --location=global -json'); // --silent --legacy-peer-deps
-        var obj = JSON.parse(json);
-        if (obj && obj['dependencies'] && obj['dependencies']['add-dependencies'])
-            bInstall = false;
-        if (bInstall) {
-            Logger.info('Installing \'add-dependencies\' ...');
-            await common.exec('npm install add-dependencies --location=global');
-        } else
-            Logger.info('\'add-dependencies\' already installed');
-
-        var file = path.join(this._appRoot, 'package.json');
-        var before = fs.readFileSync(file, 'utf8');
-        await common.exec('add-dependencies ' + file + ' ' + arr.join(' ') + ' --no-overwrite');
-        var after = fs.readFileSync(file, 'utf8');
-        if (before !== after) {
-            Logger.info('[App] Installing new dependencies');
-            await common.exec('cd ' + this._appRoot + ' && npm install --legacy-peer-deps');
-            this.setRestartRequest();
-        }
-        return Promise.resolve();
     }
 
     /**
@@ -1114,6 +1016,10 @@ class Controller {
             }
         }
         throw new ValidationError("Invalid path");
+    }
+
+    async installDependencies(arr) {
+        return this._dependencyController.installDependencies(arr);
     }
 }
 
