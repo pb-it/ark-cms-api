@@ -10,8 +10,11 @@ class DependencyController {
     _appRoot;
     _file;
     _packageJson;
+
+    _found;
     _installedJson;
     _foundDir;
+
     _locationAddDep;
     _bAddFoundDir = false;
 
@@ -19,8 +22,23 @@ class DependencyController {
         this._controller = controller;
         this._appRoot = controller.getAppRoot();
         this._file = path.join(this._appRoot, 'package.json');
+
         this._installedJson = this._readPackageJson();
         this._foundDir = this._readModulesDirectory();
+    }
+
+    /**
+     * unused - result was not reliable
+     * @returns 
+     */
+    async init() {
+        /*var json = await common.exec('npm list -json');
+        var obj = JSON.parse(json);
+        if (obj && obj['dependencies'])
+            this._found = obj['dependencies'];
+        else
+            this._found = [];*/
+        return Promise.resolve();
     }
 
     _readPackageJson() {
@@ -76,11 +94,16 @@ class DependencyController {
                 if (version && version.startsWith('https://github.com/'))
                     version = 'github:' + version.substring('https://github.com/'.length);
 
+                /*if (this._found.hasOwnProperty(name)) {
+                    if (!version || version == this._found[name]['version'] || (version.startsWith('github:') && this._found[name]['version'] == '0.0.0-development'))
+                        continue;
+                }*/
+
                 if (installedJsonNames.includes(name)) {
                     if (!version || version == this._installedJson[name])
                         continue;
                 } else if (foundDirNames.includes(name)) {
-                    if (!version || version == this._foundDir[name] || version.startsWith('github:') && this._foundDir[name] == '0.0.0-development') {
+                    if (!version || version == this._foundDir[name] || (version.startsWith('github:') && this._foundDir[name] == '0.0.0-development')) {
                         if (!version) {
                             version = this._foundDir[name];
                             x = `${name}@^${version}`;
@@ -89,6 +112,7 @@ class DependencyController {
                         continue;
                     }
                 }
+
                 missing.push({ 'ident': x, 'name': name, 'version': version })
             }
 

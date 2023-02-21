@@ -141,6 +141,7 @@ class Controller {
             this._info['version'] = this._versionController.getVersion().toString();
 
             this._dependencyController = new DependencyController(this);
+            await this._dependencyController.init();
 
             this._migrationsController = new MigrationController(this);
             var res = await this._migrationsController.migrateDatabase();
@@ -846,7 +847,7 @@ class Controller {
                                 var attribute;
                                 for (var key in req.body) {
                                     attribute = model.getAttribute(key);
-                                    if (attribute['dataType'] == 'file' && attribute['storage'] == 'base64')
+                                    if (attribute['dataType'] == 'file' && req.body[key]['base64'])
                                         protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
                                     else
                                         protocol[key] = req.body[key]

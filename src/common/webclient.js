@@ -66,11 +66,44 @@ class WebClient {
                     break;
                 }
             }
-            if (!opt)
-                opt = {};
+            if (!opt) {
+                if (url.endsWith('.jpg')) {
+                    opt = { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' };
+                } else
+                    opt = {};
+            }
+
         }
         opt['responseType'] = 'stream';
         var stream = await this._ax.get(url, opt);
+
+        var ext;
+        var type = stream.headers['content-type'];
+        var disposition = stream.headers['content-disposition'];
+        if (disposition) {
+            ext = disposition.substr(disposition.lastIndexOf('.') + 1);
+            if (ext.endsWith('"'))
+                ext = ext.substr(0, ext.length - 1);
+        } else if (type) {
+            var parts = type.split('/');
+            if (parts.length == 2)
+                ext = parts[1];
+        }
+        if (ext) {
+            var index = file.lastIndexOf('.');
+            if (index == -1)
+                file += '.' + ext;
+            else {
+                var current = file.substr(index + 1);
+                if (current != ext)
+                    file = file.substr(0, index + 1) + ext;
+            }
+        }
+
+        if (fs.existsSync(file))
+            throw new Error("File '" + file + "' already exists!");
+
+        await this._streamToFile(stream, file);
 
         var name;
         var index = file.lastIndexOf(path.sep);
@@ -78,29 +111,6 @@ class WebClient {
             name = file.substr(index + 1);
         else
             name = file;
-        if (name.indexOf('.') == -1) {
-            var ext;
-            var type = stream.headers['content-type'];
-            var disposition = stream.headers['content-disposition'];
-            if (disposition) {
-                ext = disposition.substr(disposition.lastIndexOf('.') + 1);
-                if (ext.endsWith('"'))
-                    ext = ext.substr(0, ext.length - 1);
-            } else if (type) {
-                var parts = type.split('/');
-                if (parts.length == 2)
-                    ext = parts[1];
-            }
-            if (ext) {
-                name += '.' + ext;
-                file += '.' + ext;
-            }
-        }
-
-        if (fs.existsSync(file))
-            throw new Error("File already exists");
-
-        await this._streamToFile(stream, file);
         return Promise.resolve(name);
     }
 

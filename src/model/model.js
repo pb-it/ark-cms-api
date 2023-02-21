@@ -950,12 +950,8 @@ class Model {
                                             throw new Error("Invalid base64 data!");
                                     } else if (data[str]['url']) {
                                         if (data[str]['url'].startsWith("http")) {
-                                            if (!old || !old[str] || !attr['url_prop'] || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
-                                                if (fileName) {
-                                                    tmpFilePath = path.join(tmpDir, fileName);
-                                                    if (fs.existsSync(tmpFilePath))
-                                                        throw new Error("File already exists!");
-                                                } else {
+                                            if (data[str]['force'] || !old || !old[str] || !attr['url_prop'] || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
+                                                if (!fileName) {
                                                     var ext = common.getFileExtensionFromUrl(data[str]['url']);
                                                     if (ext) {
                                                         ext = ext.toLowerCase();
