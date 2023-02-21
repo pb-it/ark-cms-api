@@ -951,7 +951,9 @@ class Model {
                                     } else if (data[str]['url']) {
                                         if (data[str]['url'].startsWith("http")) {
                                             if (data[str]['force'] || !old || !old[str] || !attr['url_prop'] || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
-                                                if (!fileName) {
+                                                if (fileName)
+                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                else {
                                                     var ext = common.getFileExtensionFromUrl(data[str]['url']);
                                                     if (ext) {
                                                         ext = ext.toLowerCase();
@@ -977,8 +979,11 @@ class Model {
                                     }
 
                                     if (tmpFilePath) {
-                                        if (old && old[str])
-                                            fs.unlinkSync(path.join(localPath, old[str]));
+                                        if (old && old[str]) {
+                                            var oldFile = path.join(localPath, old[str]);
+                                            if (fs.existsSync(oldFile))
+                                                fs.unlinkSync(oldFile);
+                                        }
                                         // fs.rename fails if two separate partitions are involved
                                         fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
                                         fs.unlinkSync(tmpFilePath);

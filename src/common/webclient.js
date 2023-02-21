@@ -56,54 +56,57 @@ class WebClient {
         return Promise.resolve(data);
     }
 
-    async download(url, opt, file) {
-        if (!opt) {
+    async download(url, config, file) {
+        if (!config) {
             var match;
             for (var key in this._options) {
                 match = new RegExp(key, 'ig').exec(url);
                 if (match) {
-                    opt = this._options[key];
+                    config = this._options[key];
                     break;
                 }
             }
-            if (!opt) {
-                if (url.endsWith('.jpg')) {
-                    opt = { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' };
-                } else
-                    opt = {};
+        }
+        if (!config || !config['client'] || config['client'] == 'axios') {
+            var opt;
+            if (config && config['options'])
+                opt = config['options'];
+            else
+                opt = {};
+            opt['responseType'] = 'stream';
+            var stream = await this._ax.get(url, opt);
+
+            var ext;
+            var type = stream.headers['content-type'];
+            var disposition = stream.headers['content-disposition'];
+            if (disposition) {
+                ext = disposition.substr(disposition.lastIndexOf('.') + 1);
+                if (ext.endsWith('"'))
+                    ext = ext.substr(0, ext.length - 1);
+            } else if (type) {
+                var parts = type.split('/');
+                if (parts.length == 2)
+                    ext = parts[1];
+                parts = ext.split(';');
+                ext = parts[0];
+            }
+            if (ext) {
+                var index = file.lastIndexOf('.');
+                if (index == -1)
+                    file += '.' + ext;
+                else {
+                    var current = file.substr(index + 1);
+                    if (current != ext)
+                        file = file.substr(0, index + 1) + ext;
+                }
             }
 
-        }
-        opt['responseType'] = 'stream';
-        var stream = await this._ax.get(url, opt);
+            if (fs.existsSync(file))
+                throw new Error("File '" + file + "' already exists!");
 
-        var ext;
-        var type = stream.headers['content-type'];
-        var disposition = stream.headers['content-disposition'];
-        if (disposition) {
-            ext = disposition.substr(disposition.lastIndexOf('.') + 1);
-            if (ext.endsWith('"'))
-                ext = ext.substr(0, ext.length - 1);
-        } else if (type) {
-            var parts = type.split('/');
-            if (parts.length == 2)
-                ext = parts[1];
-        }
-        if (ext) {
-            var index = file.lastIndexOf('.');
-            if (index == -1)
-                file += '.' + ext;
-            else {
-                var current = file.substr(index + 1);
-                if (current != ext)
-                    file = file.substr(0, index + 1) + ext;
-            }
-        }
-
-        if (fs.existsSync(file))
-            throw new Error("File '" + file + "' already exists!");
-
-        await this._streamToFile(stream, file);
+            await this._streamToFile(stream, file);
+        } else if (config['client'] == 'fetch')
+            await this.fetchFile(url, file);
 
         var name;
         var index = file.lastIndexOf(path.sep);
