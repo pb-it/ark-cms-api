@@ -97,7 +97,8 @@ class WebClient {
                 else {
                     var current = file.substr(index + 1);
                     if (current != ext)
-                        file = file.substr(0, index + 1) + ext;
+                        if (!((current == 'jpg' && ext == 'jpeg') || (current == 'jpeg' && ext == 'jpg')))
+                            file = file.substr(0, index + 1) + ext;
                 }
             }
 

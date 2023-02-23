@@ -694,7 +694,24 @@ class Model {
                             break;
                         case 'eq':
                             book = book.query(function () {
-                                this.where(propName, 'is not', null).where(propName, 'like', value);
+                                this.where(propName, 'is not', null);
+                                if (Array.isArray(value)) {
+                                    if (value.length > 0) {
+                                        book = book.query(function (qb) {
+                                            qb.where(function () {
+                                                var bFirst = true;
+                                                for (var val of value) {
+                                                    if (bFirst) {
+                                                        this.where(propName, 'like', value[0]);
+                                                        bFirst = false;
+                                                    } else
+                                                        this.orWhere(propName, 'like', val);
+                                                }
+                                            });
+                                        });
+                                    }
+                                } else
+                                    this.where(propName, 'like', value);
                             });
                             break;
                         case 'neq':
@@ -985,12 +1002,17 @@ class Model {
                                                 fs.unlinkSync(oldFile);
                                         }
                                         // fs.rename fails if two separate partitions are involved
-                                        fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
+                                        if (data[str]['force'])
+                                            fs.copyFileSync(tmpFilePath, path.join(localPath, fileName));
+                                        else
+                                            fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
                                         fs.unlinkSync(tmpFilePath);
                                     } else {
                                         if (fileName) {
-                                            if (old && old[str] && old[str] != fileName)
-                                                fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
+                                            if (old && old[str] && old[str] != fileName) {
+                                                if (fs.existsSync(file))
+                                                    fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
+                                            }
                                         } else {
                                             if (old && old[str]) {
                                                 var file = path.join(localPath, old[str]);
