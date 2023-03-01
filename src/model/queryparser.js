@@ -1,5 +1,7 @@
 const inflection = require('inflection');
 
+const operators = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
+
 class QueryParser {
 
     _model;
@@ -74,8 +76,12 @@ class QueryParser {
             if (index == -1)
                 propName = prop;
             else {
-                propName = prop.substring(0, index);
-                operator = prop.substring(index + 1);
+                var end = prop.substring(index + 1);
+                if (operators.includes(end)) {
+                    propName = prop.substring(0, index);
+                    operator = end;
+                } else
+                    propName = prop;
             }
 
             var relAttr;

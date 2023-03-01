@@ -14,7 +14,7 @@ class AuthController {
         res.send('<form action="/sys/auth/login" method="post">' +
             'Username: <input name="user"><br>' +
             'Password: <input name="pass" type="password"><br>' +
-            '<input type="submit" text="Login"></form>');
+            '<input type="submit" value="Login"></form>');
     }
 
     _userModel;

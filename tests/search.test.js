@@ -112,6 +112,11 @@ test('movie_db', async function () {
     var urlSearch;
     var idArr;
 
+    urlSearch = apiUrl + "/stars?_limit=3";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,3');
+
     urlSearch = apiUrl + "/stars?name_eq=Johnny Depp";
     data = await webclient.curl(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
