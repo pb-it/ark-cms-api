@@ -142,6 +142,7 @@ class QueryParser {
                             qb.where(fid, 'is not', null);
                         break;
                     case 'containsAny': // includesSome
+                    case 'in':
                         if (Array.isArray(value))
                             qb.whereIn(fid, value);
                         else
