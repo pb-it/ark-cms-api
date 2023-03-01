@@ -558,7 +558,7 @@ class Model {
         var book = this._book;
         if (this._bInitDone && book) {
             if (query) {
-                this._qp = new QueryParser(this, book);
+                var qp = new QueryParser(this, book);
                 var keys = Object.keys(query);
                 if (keys.length > 0) {
                     var value;
@@ -567,20 +567,24 @@ class Model {
                         if (prop === "_sort") {
                             var parts = value.split(':');
                             if (parts.length == 2) {
+                                book = qp.getBook();
                                 book = book.query('orderBy', parts[0], parts[1]);
+                                qp.setBook(book);
                             }
                         } else if (prop === "_limit") {
                             if (value != -1) {
+                                book = qp.getBook();
                                 book = book.query(function (qb) {
                                     qb.limit(value);
                                 });
+                                qp.setBook(book);
                             }
                         } else {
-                            this._qp.query(prop, value);
+                            qp.query(prop, value);
                         }
                     }
                 }
-                book = this._qp.finalizeQuery();
+                book = qp.finalizeQuery();
             }
             if (!res) {
                 res = await book.fetchAll({

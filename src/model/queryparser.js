@@ -12,6 +12,14 @@ class QueryParser {
         this._joins = [];
     }
 
+    getBook() {
+        return this._book;
+    }
+
+    setBook(book) {
+        this._book = book;
+    }
+
     query(prop, value) {
         if (prop == 'or') {
             var fn;
