@@ -224,7 +224,7 @@ class QueryParser {
                     qb.where(propName, '>=', value);
                     break;
                 default:
-                    qb.where(prop, value);
+                    qb.where(propName, value);
             }
         }
     }
