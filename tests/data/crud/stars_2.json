@@ -1,0 +1,58 @@
+[
+    {
+        "id": 1,
+        "name": "Robert Downey Jr.",
+        "gender": "male",
+        "movies": [
+            1,
+            3
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Chris Hemsworth",
+        "gender": "male",
+        "movies": [
+            2,
+            3
+        ]
+    },
+    {
+        "id": 3,
+        "name": "Johnny Depp",
+        "gender": "male",
+        "movies": [
+            4
+        ]
+    },
+    {
+        "id": 4,
+        "name": "Daniel Radcliffe",
+        "gender": "male",
+        "movies": [
+            5
+        ]
+    },
+    {
+        "id": 5,
+        "name": "Arnold Schwarzenegger",
+        "gender": "male",
+        "movies": []
+    },
+    {
+        "id": 6,
+        "name": "Keira Knightley",
+        "gender": "female",
+        "movies": [
+            4
+        ]
+    },
+    {
+        "id": 7,
+        "name": "Emma Watson",
+        "gender": "female",
+        "movies": [
+            5
+        ]
+    }
+]
