@@ -10,6 +10,21 @@
             "dataType": "string"
         },
         {
+            "name": "gender",
+            "dataType": "enumeration",
+            "options": [
+                {
+                    "value": "male"
+                },
+                {
+                    "value": "female"
+                },
+                {
+                    "value": "other"
+                }
+            ]
+        },
+        {
             "name": "movies",
             "dataType": "relation",
             "model": "movies",

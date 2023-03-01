@@ -30,6 +30,7 @@
         "test-common": "jest tests/common.test.js",
         "test-relations": "jest tests/relations.test.js",
         "test-extensions": "jest tests/extensions.test.js",
+        "test-search": "jest tests/search.test.js",
         "lint": "eslint src/js"
     },
     "dependencies": {

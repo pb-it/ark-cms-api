@@ -846,11 +846,15 @@ class Controller {
                                 var protocol = {};
                                 var attribute;
                                 for (var key in req.body) {
-                                    attribute = model.getAttribute(key);
-                                    if (attribute['dataType'] == 'file' && req.body[key]['base64'])
-                                        protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
-                                    else
-                                        protocol[key] = req.body[key]
+                                    if (key != 'id') {
+                                        attribute = model.getAttribute(key);
+                                        if (attribute) {
+                                            if (attribute['dataType'] == 'file' && req.body[key]['base64'])
+                                                protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
+                                            else
+                                                protocol[key] = req.body[key];
+                                        }
+                                    }
                                 }
                                 var change = {
                                     'timestamp': timestamp,

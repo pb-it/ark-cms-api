@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { endianness } = require('os');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
