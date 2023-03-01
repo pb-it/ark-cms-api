@@ -5,6 +5,7 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const session = require('express-session');
+const _eval = require('eval');
 
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
@@ -530,9 +531,35 @@ class Controller {
             process.exit();
         });
         if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+            const evalForm = '<form action="/sys/eval" method="post">' +
+                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+                '<input type="submit" value="Evaluate"></form>';
+
+            systemRouter.get('/eval', (req, res) => {
+                res.send(evalForm);
+            });
+            systemRouter.post('/eval', async (req, res) => {
+                var cmd = req.body['cmd'];
+                var response;
+                if (cmd) {
+                    Logger.info("[App] Evaluating command '" + cmd + "'");
+                    try {
+                        //response = eval(code);
+                        var e = _eval(cmd, true);
+                        response = await e();
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    if (response && (typeof response === 'string' || response instanceof String))
+                        response = response.replaceAll('\n', '<br>');
+                }
+                res.send(response + '<br>' + evalForm);
+                return Promise.resolve();
+            });
+
             const form = '<form action="/sys/run" method="post">' +
                 'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" text="Run"></form>';
+                '<input type="submit" value="Run"></form>';
 
             systemRouter.get('/run', (req, res) => {
                 res.send(form);
@@ -543,7 +570,6 @@ class Controller {
                 if (code) {
                     Logger.info("[App] Running code '" + code + "'");
                     try {
-                        //response = eval(code);
                         //response = new Function(code)();
                         const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
                         response = await new AsyncFunction(code)();
@@ -561,7 +587,7 @@ class Controller {
 
             const execForm = '<form action="/sys/exec" method="post">' +
                 'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" text="Execute"></form>';
+                '<input type="submit" value="Execute"></form>';
 
             systemRouter.get('/exec', (req, res) => {
                 res.send(execForm);
