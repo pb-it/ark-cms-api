@@ -57,7 +57,7 @@ class QueryParser {
             var id = inflection.singularize(tableName) + "_id";
             for (let a of this._joins) {
                 this._book = this._book.query(function (qb) {
-                    qb.leftJoin(a, tableName + '.id', id);
+                    qb.leftJoin(a, tableName + '.id', a + '.' + id);
                     //console.log(qb.toSQL());
                 });
             }
