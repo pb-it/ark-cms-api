@@ -156,7 +156,7 @@ class QueryParser {
                         break;
                     case 'ncontainsAny':
                         if (Array.isArray(value))
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (?) )', value);
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
                         else
                             qb.where(fid, 'is not', value);
                         break;
