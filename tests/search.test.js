@@ -88,6 +88,16 @@ test('movie_db', async function () {
     expect(res['definition']).toEqual(modelStars);
 
     //insert testdata
+    var studios = JSON.parse(fs.readFileSync('./tests/data/crud/studios_2.json', 'utf8'));
+
+    var urlStudios = apiUrl + "/studios";
+    for (var studio of studios) {
+        await webclient.post(urlStudios, studio);
+    }
+
+    data = await webclient.curl(urlStudios);
+    expect(data.length).toEqual(studios.length);
+
     var movies = JSON.parse(fs.readFileSync('./tests/data/crud/movies_2.json', 'utf8'));
 
     var urlMovies = apiUrl + "/movies";
@@ -116,6 +126,16 @@ test('movie_db', async function () {
     data = await webclient.curl(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2,3');
+
+    urlSearch = apiUrl + "/stars?id_in=1,3,5";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,3,5');
+
+    urlSearch = apiUrl + "/stars?id_nin=1,3,5";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('2,4,6,7');
 
     urlSearch = apiUrl + "/stars?name_eq=Johnny Depp";
     data = await webclient.curl(urlSearch);
@@ -176,6 +196,11 @@ test('movie_db', async function () {
     data = await webclient.curl(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('7');*/
+
+    urlSearch = apiUrl + "/movies?studio_null=false&stars_null= false";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1');
 
     return Promise.resolve();
 });

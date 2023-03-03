@@ -1,7 +1,8 @@
 [
     {
         "id": 1,
-        "name": "Iron Man"
+        "name": "Iron Man",
+        "studio": 1
     },
     {
         "id": 2,

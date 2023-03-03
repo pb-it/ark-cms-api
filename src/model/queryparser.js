@@ -185,9 +185,21 @@ class QueryParser {
                         qb.where(propName, 'is not', null);
                     break;
                 case 'in':
-                    throw new Error("Not Implemented Yet");
+                    qb.where(function () {
+                        if (Array.isArray(value))
+                            this.where(propName, 'is not', null).where(propName, 'in', value);
+                        else
+                            this.where(propName, 'is not', null).where(propName, 'in', value.split(','));
+                    });
+                    break;
                 case 'nin':
-                    throw new Error("Not Implemented Yet");
+                    qb.where(function () {
+                        if (Array.isArray(value))
+                            this.where(propName, 'is', null).orWhere(propName, 'not in', value);
+                        else
+                            this.where(propName, 'is', null).orWhere(propName, 'not in', value.split(','));
+                    });
+                    break;
                 case 'contains':
                     qb.where(function () {
                         this.where(propName, 'is not', null).where(propName, 'like', `%${value}%`);
