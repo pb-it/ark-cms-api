@@ -130,7 +130,7 @@ class QueryParser {
         var subType = relAttr['model'];
         var relModel = this._model.getShelf().getModel(subType);
         if (relModel) {
-            var tableName = this._model._tableName;
+            var tableName = this._model.getTableName();
             var relModelTable = relModel.getTableName();
             var junctionTable = this._model.getJunctionTableName(relAttr);
             var id = inflection.singularize(tableName) + "_id";
@@ -176,80 +176,81 @@ class QueryParser {
     }
 
     _queryComparisonOperation(propName, operator, value) {
+        var prop = this._model.getTableName() + '.' + propName;
         return function (qb) {
             switch (operator) {
                 case 'null':
                     if (value === 'true')
-                        qb.where(propName, 'is', null); // whereNotNull
+                        qb.where(prop, 'is', null); // whereNotNull
                     else
-                        qb.where(propName, 'is not', null);
+                        qb.where(prop, 'is not', null);
                     break;
                 case 'in':
                     qb.where(function () {
                         if (Array.isArray(value))
-                            this.where(propName, 'is not', null).where(propName, 'in', value);
+                            this.where(prop, 'is not', null).where(prop, 'in', value);
                         else
-                            this.where(propName, 'is not', null).where(propName, 'in', value.split(','));
+                            this.where(prop, 'is not', null).where(prop, 'in', value.split(','));
                     });
                     break;
                 case 'nin':
                     qb.where(function () {
                         if (Array.isArray(value))
-                            this.where(propName, 'is', null).orWhere(propName, 'not in', value);
+                            this.where(prop, 'is', null).orWhere(prop, 'not in', value);
                         else
-                            this.where(propName, 'is', null).orWhere(propName, 'not in', value.split(','));
+                            this.where(prop, 'is', null).orWhere(prop, 'not in', value.split(','));
                     });
                     break;
                 case 'contains':
                     qb.where(function () {
-                        this.where(propName, 'is not', null).where(propName, 'like', `%${value}%`);
+                        this.where(prop, 'is not', null).where(prop, 'like', `%${value}%`);
                     });
                     break;
                 case 'ncontains':
                     qb.where(function () {
-                        this.where(propName, 'is', null).orWhere(propName, 'not like', `%${value}%`);
+                        this.where(prop, 'is', null).orWhere(prop, 'not like', `%${value}%`);
                     });
                     break;
                 case 'eq':
-                    qb.where(propName, 'is not', null);
+                    qb.where(prop, 'is not', null);
                     if (Array.isArray(value)) {
                         if (value.length > 0) {
                             qb.where(function () {
                                 var bFirst = true;
                                 for (var val of value) {
                                     if (bFirst) {
-                                        this.where(propName, 'like', val);
+                                        this.where(prop, 'like', val);
                                         bFirst = false;
                                     } else
-                                        this.orWhere(propName, 'like', val);
+                                        this.orWhere(prop, 'like', val);
                                 }
                             });
                         }
                     } else
-                        qb.where(propName, 'like', value);
+                        qb.where(prop, 'like', value);
                     break;
                 case 'neq':
                     qb.where(function () {
                         if (Array.isArray(value))
-                            this.where(propName, 'is', null).orWhere(propName, 'not in', value); // <> / !=
+                            this.where(prop, 'is', null).orWhere(prop, 'not in', value); // <> / !=
                         else
-                            this.where(propName, 'is', null).orWhere(propName, 'not like', value); // <> / !=
+                            this.where(prop, 'is', null).orWhere(prop, 'not like', value); // <> / !=
                     });
                     break;
                 case 'lt':
-                    qb.where(propName, '<', value);
+                    qb.where(prop, '<', value);
                     break;
                 case 'gt':
-                    qb.where(propName, '>', value);
+                    qb.where(prop, '>', value);
                     break;
                 case 'lte':
-                    qb.where(propName, '<=', value);
+                    qb.where(prop, '<=', value);
                     break;
                 case 'gte':
-                    qb.where(propName, '>=', value);
+                    qb.where(prop, '>=', value);
                     break;
                 default:
-                    qb.where(propName, value);
+                    qb.where(prop, value);
             }
         }
     }

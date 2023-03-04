@@ -152,6 +152,21 @@ test('movie_db', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('5');
 
+    urlSearch = apiUrl + "/stars?movies=3";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
+    urlSearch = apiUrl + "/stars?movies_in=3";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
+    urlSearch = apiUrl + "/stars?movies_in=3&id_nin=1";
+    data = await webclient.curl(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('2');
+
     urlSearch = apiUrl + "/stars?movies_containsAny=1,3";
     data = await webclient.curl(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
