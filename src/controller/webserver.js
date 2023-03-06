@@ -13,6 +13,7 @@ const _eval = require('eval');
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
 const ValidationError = require('../common/validation-error');
+const VcsEnum = require('../common/vcs-enum');
 const AuthController = require('./auth-controller');
 
 class WebServer {

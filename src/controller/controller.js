@@ -6,6 +6,7 @@ const fs = require('fs');
 const common = require('../common/common');
 const Logger = require('../common/logger/logger');
 const ValidationError = require('../common/validation-error');
+const VcsEnum = require('../common/vcs-enum');
 const WebClient = require('../common/webclient');
 const AppVersion = require('../common/app-version');
 const WebServer = require('./webserver');
@@ -15,8 +16,6 @@ const DependencyController = require('./dependency-controller');
 const MigrationController = require('./migration-controller');
 const AuthController = require('./auth-controller');
 const Shelf = require('../model/shelf');
-
-const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
 
 function createDateTimeString() {
     const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
