@@ -21,7 +21,7 @@ var route = {
         return Promise.resolve();
     }
 };
-controller.addRoute(route);
+controller.getWebServer().addCustomRoute(route);
 ```
 
 

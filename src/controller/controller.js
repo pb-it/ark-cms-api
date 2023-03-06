@@ -2,31 +2,21 @@ const v8 = require('v8');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const session = require('express-session');
-const _eval = require('eval');
 
-const Logger = require('../common/logger/logger');
-const SeverityEnum = require('../common/logger/severity-enum');
 const common = require('../common/common');
+const Logger = require('../common/logger/logger');
+const ValidationError = require('../common/validation-error');
 const WebClient = require('../common/webclient');
+const AppVersion = require('../common/app-version');
+const WebServer = require('./webserver');
 const Registry = require('./registry');
 const VersionController = require('./version-controller');
 const DependencyController = require('./dependency-controller');
 const MigrationController = require('./migration-controller');
 const AuthController = require('./auth-controller');
-const AppVersion = require('../common/app-version');
 const Shelf = require('../model/shelf');
 
 const VcsEnum = Object.freeze({ GIT: 'git', SVN: 'svn' });
-
-class ValidationError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "ValidationError";
-    }
-}
 
 function createDateTimeString() {
     const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
@@ -53,7 +43,7 @@ class Controller {
     _bIsRunning;
 
     _knex;
-    _svr;
+    _webserver;
 
     _logger;
     _registry;
@@ -66,8 +56,6 @@ class Controller {
     _authController;
 
     _shelf;
-
-    _routes;
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
@@ -97,8 +85,6 @@ class Controller {
             this._cdnConfig = require(file);
             this._info['cdn'] = this._cdnConfig.map(function (x) { return { 'url': x['url'] } });
         }
-
-        this._routes = [];
 
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
@@ -130,6 +116,9 @@ class Controller {
             this._logger = new Logger(this._knex);
             await this._logger.initLogger();
 
+            this._webserver = new WebServer(this);
+            await this._webserver.initServer();
+
             this._shelf = new Shelf(this._knex);
             await this._shelf.initShelf();
 
@@ -157,9 +146,9 @@ class Controller {
             else if (this._info['state'] === 'starting')
                 this._info['state'] = 'running';
 
-
-            this._startExpress();
             this._bIsRunning = true;
+
+            Logger.info("[app] ✔ Running");
         } catch (error) {
             Logger.parseError(error);
         }
@@ -190,6 +179,10 @@ class Controller {
         return this._knex;
     }
 
+    getWebServer() {
+        return this._webserver;
+    }
+
     getRegistry() {
         return this._registry;
     }
@@ -208,6 +201,10 @@ class Controller {
 
     getDependencyController() {
         return this._dependencyController;
+    }
+
+    getAuthController() {
+        return this._authController;
     }
 
     getShelf() {
@@ -276,18 +273,12 @@ class Controller {
     }
 
     async teardown() {
-        return new Promise(function (resolve, reject) {
-            if (this._svr)
-                this._svr.close(function (err) {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            if (this._knex)
-                this._knex.destroy();
-            this._bIsRunning = false;
-        }.bind(this));
+        if (this._webserver)
+            await this._webserver.teardown();
+        if (this._knex)
+            this._knex.destroy();
+        this._bIsRunning = false;
+        return Promise.resolve();
     }
 
     isRunning() {
@@ -314,441 +305,12 @@ class Controller {
         process.exit();
     }
 
-    addRoute(route) {
-        if (route['regex'] && route['fn']) {
-            this.deleteRoute(route);
-            this._routes.push(route);
-        }
-    }
-
-    deleteRoute(route) {
-        if (route['regex']) {
-            this._routes = this._routes.filter(function (x) {
-                return (x['regex'] !== route['regex']);
-            });
-        }
-    }
-
     /**
      * flag to process multiple request at once
      */
     setRestartRequest() {
         this._info['state'] = 'openRestartRequest';
         //await controller.restart();
-    }
-
-    _startExpress() {
-        var express = require('express');
-        var cors = require('cors');
-        var corsOptions = {
-            origin: function (origin, callback) {
-                return callback(null, true);
-            },
-            credentials: true
-        };
-        var sessOptions = {
-            secret: 'keyboard cat',
-            //name: "sessionID",
-            //proxy: true,
-            resave: false,
-            saveUninitialized: true
-        };
-        if (this._serverConfig.ssl) { // Chrome only allows cookie forwarding for https
-            sessOptions['cookie'] = {
-                sameSite: "none",
-                secure: true
-            };
-        }
-        var bodyParser = require('body-parser');
-
-        var app = express();
-
-        //app.set("json spaces", 2);
-        //app.set("query parser", "simple");
-
-        app.use(cors(corsOptions));
-        app.use(session(sessOptions));
-        if (this._serverConfig['auth'] == undefined || this._serverConfig['auth'] == true)
-            app.use(this._authController.checkAuthorization.bind(this._authController));
-        app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-        app.use(bodyParser.json({ limit: '100mb' }));
-
-        app.get('/robots.txt', function (req, res) {
-            res.type('text/plain');
-            res.send("User-agent: *\nDisallow: /");
-        });
-        //app.use('/robots.txt', express.static('robots.txt'));
-
-        app.get('/', function (req, res) {
-            if (req.session.user)
-                AuthController.greeting(req, res);
-            else
-                res.redirect('/sys/auth/login');
-        });
-
-        var systemRouter = express.Router();
-        systemRouter.get('/info', function (req, res) {
-            res.json(this._info);
-        }.bind(this));
-        systemRouter.get('/log', function (req, res) {
-            if (req.query['clear'] === 'true') {
-                var response;
-                try {
-                    Logger.clear();
-                    response = "Log cleared!";
-                } catch (error) {
-                    Logger.parseError(error);
-                }
-                if (response)
-                    res.send(response);
-                else {
-                    res.status(500);
-                    res.send("Something went wrong!");
-                }
-            } else {
-                var severity = req.query['severity'];
-                var format = req.query['_format'];
-                var sort = req.query['_sort'];
-                var entries;
-                try {
-                    entries = Logger.getAllEntries(sort);
-                    if (severity) {
-                        var s;
-                        switch (severity) {
-                            case 'info':
-                                s = SeverityEnum.INFO;
-                                break;
-                            case 'warning':
-                                s = SeverityEnum.WARNING;
-                                break;
-                            case 'error':
-                                s = SeverityEnum.ERROR;
-                                break;
-                            default:
-                        }
-
-                        if (s) {
-                            entries = entries.filter(function (x) {
-                                return x['severity'] === s;
-                            });
-                        } else
-                            throw new Error('Parsing severity failed');
-                    }
-
-                    if (format && format === 'json')
-                        res.json(entries);
-                    else {
-                        var list = "";
-                        for (var entry of entries) {
-                            if (list.length > 0)
-                                list += '\r\n';
-                            list += entry.toString();
-                        }
-                        res.type('text/plain');
-                        res.send(list);
-                    }
-                } catch (error) {
-                    Logger.parseError(error);
-                    res.status(500);
-                    res.send("Parsing log file failed");
-                }
-            }
-        });
-        systemRouter.get('/update', async function (req, res) {
-            var version;
-            if (req.query['v'])
-                version = req.query['v'];
-            else if (req.query['version'])
-                version = req.query['version'];
-            var bForce = req.query['force'] && (req.query['force'] === 'true');
-            var msg;
-            var bUpdated = false;
-            try {
-                msg = await this.update(version, bForce);
-                console.log(msg);
-                var strUpToDate;
-                if (this._vcs === VcsEnum.GIT)
-                    strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
-                else if (this._vcs === VcsEnum.SVN)
-                    strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
-                if (msg) {
-                    if (msg.startsWith(strUpToDate))
-                        Logger.info("[App] Already up to date");
-                    else {
-                        Logger.info("[App] ✔ Updated");
-                        bUpdated = true;
-                    }
-                } else
-                    throw new Error('Missing response from update process');
-            } catch (error) {
-                if (error['message'])
-                    msg = error['message']; // 'Command failed:...'
-                else
-                    msg = error;
-                console.error(msg);
-                Logger.error("[App] ✘ Update failed");
-            } finally {
-                res.send(msg.replace('\n', '<br/>'));
-            }
-            if (bUpdated)
-                this.restart();
-            return Promise.resolve();
-        }.bind(this));
-        systemRouter.get('/restart', function (req, res) {
-            res.send("Restarting..");
-            this.restart();
-        }.bind(this));
-        systemRouter.get('/reload', async function (req, res) {
-            var bForceMigration = (req.query['forceMigration'] === 'true');
-            try {
-                if (this._info['state'] === 'openRestartRequest') {
-                    res.send("Restarting instead of reloading because of open request.");
-                    this.restart();
-                } else {
-                    Logger.info("[App] Reloading models");
-                    await this._shelf.loadAllModels();
-                    if (await this._migrationsController.migrateDatabase(bForceMigration)) {
-                        await this._shelf.initAllModels();
-                        var msg = "Reload done.";
-
-                        if (this._info['state'] === 'openRestartRequest') {
-                            res.send(msg + " Restarting now.");
-                            this.restart();
-                        } else
-                            res.send(msg);
-                    } else
-                        res.send("Reload aborted");
-                }
-            } catch (error) {
-                Logger.parseError(error);
-                res.status(500);
-                res.send("Reload failed");
-            }
-            return Promise.resolve();
-        }.bind(this));
-        systemRouter.get('/shutdown', (req, res) => {
-            res.send("Shutdown initiated");
-            process.exit();
-        });
-        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-            const evalForm = '<form action="/sys/eval" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Evaluate"></form>';
-
-            systemRouter.get('/eval', (req, res) => {
-                res.send(evalForm);
-            });
-            systemRouter.post('/eval', async (req, res) => {
-                var cmd = req.body['cmd'];
-                var response;
-                if (cmd) {
-                    Logger.info("[App] Evaluating command '" + cmd + "'");
-                    try {
-                        //response = eval(code);
-                        var e = _eval(cmd, true);
-                        response = await e();
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                res.send(response + '<br>' + evalForm);
-                return Promise.resolve();
-            });
-
-            const form = '<form action="/sys/run" method="post">' +
-                'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Run"></form>';
-
-            systemRouter.get('/run', (req, res) => {
-                res.send(form);
-            });
-            systemRouter.post('/run', async (req, res) => {
-                var code = req.body['code'];
-                var response;
-                if (code) {
-                    Logger.info("[App] Running code '" + code + "'");
-                    try {
-                        //response = new Function(code)();
-                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-                        response = await new AsyncFunction(code)();
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                if (!response)
-                    response = 'Empty response!'; //'An error occurred while processing your request!'
-                res.send(response + '<br><br>' + form);
-                return Promise.resolve();
-            });
-
-            const execForm = '<form action="/sys/exec" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Execute"></form>';
-
-            systemRouter.get('/exec', (req, res) => {
-                res.send(execForm);
-            });
-            systemRouter.post('/exec', async (req, res) => {
-                var cmd = req.body['cmd'];
-                var response;
-                if (cmd) {
-                    Logger.info("[App] Executing command '" + cmd + "'");
-                    try {
-                        response = await common.exec(cmd);
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                res.send(response + '<br>' + execForm);
-                return Promise.resolve();
-            });
-        }
-        app.use('/sys', systemRouter);
-
-        var dbRouter = express.Router();
-        dbRouter.get('/backup', async function (req, res) {
-            if (process.platform === 'linux' && this._databaseSettings['client'].startsWith('mysql')) {
-                try {
-                    var password;
-                    if (req.query['password'])
-                        password = req.query['password'];
-                    else
-                        password = this._databaseSettings['connection']['password'];
-                    var file = controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
-                    var cmd = `mysqldump --verbose -u root -p${password} \
-            --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
-            --databases cms > ${file}`;
-                    Logger.info("[App] Creating database dump to '" + file + "'");
-                    await common.exec(cmd);
-                } catch (error) {
-                    console.log(error);
-                    file = null;
-                }
-                if (file)
-                    res.download(file);
-                else
-                    res.send("Something went wrong!");
-            } else
-                res.send("By now backup API is only supported with mysql on local linux systems!");
-            return Promise.resolve();
-        }.bind(this));
-        dbRouter.get('/restore', function (req, res) {
-            res.send("Not Implemented Yet"); //TODO:
-        });
-        dbRouter.post('/restore', function (req, res) {
-            res.send("Not Implemented Yet"); //TODO:
-        });
-        systemRouter.use('/db', dbRouter);
-
-        var authRouter = express.Router();
-        authRouter.get('/login', function (req, res) {
-            AuthController.showLoginDialog(res);
-        });
-        authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res) {
-            var username = req.body.user;
-            var password = req.body.pass;
-            var user;
-            if (username && password)
-                user = await this._authController.checkAuthentication(username, password);
-            if (user) {
-                req.session.regenerate(function (err) {
-                    if (err)
-                        next(err);
-                    req.session.user = user;
-                    req.session.save(function (err) {
-                        if (err)
-                            return next(err);
-                        res.redirect('/');
-                    });
-                });
-            } else
-                res.redirect('/sys/auth/login');
-            return Promise.resolve();
-        }.bind(this));
-        authRouter.get('/logout', function (req, res, next) {
-            req.session.user = null;
-            req.session.save(function (err) {
-                if (err)
-                    next(err);
-                req.session.regenerate(function (err) {
-                    if (err)
-                        next(err);
-                    res.redirect('/');
-                });
-            });
-        });
-        systemRouter.use('/auth', authRouter);
-
-        var apiRouter = express.Router();
-        apiRouter.route('*')
-            .all(async function (req, res, next) {
-                try {
-                    var match;
-                    for (var route of this._routes) {
-                        if (route['regex'] && route['fn']) {
-                            match = new RegExp(route['regex'], 'ig').exec(req.path);
-                            if (match) {
-                                if (!req.locals)
-                                    req.locals = { 'match': match };
-                                else
-                                    req.locals['match'] = match;
-                                await route['fn'](req, res);
-                                break;
-                            }
-                        }
-                    }
-                    if (!match)
-                        await this.process(req, res);
-                } catch (error) {
-                    var msg = Logger.parseError(error);
-                    if (error) {
-                        if (error instanceof ValidationError) {
-                            res.status(404);
-                            res.send(error.message);
-                        } else if (error.message && error.message === "EmptyResponse") {
-                            res.status(404);
-                            res.send(error.message);
-                        } else {
-                            res.status(500);
-                            res.send(msg);
-                        }
-                    }
-                }
-                if (!res.headersSent)
-                    next();
-                return Promise.resolve();
-            }.bind(this));
-        app.use('/api', apiRouter);
-
-        if (this._serverConfig.ssl) {
-            const options = {
-                key: fs.readFileSync(path.join(this._appRoot, 'config/ssl/key.pem'), 'utf8'),
-                cert: fs.readFileSync(path.join(this._appRoot, 'config/ssl/cert.pem'), 'utf8')
-            };
-
-            if (options) {
-                this._svr = https.createServer(options, app);
-                this._svr.listen(this._serverConfig.port, function () {
-                    Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
-                }.bind(this));
-            } else {
-                var msg = "No valid SSL certificate found";
-                console.error(msg);
-                Logger.error("[App] ✘ " + msg);
-            }
-        } else {
-            this._svr = http.createServer(app);
-            this._svr.listen(this._serverConfig.port, function () {
-                Logger.info(`[Express] ✔ Server listening on port ${this._serverConfig.port} in ${app.get('env')} mode`);
-            }.bind(this));
-        }
-        this._svr.setTimeout(600 * 1000);
     }
 
     /**
@@ -759,7 +321,7 @@ class Controller {
      * @param {*} res 
      * @returns 
      */
-    async process(req, res) {
+    async processRequest(req, res) {
         var name;
         var id;
         var rel;
