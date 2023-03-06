@@ -117,7 +117,7 @@ class WebServer {
             return new Promise(function (resolve, reject) {
                 server.listen(config['port'], function () {
                     Logger.info(`[Express] ✔ Server listening on port ${config['port']} in ${app.get('env')} mode`);
-                    resolve();
+                    resolve(this);
                 });
                 server.once('error', (err) => {
                     if (err)
@@ -149,11 +149,14 @@ class WebServer {
 
     _addRoutes() {
         this._app.get('/', function (req, res) {
-            if (req.session.user)
-                AuthController.greeting(req, res);
-            else
-                res.redirect('/sys/auth/login');
-        });
+            if (this._controller.getServerConfig()['ssl']) {
+                if (req.session.user)
+                    AuthController.greeting(req, res);
+                else
+                    res.redirect('/sys/auth/login');
+            } else
+                res.send('Hello');
+        }.bind(this));
 
         this._addSystemRoutes();
         this._addApiRoute();
