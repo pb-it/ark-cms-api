@@ -148,7 +148,7 @@ class Controller {
 
             this._bIsRunning = true;
 
-            Logger.info("[app] ✔ Running");
+            Logger.info("[App] ✔ Running");
         } catch (error) {
             Logger.parseError(error);
         }

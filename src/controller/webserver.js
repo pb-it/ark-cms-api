@@ -91,7 +91,7 @@ class WebServer {
     }
 
     async initServer() {
-        this._server = await this._initServer(this._app, this._controller.getServerConfig(), this._controller.getAppRoot());
+        this._svr = await this._initServer(this._app, this._controller.getServerConfig(), this._controller.getAppRoot());
         return Promise.resolve();
     }
 
