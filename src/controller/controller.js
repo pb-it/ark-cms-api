@@ -13,8 +13,10 @@ const WebServer = require('./webserver');
 const Registry = require('./registry');
 const VersionController = require('./version-controller');
 const DependencyController = require('./dependency-controller');
+const ExtensionController = require('./extension-controller');
 const MigrationController = require('./migration-controller');
 const AuthController = require('./auth-controller');
+
 const Shelf = require('../model/shelf');
 
 function createDateTimeString() {
@@ -42,6 +44,7 @@ class Controller {
     _bIsRunning;
 
     _knex;
+    _shelf;
     _webserver;
 
     _logger;
@@ -51,10 +54,9 @@ class Controller {
 
     _versionController;
     _dependencyController;
+    _extensionController;
     _migrationsController;
     _authController;
-
-    _shelf;
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
@@ -132,12 +134,15 @@ class Controller {
             this._dependencyController = new DependencyController(this);
             await this._dependencyController.init();
 
+            this._extensionController = new ExtensionController(this);
+            await this._extensionController.initExtensionController();
+
             this._migrationsController = new MigrationController(this);
             var res = await this._migrationsController.migrateDatabase();
             if (res)
                 await this._shelf.initAllModels();
 
-            this._authController = new AuthController();
+            this._authController = new AuthController(this);
             await this._authController.initAuthController();
 
             if (this._info['state'] === 'openRestartRequest')
@@ -178,6 +183,10 @@ class Controller {
         return this._knex;
     }
 
+    getShelf() {
+        return this._shelf;
+    }
+
     getWebServer() {
         return this._webserver;
     }
@@ -190,10 +199,6 @@ class Controller {
         return this._webclient;
     }
 
-    getMigrationsController() {
-        return this._migrationsController;
-    }
-
     getVersionController() {
         return this._versionController;
     }
@@ -202,12 +207,16 @@ class Controller {
         return this._dependencyController;
     }
 
-    getAuthController() {
-        return this._authController;
+    getExtensionController() {
+        return this._extensionController;
     }
 
-    getShelf() {
-        return this._shelf;
+    getMigrationsController() {
+        return this._migrationsController;
+    }
+
+    getAuthController() {
+        return this._authController;
     }
 
     getTmpDir() {
@@ -376,6 +385,39 @@ class Controller {
                         } else
                             throw new ValidationError("Invalid model ID");
                     }
+                } else if (name === '_extension' && req.method !== "GET") {
+                    if (req.method === "POST" || req.method === "PUT") {
+                        var data = await this._extensionController.addExtension(req);
+                        if (data) {
+                            res.json(data);
+                        } else
+                            throw new ValidationError("Adding extension failed");
+                    } else if (req.method === "DELETE") {
+                        str = arr.shift();
+                        if (str) {
+                            try {
+                                id = parseInt(str);
+                            } catch (error) {
+                                Logger.parseError(error);
+                            }
+                        }
+                        if (id) {
+                            try {
+                                var foo = await this._extensionController.deleteExtension(id);
+                                if (foo)
+                                    Logger.info("[App] ✔ Deleted extension '" + foo + "'");
+                                else
+                                    Logger.info("[App] Unexpected behavior while deleting extension");
+                                res.send("OK");
+                            } catch (error) {
+                                Logger.parseError(error);
+                                throw new ValidationError("Deletion of model failed");
+                            }
+                        } else
+                            throw new ValidationError("Invalid extension ID");
+                    } else
+                        throw new ValidationError("Unsuppourted method");
+                    return Promise.resolve();
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model) {
@@ -495,6 +537,7 @@ class Controller {
                     }
                 }
                 var model = await this._shelf.upsertModel(undefined, definition);
+                await model.initModel();
                 var id = model.getId();
                 var data = await this._shelf.getModel('_model').read(id);
                 var timestamp = data['updated_at'];
@@ -593,7 +636,9 @@ class Controller {
                             }
                             if (definition) {
                                 try {
-                                    await this._shelf.upsertModel(id, definition, false);
+                                    model = await this._shelf.upsertModel(id, definition);
+                                    if (definition['attributes'])
+                                        await model.initModel();
                                     if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
                                         var user = req.session.user;
                                         var uid;

@@ -17,15 +17,17 @@ class AuthController {
             '<input type="submit" value="Login"></form>');
     }
 
+    _controller;
     _userModel;
     _roleModel;
     _permissionModel;
 
-    constructor() {
+    constructor(controller) {
+        this._controller = controller;
     }
 
     async initAuthController() {
-        var shelf = controller.getShelf();
+        var shelf = this._controller.getShelf();
         var bCreatePermissions = false;
 
         this._userModel = shelf.getModel('_user');

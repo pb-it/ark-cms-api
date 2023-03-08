@@ -119,6 +119,7 @@ class MigrationController {
                                 "model": "_user"
                             });
                             await this._shelf.upsertModel(mChange.getId(), def);
+                            await mChange.initModel();
                         }
                         var mModel = this._shelf.getModel('_model');
                         if (mModel) {
@@ -126,6 +127,7 @@ class MigrationController {
                             if (!def['options']['timestamps']) {
                                 def['options']['timestamps'] = true;
                                 await this._shelf.upsertModel(mModel.getId(), def);
+                                await mModel.initModel();
                             }
                         }
                     case '0.3.2-beta':
@@ -140,6 +142,7 @@ class MigrationController {
                                 }
                             }
                             await this._shelf.upsertModel(mUser.getId(), def);
+                            await mUser.initModel();
                         }
                         break;
                     default:
@@ -152,7 +155,7 @@ class MigrationController {
                         for (var m of this._models) {
                             definition = m.getDefinition();
                             MigrationController.updateModelDefinition(definition, regVersion, appVersion);
-                            await this._shelf.upsertModel(undefined, definition, false);
+                            await this._shelf.upsertModel(undefined, definition);
                         }
                     }
                     Logger.info("[MigrationController] ✔ Updated all models in database to version '" + sAppVersion + "'");

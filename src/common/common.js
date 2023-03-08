@@ -1,4 +1,8 @@
-module.exports.exec = function (cmd) {
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function exec(cmd) {
     return new Promise((resolve, reject) => {
         require("child_process").exec(cmd, function (err, stdout, stderr) {
             if (err)
@@ -41,7 +45,7 @@ function flatten(obj) {
  * @param {*} url 
  * @returns 
  */
-module.exports.getFileExtensionFromUrl = function (url) {
+function getFileExtensionFromUrl(url) {
     var ext;
     if (url) {
         var index = url.indexOf('?');
@@ -60,5 +64,4 @@ module.exports.getFileExtensionFromUrl = function (url) {
     return ext;
 }
 
-module.exports.getAllPropertyNames = getAllPropertyNames;
-module.exports.flatten = flatten;
+module.exports = { sleep, exec, getAllPropertyNames, flatten, getFileExtensionFromUrl };

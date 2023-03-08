@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.4.2-beta](https://github.com/pb-it/wing-cms-api/0.4.2-beta) (2023-03-08)
+
+* Extended system for custom extensions
+
+
 ## [0.4.1-beta](https://github.com/pb-it/wing-cms-api/0.4.1-beta) (2023-02-17)
 
 * Minor changes

@@ -5,7 +5,7 @@ const http = require('http');
 const https = require('https');
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
+const formidable = require('express-formidable');
 const session = require('express-session');
 
 const _eval = require('eval');
@@ -64,15 +64,18 @@ class WebServer {
         app.use((req, res, next) => {
             if (this._controller.isRunning())
                 next();
-            else
+            else {
+                res.status(503);
                 res.send("Server is not fully started yet. Please retry.");
+            }
         });
         app.use(session(sessOptions));
         if (config['auth'] == undefined || config['auth'] == true)
             app.use(this._checkAuthorization.bind(this));
 
-        app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-        app.use(bodyParser.json({ limit: '100mb' }));
+        app.use(express.urlencoded({ limit: '100mb', extended: true }));
+        app.use(express.json({ limit: '100mb' }));
+        app.use(formidable());
 
         app.get('/robots.txt', function (req, res) {
             res.type('text/plain');
@@ -469,6 +472,7 @@ class WebServer {
         var apiRouter = express.Router();
         apiRouter.route('*')
             .all(async function (req, res, next) {
+                var bSent = false;
                 try {
                     var match;
                     for (var route of this._routes) {
@@ -486,6 +490,7 @@ class WebServer {
                     }
                     if (!match)
                         await this._controller.processRequest(req, res);
+                    bSent = true;
                 } catch (error) {
                     var msg = Logger.parseError(error);
                     if (error) {
@@ -501,7 +506,7 @@ class WebServer {
                         }
                     }
                 }
-                if (!res.headersSent)
+                if (!bSent && !res.headersSent)
                     next();
                 return Promise.resolve();
             }.bind(this));

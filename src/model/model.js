@@ -722,7 +722,11 @@ class Model {
                             } else
                                 forge[str] = null;
                         } else if (attr['storage'] == 'blob') {
-                            forge[str] = data[str]['blob'];
+                            if (data[str]) {
+                                if (data[str]['blob'])
+                                    forge[str] = data[str]['blob'];
+                            } else
+                                forge[str] = null;
                         } else if (attr['storage'] == 'filesystem') {
                             var localPath = controller.getPathForFile(attr);
                             if (localPath) {

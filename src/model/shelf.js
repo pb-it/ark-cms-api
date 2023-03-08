@@ -49,7 +49,8 @@ class Shelf {
         if (!this.getModel('_model'))
             await this.upsertModel(null, definition);
 
-        if (!this.getModel('_change')) {
+        var mChange = this.getModel('_change');
+        if (!mChange) {
             definition = {
                 "name": "_change",
                 "options": {
@@ -95,8 +96,10 @@ class Shelf {
                     "client": "this._prepareDataAction = function (data) {\n    var str = \"\";\n    if (data['method'])\n        str += data['method'] + \": \";\n    if (data['model'])\n        str += data['model'];\n    if (data['record_id'])\n\tstr += \"(\" + data['record_id'] + \")\";\n    data['title'] = str;\n    return data;\n}"
                 }
             }
-            await this.upsertModel(null, definition);
+            mChange = await this.upsertModel(null, definition);
         }
+        if (!mChange.initDone())
+            await mChange.initModel();
         return Promise.resolve();
     }
 
@@ -142,7 +145,7 @@ class Shelf {
         return Promise.resolve();
     }
 
-    async upsertModel(id, definition, bInit = true) {
+    async upsertModel(id, definition) {
         var name = definition['name'];
         Logger.info('[App] Creating or updating model \'' + name + '\'');
 
@@ -192,9 +195,6 @@ class Shelf {
             else
                 this._models = [model];
         }
-        if (bInit)
-            await model.initModel();
-
         return Promise.resolve(model);
     }
 

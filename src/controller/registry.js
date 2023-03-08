@@ -34,18 +34,10 @@ class Registry {
                 ]
             }
             this._model = await shelf.upsertModel(null, definition);
-        } else
+        }
+        if (!this._model.initDone())
             await this._model.initModel();
 
-        /*var exist = await this._knex.schema.hasTable('_registry');
-        if (!exist) {
-            await this._knex.schema.createTable('_registry', function (table) {
-                table.increments('id').primary();
-                table.string('key', 63).unique().notNullable();
-                table.text('value');
-            });
-            Logger.info("Created '_registry' table");
-        }*/
         return Promise.resolve();
     }
 
