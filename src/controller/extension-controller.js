@@ -102,7 +102,9 @@ class ExtensionController {
             var source = path.join(tmpDir, folderName);
             if (bExist)
                 fs.rmSync(p, { recursive: true, force: true });
-            fs.renameSync(source, p);
+            //fs.renameSync(source, p); // fs.rename fails if two separate partitions are involved
+            fs.copyFileSync(source, p, fs.constants.COPYFILE_EXCL);
+            fs.unlinkSync(source);
         }
         var stat = await fs.promises.stat(p);
         if (stat.isDirectory()) {
@@ -140,7 +142,9 @@ class ExtensionController {
                     var target = path.join(this._dir, extName);
                     if (fs.existsSync(target))
                         fs.rmSync(target, { recursive: true, force: true });
-                    fs.renameSync(source, target);
+                    //fs.renameSync(source, target); // fs.rename fails if two separate partitions are involved
+                    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+                    fs.unlinkSync(source);
                     meta = await this._model.create({ 'name': extName, 'archive': { 'blob': fs.readFileSync(file['path']) } });
                     await this._loadExtension(meta);
                 }
