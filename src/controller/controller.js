@@ -330,6 +330,8 @@ class Controller {
      * @returns 
      */
     async processRequest(req, res) {
+        var bSent = false;
+
         var name;
         var id;
         var rel;
@@ -343,10 +345,9 @@ class Controller {
                     if (req.method === "PUT") {
                         id = await this.putModel(req, res);
                         res.json(id);
-
+                        bSent = true;
                         /*if (this._info['state'] === 'openRestartRequest')
                             this.restart(); */ // dont restart in case of importing multiple models at once 
-                        return Promise.resolve();
                     } else if (req.method === "DELETE") {
                         str = arr.shift();
                         if (str) {
@@ -357,31 +358,25 @@ class Controller {
                             }
                         }
                         if (id) {
+                            var foo;
                             try {
-                                var foo = await this._shelf.deleteModel(id);
-                                if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-                                    var user = req.session.user;
-                                    var uid;
-                                    if (user)
-                                        uid = user['id'];
-                                    else
-                                        uid = null;
-                                    var change = {
-                                        'method': req.method,
-                                        'model': '_model',
-                                        'record_id': id,
-                                        'data': JSON.stringify(req.body),
-                                        'user': uid
-                                    };
-                                    await this._shelf.getModel('_change').create(change);
-                                }
-                                Logger.info("[App] ✔ Deleted model '" + foo + "'");
-                                res.send("OK");
-                                return Promise.resolve();
+                                foo = await this._shelf.deleteModel(id);
                             } catch (error) {
                                 Logger.parseError(error);
                                 throw new ValidationError("Deletion of model failed");
                             }
+                            if (foo) {
+                                try {
+                                    await this._protocol(req, null, req.method, '_model', id, req.body);
+                                    Logger.info("[App] ✔ Deleted model '" + foo + "'");
+                                    res.send("OK");
+                                    bSent = true;
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                    throw new ValidationError("Deletion of model failed");
+                                }
+                            } else
+                                throw new ValidationError("Unexpected behavior while deleting model");
                         } else
                             throw new ValidationError("Invalid model ID");
                     }
@@ -389,7 +384,10 @@ class Controller {
                     if (req.method === "POST" || req.method === "PUT") {
                         var data = await this._extensionController.addExtension(req);
                         if (data) {
+                            id = data['id'];
+                            await this._protocol(req, null, req.method, '_extension', id, '-');
                             res.json(data);
+                            bSent = true;
                         } else
                             throw new ValidationError("Adding extension failed");
                     } else if (req.method === "DELETE") {
@@ -402,22 +400,29 @@ class Controller {
                             }
                         }
                         if (id) {
+                            var foo;
                             try {
-                                var foo = await this._extensionController.deleteExtension(id);
-                                if (foo)
-                                    Logger.info("[App] ✔ Deleted extension '" + foo + "'");
-                                else
-                                    Logger.info("[App] Unexpected behavior while deleting extension");
-                                res.send("OK");
+                                foo = await this._extensionController.deleteExtension(id);
                             } catch (error) {
                                 Logger.parseError(error);
-                                throw new ValidationError("Deletion of model failed");
+                                throw new ValidationError("Deletion of extension failed");
                             }
+                            if (foo) {
+                                try {
+                                    await this._protocol(req, null, req.method, '_extension', id, '-');
+                                    Logger.info("[App] ✔ Deleted extension '" + foo + "'");
+                                    res.send("OK");
+                                    bSent = true;
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                    throw new ValidationError("Deletion of extension failed");
+                                }
+                            } else
+                                throw new ValidationError("Unexpected behavior while deleting extension");
                         } else
                             throw new ValidationError("Invalid extension ID");
                     } else
                         throw new ValidationError("Unsuppourted method");
-                    return Promise.resolve();
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model) {
@@ -466,12 +471,6 @@ class Controller {
 
                         if (timestamp) { //req.method !== "GET"
                             if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-                                var user = req.session.user;
-                                var uid;
-                                if (user)
-                                    uid = user['id'];
-                                else
-                                    uid = null;
                                 var protocol = {};
                                 var attribute;
                                 for (var key in req.body) {
@@ -485,15 +484,7 @@ class Controller {
                                         }
                                     }
                                 }
-                                var change = {
-                                    'timestamp': timestamp,
-                                    'method': req.method,
-                                    'model': name,
-                                    'record_id': id,
-                                    'data': JSON.stringify(protocol),
-                                    'user': uid
-                                };
-                                await this._shelf.getModel('_change').create(change);
+                                await this._protocol(req, timestamp, req.method, name, id, protocol);
                             }
                         }
 
@@ -503,16 +494,20 @@ class Controller {
                             res.json(data);
                         else
                             res.json([]);
-                        return Promise.resolve();
+                        bSent = true;
                     } else
                         throw new ValidationError("Model '" + name + "' not defined");
                 }
             }
         }
-        throw new ValidationError("Invalid path");
+        if (!bSent)
+            throw new ValidationError("Invalid path");
+        return Promise.resolve();
     }
 
     async putModel(req) {
+        var bDone = false;
+        var id;
         if (req.params[0] === '/_model') {
             var version = req.query['v'];
             var bForceMigration = (req.query['forceMigration'] === 'true');
@@ -538,26 +533,14 @@ class Controller {
                 }
                 var model = await this._shelf.upsertModel(undefined, definition);
                 await model.initModel();
-                var id = model.getId();
-                var data = await this._shelf.getModel('_model').read(id);
-                var timestamp = data['updated_at'];
+                id = model.getId();
                 var user = req.session.user;
                 var uid;
                 if (user)
                     uid = user['id'];
                 else
                     uid = null;
-                if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-                    var change = {
-                        'timestamp': timestamp,
-                        'method': req.method,
-                        'model': '_model',
-                        'record_id': id,
-                        'data': JSON.stringify(req.body),
-                        'user': uid
-                    };
-                    await this._shelf.getModel('_change').create(change);
-                }
+                await this._protocol(req, null, req.method, '_model', id, req.body, uid);
                 if (bNew && user && user.username !== 'admin') {
                     var permission = {
                         'user': uid,
@@ -566,29 +549,20 @@ class Controller {
                         'write': true
                     };
                     model = this._shelf.getModel('_permission');
-                    data = await model.create(permission);
+                    var data = await model.create(permission);
                     if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
                         var pid = data['id'];
-                        timestamp = data['created_at'];
-                        change = {
-                            'timestamp': timestamp,
-                            'method': 'POST',
-                            'model': '_permission',
-                            'record_id': pid,
-                            'data': JSON.stringify(permission),
-                            'user': uid
-                        };
-                        await this._shelf.getModel('_change').create(change);
+                        var timestamp = data['created_at'];
+                        await this._protocol(req, timestamp, 'POST', '_permission', pid, permission, uid);
                     }
                 }
                 Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
-                return Promise.resolve(id);
+                bDone = true;
             } else
                 throw new ValidationError("Please specify model version");
         } else {
             if (req.params[0].startsWith('/_model/')) {
                 var arr = req.params[0].substring('/_model/'.length).split('/');
-                var id;
                 var str = arr.shift();
                 try {
                     id = parseInt(str);
@@ -639,24 +613,9 @@ class Controller {
                                     model = await this._shelf.upsertModel(id, definition);
                                     if (definition['attributes'])
                                         await model.initModel();
-                                    if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-                                        var user = req.session.user;
-                                        var uid;
-                                        if (user)
-                                            uid = user['id'];
-                                        else
-                                            uid = null;
-                                        var change = {
-                                            'method': req.method,
-                                            'model': '_model',
-                                            'record_id': id,
-                                            'data': JSON.stringify(req.body),
-                                            'user': uid
-                                        };
-                                        await this._shelf.getModel('_change').create(change);
-                                    }
+                                    await this._protocol(req, null, req.method, '_model', id, req.body);
                                     Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
-                                    return Promise.resolve(id);
+                                    bDone = true;
                                 } catch (error) {
                                     Logger.parseError(error);
                                     var msg = "Creation or replacement of model";
@@ -675,7 +634,40 @@ class Controller {
                     throw new ValidationError("Invalid model ID");
             }
         }
-        throw new ValidationError("Invalid path");
+        if (!bDone || !id)
+            throw new ValidationError("Invalid path");
+        return Promise.resolve(id);
+    }
+
+    async _protocol(req, timestamp, method, model, id, data, uid) {
+        if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+            if (!timestamp) {
+                if (model == '_model' || model == '_extension') {
+                    var x = await this._shelf.getModel(model).read(id);
+                    timestamp = x['updated_at'];
+                } else
+                    timestamp = null;
+            }
+            if (!uid) {
+                var user = req.session.user;
+                if (user)
+                    uid = user['id'];
+                else
+                    uid = null;
+            }
+            if (!method)
+                method = req.method;
+            var change = {
+                'timestamp': timestamp,
+                'method': method,
+                'model': model,
+                'record_id': id,
+                'data': JSON.stringify(data),
+                'user': uid
+            };
+            await this._shelf.getModel('_change').create(change);
+        }
+        return Promise.resolve();
     }
 }
 

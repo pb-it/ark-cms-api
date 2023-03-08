@@ -5,7 +5,7 @@ const http = require('http');
 const https = require('https');
 const express = require('express');
 const cors = require('cors');
-const formidable = require('express-formidable');
+const formData = require('express-form-data');
 const session = require('express-session');
 
 const _eval = require('eval');
@@ -75,7 +75,7 @@ class WebServer {
 
         app.use(express.urlencoded({ limit: '100mb', extended: true }));
         app.use(express.json({ limit: '100mb' }));
-        app.use(formidable());
+        app.use(formData.parse());
 
         app.get('/robots.txt', function (req, res) {
             res.type('text/plain');
@@ -86,12 +86,13 @@ class WebServer {
         return app;
     }
 
-    _checkAuthorization(req, res, next) {
-        var bAuth = false;
+    async _checkAuthorization(req, res, next) {
         var ac = this._controller.getAuthController();
         if (ac)
-            bAuth = ac.checkAuthorization(req, res, next);
-        return bAuth;
+            await ac.checkAuthorization(req, res, next);
+        else
+            res.sendStatus(401);
+        return Promise.resolve();
     }
 
     async initServer() {
