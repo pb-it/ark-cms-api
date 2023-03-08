@@ -641,8 +641,10 @@ class Controller {
 
     async _protocol(req, timestamp, method, model, id, data, uid) {
         if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+            if (!method)
+                method = req.method;
             if (!timestamp) {
-                if (model == '_model' || model == '_extension') {
+                if (method != 'DELETE' && (model == '_model' || model == '_extension')) {
                     var x = await this._shelf.getModel(model).read(id);
                     timestamp = x['updated_at'];
                 } else
@@ -655,16 +657,15 @@ class Controller {
                 else
                     uid = null;
             }
-            if (!method)
-                method = req.method;
             var change = {
-                'timestamp': timestamp,
                 'method': method,
                 'model': model,
                 'record_id': id,
                 'data': JSON.stringify(data),
                 'user': uid
             };
+            if (timestamp)
+                change['timestamp'] = timestamp;
             await this._shelf.getModel('_change').create(change);
         }
         return Promise.resolve();
