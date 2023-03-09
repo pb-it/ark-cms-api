@@ -3,6 +3,8 @@ const fs = require('fs');
 const unzipper = require("unzipper")
 const { Duplex } = require('stream');
 
+const Logger = require('../common/logger/logger');
+
 class ExtensionController {
 
     static _bufferToStream(buffer) {
@@ -127,6 +129,7 @@ class ExtensionController {
         }
         this._extensions = this._extensions.filter(function (x) { return x['name'] != ext['name'] });
         this._extensions.push(ext);
+        Logger.info("[ExtensionController] ✔ Loaded extension '" + ext['name'] + "'");
         return Promise.resolve();
     }
 

@@ -368,7 +368,7 @@ class WebServer {
         authRouter.get('/login', function (req, res) {
             AuthController.showLoginDialog(res);
         });
-        authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res) {
+        authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res, next) {
             var username = req.body.user;
             var password = req.body.pass;
             var user;
@@ -377,7 +377,7 @@ class WebServer {
             if (user) {
                 req.session.regenerate(function (err) {
                     if (err)
-                        next(err);
+                        return next(err);
                     req.session.user = user;
                     req.session.save(function (err) {
                         if (err)
@@ -393,10 +393,10 @@ class WebServer {
             req.session.user = null;
             req.session.save(function (err) {
                 if (err)
-                    next(err);
+                    return next(err);
                 req.session.regenerate(function (err) {
                     if (err)
-                        next(err);
+                        return next(err);
                     res.redirect('/');
                 });
             });
@@ -583,6 +583,7 @@ class WebServer {
                             res.status(500);
                             res.send(msg);
                         }
+                        bSent = true;
                     }
                 }
                 if (!bSent && !res.headersSent)

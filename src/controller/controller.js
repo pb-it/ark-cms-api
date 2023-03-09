@@ -386,6 +386,7 @@ class Controller {
                         if (data) {
                             id = data['id'];
                             await this._protocol(req, null, req.method, '_extension', id, '-');
+                            Logger.info("[App] ✔ Added extension '" + data['name'] + "'");
                             res.json(data);
                             bSent = true;
                         } else
