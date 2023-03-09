@@ -313,85 +313,19 @@ class WebServer {
             process.exit();
         });
         if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-            const evalForm = '<form action="/sys/eval" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Evaluate"></form>';
-
-            systemRouter.get('/eval', (req, res) => {
-                res.send(evalForm);
-            });
-            systemRouter.post('/eval', async (req, res) => {
-                var cmd = req.body['cmd'];
-                var response;
-                if (cmd) {
-                    Logger.info("[App] Evaluating command '" + cmd + "'");
-                    try {
-                        //response = eval(code);
-                        var e = _eval(cmd, true);
-                        response = await e();
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                res.send(response + '<br>' + evalForm);
-                return Promise.resolve();
-            });
-
-            const form = '<form action="/sys/run" method="post">' +
-                'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Run"></form>';
-
-            systemRouter.get('/run', (req, res) => {
-                res.send(form);
-            });
-            systemRouter.post('/run', async (req, res) => {
-                var code = req.body['code'];
-                var response;
-                if (code) {
-                    Logger.info("[App] Running code '" + code + "'");
-                    try {
-                        //response = new Function(code)();
-                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-                        response = await new AsyncFunction(code)();
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                if (!response)
-                    response = 'Empty response!'; //'An error occurred while processing your request!'
-                res.send(response + '<br><br>' + form);
-                return Promise.resolve();
-            });
-
-            const execForm = '<form action="/sys/exec" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
-                '<input type="submit" value="Execute"></form>';
-
-            systemRouter.get('/exec', (req, res) => {
-                res.send(execForm);
-            });
-            systemRouter.post('/exec', async (req, res) => {
-                var cmd = req.body['cmd'];
-                var response;
-                if (cmd) {
-                    Logger.info("[App] Executing command '" + cmd + "'");
-                    try {
-                        response = await common.exec(cmd);
-                    } catch (error) {
-                        response = error.toString();
-                    }
-                    if (response && (typeof response === 'string' || response instanceof String))
-                        response = response.replaceAll('\n', '<br>');
-                }
-                res.send(response + '<br>' + execForm);
-                return Promise.resolve();
-            });
+            this._addEvalRoutes(systemRouter);
+            this._addFuncRoutes(systemRouter);
+            this._addExecRoutes(systemRouter);
+            this._addEditRoutes(systemRouter);
         }
 
+        this._addDatabaseRoutes(systemRouter);
+        this._addAuthRoutes(systemRouter);
+
+        this._app.use('/sys', systemRouter);
+    }
+
+    _addDatabaseRoutes(router) {
         var dbRouter = express.Router();
         dbRouter.get('/backup', async function (req, res) {
             if (process.platform === 'linux' && this._databaseSettings['client'].startsWith('mysql')) {
@@ -425,8 +359,10 @@ class WebServer {
         dbRouter.post('/restore', function (req, res) {
             res.send("Not Implemented Yet"); //TODO:
         });
-        systemRouter.use('/db', dbRouter);
+        router.use('/db', dbRouter);
+    }
 
+    _addAuthRoutes(router) {
         var authRouter = express.Router();
         authRouter.get('/login', function (req, res) {
             AuthController.showLoginDialog(res);
@@ -464,9 +400,150 @@ class WebServer {
                 });
             });
         });
-        systemRouter.use('/auth', authRouter);
+        router.use('/auth', authRouter);
+    }
 
-        this._app.use('/sys', systemRouter);
+    /**
+     * Example:
+     *   _eval('module.exports = function () { return 123 }');
+     *   NOT: eval('(function() { return 7; }())');
+     * https://www.npmjs.com/package/eval
+     * @param {*} router 
+     */
+    _addEvalRoutes(router) {
+        const evalForm = '<form action="/sys/eval" method="post">' +
+            'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+            '<input type="submit" value="Evaluate"></form>';
+
+        router.get('/eval', (req, res) => {
+            res.send(evalForm);
+        });
+        router.post('/eval', async (req, res) => {
+            var cmd = req.body['cmd'];
+            var response;
+            if (cmd) {
+                Logger.info("[App] Evaluating command '" + cmd + "'");
+                try {
+                    //response = eval(code);
+                    var e = _eval(cmd, true);
+                    response = await e();
+                } catch (error) {
+                    response = error.toString();
+                }
+                if (response && (typeof response === 'string' || response instanceof String))
+                    response = response.replaceAll('\n', '<br>');
+            }
+            var form = '<form action="/sys/eval" method="post">' +
+                'Command:<br><textarea name="cmd" rows="4" cols="50">' + cmd + '</textarea><br>' +
+                '<input type="submit" value="Evaluate"></form>';
+            res.send(response + '<br>' + form);
+            return Promise.resolve();
+        });
+    }
+
+    /**
+     * Fails when code contains 'require' function!
+     * @param {*} router
+     */
+    _addFuncRoutes(router) {
+        const form = '<form action="/sys/func" method="post">' +
+            'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
+            '<input type="submit" value="Run"></form>';
+
+        router.get('/func', (req, res) => {
+            res.send(form);
+        });
+        router.post('/func', async (req, res) => {
+            var code = req.body['code'];
+            var response;
+            if (code) {
+                Logger.info("[App] Running function '" + code + "'");
+                try {
+                    //response = new Function(code)();
+                    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+                    response = await new AsyncFunction(code)();
+                } catch (error) {
+                    response = error.toString();
+                }
+                if (response && (typeof response === 'string' || response instanceof String))
+                    response = response.replaceAll('\n', '<br>');
+            }
+            if (!response)
+                response = 'Empty response!'; //'An error occurred while processing your request!'
+            res.send(response + '<br><br>' + form);
+            return Promise.resolve();
+        });
+    }
+
+    _addExecRoutes(router) {
+        const execForm = '<form action="/sys/exec" method="post">' +
+            'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+            '<input type="submit" value="Execute"></form>';
+
+        router.get('/exec', (req, res) => {
+            res.send(execForm);
+        });
+        router.post('/exec', async (req, res) => {
+            var cmd = req.body['cmd'];
+            var response;
+            if (cmd) {
+                Logger.info("[App] Executing command '" + cmd + "'");
+                try {
+                    response = await common.exec(cmd);
+                } catch (error) {
+                    response = error.toString();
+                }
+                if (response && (typeof response === 'string' || response instanceof String))
+                    response = response.replaceAll('\n', '<br>');
+            }
+            res.send(response + '<br>' + execForm);
+            return Promise.resolve();
+        });
+    }
+
+    _addEditRoutes(router) {
+        router.get('/edit', (req, res) => {
+            var response;
+            try {
+                var file = req.query['file'];
+                if (file && fs.existsSync(file)) {
+                    var text = fs.readFileSync(file, 'utf8');
+                    response = '<form action="/sys/edit" method="post">' +
+                        'File:<br><input name="file" value="' + file + '"></input><br>' +
+                        'Text:<br><textarea name="text" rows="10" cols="50">' + text + '</textarea>' +
+                        '<input type="submit" value="Save"></form>';
+                } else {
+                    if (file)
+                        response = 'File \'' + file + '\' does not exist!<br>';
+                    else
+                        response = '';
+                    response += '<form action="/sys/edit" method="get">' +
+                        'File:<br><input name="file"></input><br>' +
+                        '<input type="submit" value="Open"></form>'
+                }
+            } catch (error) {
+                response = error.toString();
+            }
+            res.send(response);
+        });
+        router.post('/edit', async (req, res) => {
+            var file = req.body['file'];
+            var text = req.body['text'];
+            var response;
+            if (file && text) {
+                if (fs.existsSync(file)) {
+                    try {
+                        fs.writeFileSync(file, text);
+                        response = 'Saved';
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                } else
+                    response = 'File \'' + file + '\' does not exist!<br>';
+            }
+            res.send(response);
+            return Promise.resolve();
+        });
     }
 
     _addApiRoute() {
