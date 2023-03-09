@@ -10,6 +10,7 @@ const session = require('express-session');
 
 const _eval = require('eval');
 
+const common = require('../common/common');
 const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
 const ValidationError = require('../common/validation-error');
