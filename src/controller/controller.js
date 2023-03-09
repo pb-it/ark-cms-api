@@ -434,6 +434,8 @@ class Controller {
                             } catch (error) {
                                 Logger.parseError(error);
                             }
+                            if (!id)
+                                throw new ValidationError("Invalid path");
                         }
                         var data;
                         var timestamp;

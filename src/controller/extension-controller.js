@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const unzipper = require("unzipper")
+const unzipper = require("unzipper");
 const { Duplex } = require('stream');
 
 const Logger = require('../common/logger/logger');

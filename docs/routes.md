@@ -51,19 +51,34 @@
 
 #### Database
 
-`/sys/db/backup`
+`/sys/tools/db/backup`
 
-`/sys/db/restore`
-
-
-#### RUN (env:development)
-
-`/sys/run`
+`/sys/tools/db/restore`
 
 
-#### EXEC (env:development)
+#### Eval (env:development)
 
-`/sys/exec`
+`/sys/tools/dev/eval`
+
+
+#### Func (env:development)
+
+`/sys/tools/dev/func`
+
+
+#### Exec (env:development)
+
+`/sys/tools/dev/exec`
+
+
+#### Edit (env:development)
+
+`/sys/tools/dev/edit`
+
+
+#### Upload (env:development)
+
+`/sys/tools/dev/upload`
 
 
 ### API

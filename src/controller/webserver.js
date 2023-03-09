@@ -9,6 +9,7 @@ const formData = require('express-form-data');
 const session = require('express-session');
 
 const _eval = require('eval');
+const unzipper = require("unzipper");
 
 const common = require('../common/common');
 const Logger = require('../common/logger/logger');
@@ -18,6 +19,17 @@ const VcsEnum = require('../common/vcs-enum');
 const AuthController = require('./auth-controller');
 
 class WebServer {
+
+    static async _unzipFile(file, dest) {
+        return new Promise((resolve, reject) => {
+            fs.createReadStream(file)
+                .pipe(unzipper.Extract({ 'path': dest }))
+                .on('error', reject)
+                .on('finish', resolve);
+            //.promise()
+            //.then(() => resolve(), e => reject(e));
+        });
+    }
 
     _controller;
 
@@ -170,10 +182,40 @@ class WebServer {
 
     _addSystemRoutes() {
         var systemRouter = express.Router();
-        systemRouter.get('/info', function (req, res) {
+
+        this._addInfoRoute(systemRouter);
+        this._addLogRoute(systemRouter);
+        this._addUpdateRoute(systemRouter);
+        this._addRestartRoute(systemRouter);
+        this._addReloadRoute(systemRouter);
+        this._addShutdownRoute(systemRouter);
+
+        this._addAuthRoutes(systemRouter);
+
+        var toolsRouter = express.Router();
+        this._addDatabaseRoutes(toolsRouter);
+        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+            var devRouter = express.Router();
+            this._addEvalRoute(devRouter);
+            this._addFuncRoute(devRouter);
+            this._addExecRoute(devRouter);
+            this._addEditRoute(devRouter);
+            this._addUploadRoute(devRouter);
+            toolsRouter.use('/dev', devRouter);
+        }
+        systemRouter.use('/tools', toolsRouter);
+
+        this._app.use('/sys', systemRouter);
+    }
+
+    _addInfoRoute(router) {
+        router.get('/info', function (req, res) {
             res.json(this._info);
         }.bind(this._controller));
-        systemRouter.get('/log', function (req, res) {
+    }
+
+    _addLogRoute(router) {
+        router.get('/log', function (req, res) {
             if (req.query['clear'] === 'true') {
                 var response;
                 try {
@@ -237,7 +279,10 @@ class WebServer {
                 }
             }
         });
-        systemRouter.get('/update', async function (req, res) {
+    }
+
+    _addUpdateRoute(router) {
+        router.get('/update', async function (req, res) {
             var version;
             if (req.query['v'])
                 version = req.query['v'];
@@ -277,11 +322,17 @@ class WebServer {
                 this.restart();
             return Promise.resolve();
         }.bind(this._controller));
-        systemRouter.get('/restart', function (req, res) {
+    }
+
+    _addRestartRoute(router) {
+        router.get('/restart', function (req, res) {
             res.send("Restarting..");
             this.restart();
         }.bind(this._controller));
-        systemRouter.get('/reload', async function (req, res) {
+    }
+
+    _addReloadRoute(router) {
+        router.get('/reload', async function (req, res) {
             var bForceMigration = (req.query['forceMigration'] === 'true');
             try {
                 if (this._info['state'] === 'openRestartRequest') {
@@ -309,21 +360,13 @@ class WebServer {
             }
             return Promise.resolve();
         }.bind(this._controller));
-        systemRouter.get('/shutdown', (req, res) => {
+    }
+
+    _addShutdownRoute(router) {
+        router.get('/shutdown', (req, res) => {
             res.send("Shutdown initiated");
             process.exit();
         });
-        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-            this._addEvalRoutes(systemRouter);
-            this._addFuncRoutes(systemRouter);
-            this._addExecRoutes(systemRouter);
-            this._addEditRoutes(systemRouter);
-        }
-
-        this._addDatabaseRoutes(systemRouter);
-        this._addAuthRoutes(systemRouter);
-
-        this._app.use('/sys', systemRouter);
     }
 
     _addDatabaseRoutes(router) {
@@ -411,8 +454,8 @@ class WebServer {
      * https://www.npmjs.com/package/eval
      * @param {*} router 
      */
-    _addEvalRoutes(router) {
-        const evalForm = '<form action="/sys/eval" method="post">' +
+    _addEvalRoute(router) {
+        const evalForm = '<form action="/sys/tools/dev/eval" method="post">' +
             'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
             '<input type="submit" value="Evaluate"></form>';
 
@@ -434,7 +477,7 @@ class WebServer {
                 if (response && (typeof response === 'string' || response instanceof String))
                     response = response.replaceAll('\n', '<br>');
             }
-            var form = '<form action="/sys/eval" method="post">' +
+            var form = '<form action="/sys/tools/dev/eval" method="post">' +
                 'Command:<br><textarea name="cmd" rows="4" cols="50">' + cmd + '</textarea><br>' +
                 '<input type="submit" value="Evaluate"></form>';
             res.send(response + '<br>' + form);
@@ -446,8 +489,8 @@ class WebServer {
      * Fails when code contains 'require' function!
      * @param {*} router
      */
-    _addFuncRoutes(router) {
-        const form = '<form action="/sys/func" method="post">' +
+    _addFuncRoute(router) {
+        const form = '<form action="/sys/tools/dev/func" method="post">' +
             'Command:<br><textarea name="code" rows="4" cols="50"></textarea><br>' +
             '<input type="submit" value="Run"></form>';
 
@@ -476,8 +519,8 @@ class WebServer {
         });
     }
 
-    _addExecRoutes(router) {
-        const execForm = '<form action="/sys/exec" method="post">' +
+    _addExecRoute(router) {
+        const execForm = '<form action="/sys/tools/dev/exec" method="post">' +
             'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
             '<input type="submit" value="Execute"></form>';
 
@@ -502,14 +545,14 @@ class WebServer {
         });
     }
 
-    _addEditRoutes(router) {
+    _addEditRoute(router) {
         router.get('/edit', (req, res) => {
             var response;
             try {
                 var file = req.query['file'];
                 if (file && fs.existsSync(file)) {
                     var text = fs.readFileSync(file, 'utf8');
-                    response = '<form action="/sys/edit" method="post">' +
+                    response = '<form action="/sys/tools/dev/edit" method="post">' +
                         'File:<br><input name="file" value="' + file + '"></input><br>' +
                         'Text:<br><textarea name="text" rows="10" cols="50">' + text + '</textarea>' +
                         '<input type="submit" value="Save"></form>';
@@ -518,7 +561,7 @@ class WebServer {
                         response = 'File \'' + file + '\' does not exist!<br>';
                     else
                         response = '';
-                    response += '<form action="/sys/edit" method="get">' +
+                    response += '<form action="/sys/tools/dev/edit" method="get">' +
                         'File:<br><input name="file"></input><br>' +
                         '<input type="submit" value="Open"></form>'
                 }
@@ -542,6 +585,35 @@ class WebServer {
                 } else
                     response = 'File \'' + file + '\' does not exist!<br>';
             }
+            res.send(response);
+            return Promise.resolve();
+        });
+    }
+
+    _addUploadRoute(router) {
+        const uploadForm = '<form action="/sys/tools/dev/upload" enctype="multipart/form-data" method="post">' +
+            'File:<br><input type="file" name="file" accept="application/zip"/><br>' +
+            '<input type="submit" value="Upload"></form>';
+
+        router.get('/upload', (req, res) => {
+            res.send(uploadForm);
+        });
+        router.post('/upload', async (req, res) => {
+            var response;
+            var file;
+            if (req.files)
+                file = req.files['file'];
+            if (file) {
+                Logger.info("[App] Processing upload");
+                try {
+                    //var tmpDir = this._controller.getTmpDir();
+                    await WebServer._unzipFile(file['path'], this._controller.getAppRoot());
+                    response = 'Uploaded';
+                } catch (error) {
+                    response = error.toString();
+                }
+            } else
+                response = 'Missing file!';
             res.send(response);
             return Promise.resolve();
         });
