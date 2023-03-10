@@ -19,11 +19,14 @@
 
 `/sys/update?version=latest` or `v=latest` 
 
-`/sys/update?force=true` executes `git reset --hard` and deletes `node_modules` directory
+`/sys/update?reset=true` or `force=true` executes `git reset --hard`
 
 > Be aware that this will delete all local changes!
 > 
 > Should only be necessary when an update fails because of a file conflict in the `package.json`
+
+with option `rm=true` also the `node_modules` directory will be deleted and all dependencies new fetched
+
 
 #### Reload models
 

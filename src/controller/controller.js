@@ -250,13 +250,13 @@ class Controller {
         return localPath;
     }
 
-    async update(version, bForce) {
+    async update(version, bReset, bRemove) {
         var response;
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
             var updateCmd;
             if (this._vcs === VcsEnum.GIT) {
-                if (bForce)
+                if (bReset)
                     updateCmd = 'git reset --hard && '; //git clean -fxd
                 else
                     updateCmd = "";
@@ -271,12 +271,12 @@ class Controller {
                 updateCmd = 'svn update';
 
             if (updateCmd) {
-                if (bForce)
+                if (bRemove)
                     updateCmd += " && rm -r node_modules";
                 response = await common.exec('cd ' + this._appRoot + ' && ' + updateCmd + ' && npm install --legacy-peer-deps');
             }
         } else
-            throw new Error('No version control system detected');
+            throw new Error('No version control system detected!');
         return Promise.resolve(response);
     }
 

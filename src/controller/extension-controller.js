@@ -78,14 +78,23 @@ class ExtensionController {
         if (!this._model.initDone())
             await this._model.initModel();
 
-        //await this._readExtensions();
-        await this._loadAllExtensions();
+        await this.loadAllExtensions();
 
         return Promise.resolve();
     }
 
-    async _loadAllExtensions() {
+    async loadAllExtensions(bClean) {
         this._extensions = [];
+        if (bClean) {
+            var p;
+            var stat;
+            for (const item of fs.readdirSync(this._dir)) {
+                p = path.join(this._dir, item);
+                stat = fs.statSync(p);
+                if (stat.isDirectory())
+                    fs.rmSync(p, { recursive: true, force: true });
+            }
+        }
         //const entries = await fs.promises.readdir(this._dir);
         var data = await this._model.readAll();
         for (var meta of data) {
@@ -96,7 +105,9 @@ class ExtensionController {
 
     async _loadExtension(meta, bOverride) {
         var ext;
-        var p = path.join(this._dir, meta['name']);
+        var name = meta['name'];
+        var module;
+        var p = path.join(this._dir, name);
         var bExist = fs.existsSync(p);
         if (!bExist || bOverride) {
             var tmpDir = this._controller.getTmpDir();
@@ -108,12 +119,15 @@ class ExtensionController {
             fs.cpSync(source, p, { recursive: true, force: true });
             fs.rmSync(source, { recursive: true, force: true });
         }
-        var stat = await fs.promises.stat(p);
+        var stat = fs.statSync(p);
         if (stat.isDirectory()) {
             var index = path.join(p, 'index.js');
             if (fs.existsSync(index)) {
-                var module = require(index);
-                if (module.init) {
+                var resolved = require.resolve(index);
+                if (resolved)
+                    delete require.cache[resolved];
+                module = require(index);
+                if (module && module.init) {
                     try {
                         await module.init();
                     } catch (error) {
@@ -124,12 +138,12 @@ class ExtensionController {
                 }
             }
         }
-        if (module) {
-            ext = { 'name': meta['name'], 'module': module };
-        }
-        this._extensions = this._extensions.filter(function (x) { return x['name'] != ext['name'] });
+        ext = { 'name': name };
+        if (module)
+            ext['module'] = module;
+        this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
         this._extensions.push(ext);
-        Logger.info("[ExtensionController] ✔ Loaded extension '" + ext['name'] + "'");
+        Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
         return Promise.resolve();
     }
 

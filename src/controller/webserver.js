@@ -283,41 +283,47 @@ class WebServer {
 
     _addUpdateRoute(router) {
         router.get('/update', async function (req, res) {
-            var version;
-            if (req.query['v'])
-                version = req.query['v'];
-            else if (req.query['version'])
-                version = req.query['version'];
-            var bForce = req.query['force'] && (req.query['force'] === 'true');
-            var msg;
             var bUpdated = false;
-            try {
-                msg = await this.update(version, bForce);
-                console.log(msg);
-                var strUpToDate;
-                if (this._vcs === VcsEnum.GIT)
-                    strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
-                else if (this._vcs === VcsEnum.SVN)
-                    strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
-                if (msg) {
-                    if (msg.startsWith(strUpToDate))
-                        Logger.info("[App] Already up to date");
-                    else {
-                        Logger.info("[App] ✔ Updated");
-                        bUpdated = true;
-                    }
-                } else
-                    throw new Error('Missing response from update process');
-            } catch (error) {
-                if (error['message'])
-                    msg = error['message']; // 'Command failed:...'
-                else
-                    msg = error;
-                console.error(msg);
-                Logger.error("[App] ✘ Update failed");
-            } finally {
-                res.send(msg.replace('\n', '<br/>'));
-            }
+            if (this._vcs) {
+                var version;
+                if (req.query['v'])
+                    version = req.query['v'];
+                else if (req.query['version'])
+                    version = req.query['version'];
+                var sReset = req.query['force'] || req.query['reset'];
+                var bReset = (sReset === 'true');
+                var bRemove = req.query['rm'] && (req.query['rm'] === 'true');
+                var msg;
+                try {
+                    msg = await this.update(version, bReset, bRemove);
+                    console.log(msg);
+                    if (msg) {
+                        var strUpToDate;
+                        if (this._vcs === VcsEnum.GIT)
+                            strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
+                        else if (this._vcs === VcsEnum.SVN)
+                            strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+
+                        if (msg.startsWith(strUpToDate))
+                            Logger.info("[App] Already up to date");
+                        else {
+                            Logger.info("[App] ✔ Updated");
+                            bUpdated = true;
+                        }
+                    } else
+                        throw new Error('Missing response from version control system!');
+                } catch (error) {
+                    if (error['message'])
+                        msg = error['message']; // 'Command failed:...'
+                    else
+                        msg = error;
+                    console.error(msg);
+                    Logger.error("[App] ✘ Update failed");
+                } finally {
+                    res.send(msg.replace('\n', '<br/>'));
+                }
+            } else
+                res.send('No version control system detected!');
             if (bUpdated)
                 this.restart();
             return Promise.resolve();
@@ -335,6 +341,7 @@ class WebServer {
         router.get('/reload', async function (req, res) {
             var bForceMigration = (req.query['forceMigration'] === 'true');
             try {
+                await this._extensionController.loadAllExtensions(true);
                 if (this._info['state'] === 'openRestartRequest') {
                     res.send("Restarting instead of reloading because of open request.");
                     this.restart();
