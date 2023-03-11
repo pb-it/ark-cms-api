@@ -285,7 +285,7 @@ class Controller {
     }
 
     async reload(bForceMigration) {
-        bDone = false;
+        var bDone = false;
         this._webserver.deleteAllCustomRoutes();
         await this._extensionController.loadAllExtensions(true);
         Logger.info("[App] Reloading models");
