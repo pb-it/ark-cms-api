@@ -219,6 +219,10 @@ class Controller {
         return this._authController;
     }
 
+    getState() {
+        return this._info['state'];
+    }
+
     getTmpDir() {
         if (!this._tmpDir)
             this._tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-'));
@@ -280,7 +284,20 @@ class Controller {
         return Promise.resolve(response);
     }
 
-    async teardown() {
+    async reload(bForceMigration) {
+        bDone = false;
+        this._webserver.deleteAllCustomRoutes();
+        await this._extensionController.loadAllExtensions(true);
+        Logger.info("[App] Reloading models");
+        await this._shelf.loadAllModels();
+        if (await this._migrationsController.migrateDatabase(bForceMigration)) {
+            await this._shelf.initAllModels();
+            bDone = true;
+        }
+        return Promise.resolve(bDone)
+    }
+
+    async shutdown() {
         if (this._webserver)
             await this._webserver.teardown();
         if (this._knex)
@@ -305,7 +322,7 @@ class Controller {
             });
         }
         try {
-            await this.teardown();
+            await this.shutdown();
         } catch (err) {
             console.log(err);
             Logger.error("[App] ✘ An error occurred while shutting down");

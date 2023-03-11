@@ -165,6 +165,10 @@ class WebServer {
         }
     }
 
+    deleteAllCustomRoutes() {
+        this._routes = [];
+    }
+
     _addRoutes() {
         this._app.get('/', function (req, res) {
             if (this._controller.getServerConfig()['ssl']) {
@@ -341,15 +345,12 @@ class WebServer {
         router.get('/reload', async function (req, res) {
             var bForceMigration = (req.query['forceMigration'] === 'true');
             try {
-                await this._extensionController.loadAllExtensions(true);
                 if (this._info['state'] === 'openRestartRequest') {
                     res.send("Restarting instead of reloading because of open request.");
                     this.restart();
                 } else {
-                    Logger.info("[App] Reloading models");
-                    await this._shelf.loadAllModels();
-                    if (await this._migrationsController.migrateDatabase(bForceMigration)) {
-                        await this._shelf.initAllModels();
+                    var bDone = await this.reload(bForceMigration);
+                    if (bDone) {
                         var msg = "Reload done.";
 
                         if (this._info['state'] === 'openRestartRequest') {
@@ -651,7 +652,7 @@ class WebServer {
                     bSent = true;
                 } catch (error) {
                     var msg = Logger.parseError(error);
-                    if (error) {
+                    if (error && !res.headersSent) {
                         if (error instanceof ValidationError) {
                             res.status(404);
                             res.send(error.message);

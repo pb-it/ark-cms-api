@@ -62,7 +62,7 @@ afterAll(async () => {
         }
     }
     try {
-        await controller.teardown();
+        await controller.shutdown();
     } catch (error) {
         console.log(error);
     }

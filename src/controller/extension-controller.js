@@ -121,20 +121,39 @@ class ExtensionController {
         }
         var stat = fs.statSync(p);
         if (stat.isDirectory()) {
+            var manifest = path.join(p, 'manifest.json');
+            if (fs.existsSync(manifest)) {
+                var str = fs.readFileSync(manifest, 'utf8');
+                if (str.length > 0) {
+                    var json = JSON.parse(str);
+                    var dependencies = json['dependencies'];
+                    if (dependencies && Object.keys(dependencies).length > 0) {
+                        var arr = [];
+                        for (let [key, value] of Object.entries(dependencies)) {
+                            if (value)
+                                arr.push(`${key}@${value}`);
+                            else
+                                arr.push(key);
+                        }
+                        await controller.getDependencyController().installDependencies(arr);
+                    }
+                }
+            }
             var index = path.join(p, 'index.js');
             if (fs.existsSync(index)) {
                 var resolved = require.resolve(index);
                 if (resolved)
                     delete require.cache[resolved];
-                module = require(index);
-                if (module && module.init) {
-                    try {
+                try {
+                    module = require(index);
+                    if (module && module.init)
                         await module.init();
-                    } catch (error) {
-                        Logger.parseError(error);
-                        /*if (e.code !== 'MODULE_NOT_FOUND')
-                            throw e;*/
-                    }
+                } catch (error) {
+                    Logger.parseError(error);
+                    /*if (error['code'] == 'MODULE_NOT_FOUND') {
+                        console.log(this._controller.getState());
+                    } else
+                        throw error;*/
                 }
             }
         }
