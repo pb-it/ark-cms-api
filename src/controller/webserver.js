@@ -131,7 +131,10 @@ class WebServer {
         } else
             server = http.createServer(app);
         if (server) {
-            server.setTimeout(600 * 1000);
+            /*server.setTimeout(600 * 1000, (socket) => {
+                console.log('timeout');
+                socket.destroy();
+            });*/
             return new Promise(function (resolve, reject) {
                 server.listen(config['port'], function () {
                     Logger.info(`[Express] ✔ Server listening on port ${config['port']} in ${app.get('env')} mode`);
@@ -144,6 +147,10 @@ class WebServer {
             });
         }
         return Promise.reject();
+    }
+
+    getApp() {
+        return this._app;
     }
 
     getServer() {
@@ -632,6 +639,15 @@ class WebServer {
         apiRouter.route('*')
             .all(async function (req, res, next) {
                 var bSent = false;
+
+                res.setTimeout(600000, function (socket) { // 10 minutes
+                    var msg = 'Response Processing Timed Out.';
+                    console.error(msg);
+                    res.status(500).send(msg);
+                    bSent = true;
+                    //socket.destroy();
+                });
+
                 try {
                     var match;
                     for (var route of this._routes) {
