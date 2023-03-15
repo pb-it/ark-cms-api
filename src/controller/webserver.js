@@ -8,6 +8,7 @@ const cors = require('cors');
 const formData = require('express-form-data');
 const session = require('express-session');
 
+const ejs = require('ejs');
 const _eval = require('eval');
 const unzipper = require("unzipper");
 
@@ -16,7 +17,19 @@ const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
 const ValidationError = require('../common/validation-error');
 const VcsEnum = require('../common/vcs-enum');
-const AuthController = require('./auth-controller');
+const { AuthController } = require('./auth-controller');
+const { AuthError } = require('./auth-controller');
+
+const renderFile = (file, data) => {
+    return new Promise((resolve, reject) => {
+        ejs.renderFile(file, data, (err, result) => {
+            if (err)
+                reject(err);
+            else
+                resolve(result);
+        });
+    });
+}
 
 class WebServer {
 
@@ -94,7 +107,6 @@ class WebServer {
             res.type('text/plain');
             res.send("User-agent: *\nDisallow: /");
         });
-        //app.use('/robots.txt', express.static('robots.txt'));
 
         return app;
     }
@@ -310,9 +322,9 @@ class WebServer {
                     console.log(msg);
                     if (msg) {
                         var strUpToDate;
-                        if (this._vcs === VcsEnum.GIT)
+                        if (this._vcs['client'] === VcsEnum.GIT)
                             strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
-                        else if (this._vcs === VcsEnum.SVN)
+                        else if (this._vcs['client'] === VcsEnum.SVN)
                             strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
 
                         if (msg.startsWith(strUpToDate))
@@ -423,15 +435,18 @@ class WebServer {
 
     _addAuthRoutes(router) {
         var authRouter = express.Router();
-        authRouter.get('/login', function (req, res) {
-            AuthController.showLoginDialog(res);
-        });
+        authRouter.get('/login', async function (req, res) {
+            var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/login.ejs'), {});
+            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+            res.end(result);
+            return Promise.resolve();
+        }.bind(this));
         authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res, next) {
             var username = req.body.user;
             var password = req.body.pass;
             var user;
             if (username && password)
-                user = await this._authController.checkAuthentication(username, password);
+                user = await this._controller.getAuthController().checkAuthentication(username, password);
             if (user) {
                 req.session.regenerate(function (err) {
                     if (err)
@@ -443,10 +458,13 @@ class WebServer {
                         res.redirect('/');
                     });
                 });
-            } else
-                res.redirect('/sys/auth/login');
+            } else {
+                var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/login.ejs'), { 'error': 'Login failed!' });
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.end(result);
+            }
             return Promise.resolve();
-        }.bind(this._controller));
+        }.bind(this));
         authRouter.get('/logout', function (req, res, next) {
             req.session.user = null;
             req.session.save(function (err) {
@@ -459,6 +477,60 @@ class WebServer {
                 });
             });
         });
+        authRouter.get('/passwd', async function (req, res) {
+            var user = req.query['user'];
+            if (!user && req.session.user)
+                user = req.session.user['username'];
+            if (user) {
+                var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/passwd.ejs'), {});
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.end(result);
+            } else
+                res.redirect('/sys/auth/login');
+            return Promise.resolve();
+        }.bind(this));
+        authRouter.post('/passwd', async function (req, res, next) {
+            var error;
+            var user = req.query['user'];
+            if (!user && req.session.user)
+                user = req.session.user['username'];
+            var current_password = req.body['current_password'];
+            var new_password_1 = req.body['new_password_1'];
+            var new_password_2 = req.body['new_password_2'];
+            if (user) {
+                if (new_password_1.length >= 6) {
+                    if (new_password_1 != current_password) {
+                        if (new_password_1 == new_password_2) {
+                            try {
+                                var bDone = await this._controller.getAuthController().changePassword(user, current_password, new_password_1);
+                                if (bDone)
+                                    res.send('Password changed successfully!');
+                            } catch (error) {
+                                if (error instanceof AuthError) {
+                                    error = error.message;
+                                } else {
+                                    Logger.parseError(error);
+                                    res.status(404);
+                                    res.send('Something went wrong!');
+                                }
+                            }
+                        } else
+                            error = 'New Password Missmatch!';
+                    } else
+                        error = 'New Password matches the current one!';
+                } else
+                    error = 'New Password must at least have 6 digits!';
+            } else
+                res.redirect('/sys/auth/login');
+            if (error) {
+                var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/passwd.ejs'), { 'error': error });
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.end(result);
+            }
+            if (res.headersSent)
+                next();
+            return Promise.resolve();
+        }.bind(this));
         router.use('/auth', authRouter);
     }
 

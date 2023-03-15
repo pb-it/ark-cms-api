@@ -1,6 +1,6 @@
 {
     "name": "wing-cms-api",
-    "version": "0.4.2-beta",
+    "version": "0.4.3-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -39,6 +39,7 @@
         "bookshelf": "^1.2.0",
         "cors": "^2.8.5",
         "cross-fetch": "^3.1.5",
+        "ejs": "^3.1.9",
         "eval": "^0.1.8",
         "express": "^4.17.1",
         "express-form-data": "^2.0.22",

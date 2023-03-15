@@ -144,6 +144,22 @@ class MigrationController {
                             await this._shelf.upsertModel(mUser.getId(), def);
                             await mUser.initModel();
                         }
+                    case '0.4.1-beta':
+                    case '0.4.2-beta':
+                        var mUser = this._shelf.getModel('_user');
+                        if (mUser) {
+                            var def = mUser.getDefinition();
+                            def['attributes'].push({
+                                "name": "last_login_at",
+                                "dataType": "timestamp"
+                            });
+                            def['attributes'].push({
+                                "name": "last_password_change_at",
+                                "dataType": "timestamp"
+                            });
+                            await this._shelf.upsertModel(mUser.getId(), def);
+                            await mUser.initModel();
+                        }
                         break;
                     default:
                 }

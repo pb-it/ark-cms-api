@@ -3,18 +3,18 @@ const bcrypt = require('bcrypt');
 
 const Logger = require('../common/logger/logger');
 
+class AuthError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "AuthError";
+    }
+}
+
 class AuthController {
 
     static greeting(req, res) {
         res.send('Hello, ' + req.session.user.username + '!' +
             ' <a href="/sys/auth/logout">Logout</a>');
-    }
-
-    static showLoginDialog(res) {
-        res.send('<form action="/sys/auth/login" method="post">' +
-            'Username: <input name="user"><br>' +
-            'Password: <input name="pass" type="password"><br>' +
-            '<input type="submit" value="Login"></form>');
     }
 
     _controller;
@@ -64,6 +64,14 @@ class AuthController {
                         "dataType": "relation",
                         "model": "_role",
                         "multiple": true
+                    },
+                    {
+                        'name': 'last_login_at',
+                        'dataType': 'timestamp'
+                    },
+                    {
+                        "name": "last_password_change_at",
+                        "dataType": "timestamp"
                     }
                 ],
                 "defaults": {
@@ -238,9 +246,11 @@ class AuthController {
                     hash = parts[1];
                 }
                 if (hash == this._hashPassword(password, salt)) {
+                    var id = res[0]['id'];
                     user = { 'username': username };
-                    user['id'] = res[0]['id'];
+                    user['id'] = id;
                     user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
+                    await this._userModel.update(id, { 'last_login_at': this._controller.getKnex().fn.now() });
                 }
             }
         } catch (error) {
@@ -321,6 +331,17 @@ class AuthController {
         }
         return Promise.resolve();
     }
+
+    async changePassword(user, current_password, new_password) {
+        var bDone = false;
+        user = await this.checkAuthentication(user, current_password);
+        if (user && user['id']) {
+            await this._userModel.update(user['id'], { 'password': this._createPasswordEntry(new_password), 'last_password_change_at': this._controller.getKnex().fn.now() });
+            bDone = true;
+        } else
+            throw new AuthError('Invalid Credentials!');
+        return Promise.resolve(bDone);
+    }
 }
 
-module.exports = AuthController;
+module.exports = { AuthController, AuthError };

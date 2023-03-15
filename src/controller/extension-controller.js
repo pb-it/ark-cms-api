@@ -4,6 +4,15 @@ const unzipper = require("unzipper");
 const { Duplex } = require('stream');
 
 const Logger = require('../common/logger/logger');
+const AppVersion = require('../common/app-version');
+const MigrationController = require('./migration-controller');
+
+class ExtensionError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ExtensionError";
+    }
+}
 
 class ExtensionController {
 
@@ -104,65 +113,87 @@ class ExtensionController {
     }
 
     async _loadExtension(meta, bOverride) {
+        var bLoaded = false;
         var ext;
         var name = meta['name'];
         var module;
-        var p = path.join(this._dir, name);
-        var bExist = fs.existsSync(p);
-        if (!bExist || bOverride) {
-            var tmpDir = this._controller.getTmpDir();
-            var folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(meta['archive']), tmpDir);
-            var source = path.join(tmpDir, folderName);
-            if (bExist)
-                fs.rmSync(p, { recursive: true, force: true });
-            //fs.renameSync(source, p); // fs.rename fails if two separate partitions are involved
-            fs.cpSync(source, p, { recursive: true, force: true });
-            fs.rmSync(source, { recursive: true, force: true });
-        }
-        var stat = fs.statSync(p);
-        if (stat.isDirectory()) {
-            var manifest = path.join(p, 'manifest.json');
-            if (fs.existsSync(manifest)) {
-                var str = fs.readFileSync(manifest, 'utf8');
-                if (str.length > 0) {
-                    var json = JSON.parse(str);
-                    var dependencies = json['dependencies'];
-                    if (dependencies && Object.keys(dependencies).length > 0) {
-                        var arr = [];
-                        for (let [key, value] of Object.entries(dependencies)) {
-                            if (value)
-                                arr.push(`${key}@${value}`);
-                            else
-                                arr.push(key);
+        try {
+            var p = path.join(this._dir, name);
+            var bExist = fs.existsSync(p);
+            if (!bExist || bOverride) {
+                var tmpDir = this._controller.getTmpDir();
+                var folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(meta['archive']), tmpDir);
+                var source = path.join(tmpDir, folderName);
+                if (bExist)
+                    fs.rmSync(p, { recursive: true, force: true });
+                //fs.renameSync(source, p); // fs.rename fails if two separate partitions are involved
+                fs.cpSync(source, p, { recursive: true, force: true });
+                fs.rmSync(source, { recursive: true, force: true });
+            }
+            var stat = fs.statSync(p);
+            if (stat.isDirectory()) {
+                var manifest = path.join(p, 'manifest.json');
+                if (fs.existsSync(manifest)) {
+                    var str = fs.readFileSync(manifest, 'utf8');
+                    if (str.length > 0) {
+                        var json = JSON.parse(str);
+                        var version = json['app_version'];
+                        if (version) {
+                            if (version.startsWith('^')) {
+                                var appVersion = this._controller.getVersionController().getVersion();
+                                var reqVersion = new AppVersion(version.substring(1));
+                                if (!MigrationController.compatible(reqVersion, appVersion))
+                                    throw new ExtensionError('Application version does not meet the extension requirements! App: ' + appVersion.toString() + ', Extension: ' + version);
+                            }
                         }
-                        await controller.getDependencyController().installDependencies(arr);
+                        var dependencies = json['dependencies'];
+                        if (dependencies && Object.keys(dependencies).length > 0) {
+                            var arr = [];
+                            for (let [key, value] of Object.entries(dependencies)) {
+                                if (value)
+                                    arr.push(`${key}@${value}`);
+                                else
+                                    arr.push(key);
+                            }
+                            await controller.getDependencyController().installDependencies(arr);
+                        }
+                    }
+                }
+                var index = path.join(p, 'index.js');
+                if (fs.existsSync(index)) {
+                    var resolved = require.resolve(index);
+                    if (resolved)
+                        delete require.cache[resolved];
+                    try {
+                        module = require(index);
+                        if (module && module.init)
+                            await module.init();
+                        bLoaded = true;
+                    } catch (error) {
+                        Logger.parseError(error);
+                        /*if (error['code'] == 'MODULE_NOT_FOUND') {
+                            console.log(this._controller.getState());
+                        } else
+                            throw error;*/
                     }
                 }
             }
-            var index = path.join(p, 'index.js');
-            if (fs.existsSync(index)) {
-                var resolved = require.resolve(index);
-                if (resolved)
-                    delete require.cache[resolved];
-                try {
-                    module = require(index);
-                    if (module && module.init)
-                        await module.init();
-                } catch (error) {
-                    Logger.parseError(error);
-                    /*if (error['code'] == 'MODULE_NOT_FOUND') {
-                        console.log(this._controller.getState());
-                    } else
-                        throw error;*/
-                }
+        } catch (error) {
+            if (error instanceof ExtensionError) {
+                Logger.info("[ExtensionController] ✘ " + error.message);
+            } else {
+                Logger.parseError(error);
             }
         }
-        ext = { 'name': name };
-        if (module)
-            ext['module'] = module;
-        this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
-        this._extensions.push(ext);
-        Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
+        if (bLoaded) {
+            ext = { 'name': name };
+            if (module)
+                ext['module'] = module;
+            this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
+            this._extensions.push(ext);
+            Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
+        } else
+            Logger.info("[ExtensionController] ✘ Loading extension '" + name + "' failed");
         return Promise.resolve();
     }
 

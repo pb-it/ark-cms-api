@@ -51,6 +51,8 @@ with option `rm=true` also the `node_modules` directory will be deleted and all 
 
 `/sys/auth/logout`
 
+`/sys/auth/passwd`
+
 
 #### Database
 

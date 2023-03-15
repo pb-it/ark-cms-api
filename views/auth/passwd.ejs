@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" />
+    <title>
+        Change Password
+    </title>
+    <style>
+        .container {
+            width: 500px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-5">
+        <% if (typeof error !=='undefined' ) { %>
+            <section>
+                <%= error %>
+            </section>
+            <% } %>
+                <section>
+                    <form action="/sys/auth/passwd" method="post">
+                        <div class="form-outline mb-4">
+                            <input type="password" id="current_password" name="current_password" class="form-control" />
+                            <label class="form-label" for="current_password">Current Password</label>
+                        </div>
+
+                        <div class="form-outline mb-4">
+                            <input type="password" id="new_password_1" name="new_password_1" class="form-control" />
+                            <label class="form-label" for="new_password_1">New Password</label>
+                        </div>
+
+                        <div class="form-outline mb-4">
+                            <input type="password" id="new_password_2" name="new_password_2" class="form-control" />
+                            <label class="form-label" for="new_password_2">Repeat New Password</label>
+                        </div>
+
+                        <input type="submit" class="btn btn-primary btn-block mb-4" value="Change">
+                        <!--<button type="button" class="btn btn-primary btn-block mb-4">Change</button>-->
+                </section>
+    </div>
+</body>
+
+</html>

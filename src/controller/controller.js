@@ -15,7 +15,7 @@ const VersionController = require('./version-controller');
 const DependencyController = require('./dependency-controller');
 const ExtensionController = require('./extension-controller');
 const MigrationController = require('./migration-controller');
-const AuthController = require('./auth-controller');
+const { AuthController } = require('./auth-controller');
 
 const Shelf = require('../model/shelf');
 
@@ -74,9 +74,9 @@ class Controller {
         };
 
         if (fs.existsSync(path.join(this._appRoot, '.git')))
-            this._vcs = VcsEnum.GIT;
+            this._vcs = { 'client': VcsEnum.GIT };
         else if (fs.existsSync(path.join(this._appRoot, '.svn')))
-            this._vcs = VcsEnum.SVN;
+            this._vcs = { 'client': VcsEnum.SVN };
 
         if (this._vcs)
             this._info['vcs'] = this._vcs;
@@ -259,7 +259,7 @@ class Controller {
         Logger.info("[App] Processing update request..");
         if (this._vcs) {
             var updateCmd;
-            if (this._vcs === VcsEnum.GIT) {
+            if (this._vcs['client'] === VcsEnum.GIT) {
                 if (bReset)
                     updateCmd = 'git reset --hard && '; //git clean -fxd
                 else
@@ -271,7 +271,7 @@ class Controller {
                         updateCmd += 'git switch --detach ' + version;
                 } else
                     updateCmd += 'git pull';
-            } else if (this._vcs === VcsEnum.SVN)
+            } else if (this._vcs['client'] === VcsEnum.SVN)
                 updateCmd = 'svn update';
 
             if (updateCmd) {
