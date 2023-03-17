@@ -19,6 +19,7 @@ const ValidationError = require('../common/validation-error');
 const VcsEnum = require('../common/vcs-enum');
 const { AuthController } = require('./auth-controller');
 const { AuthError } = require('./auth-controller');
+const { ExtensionError } = require('./extension-controller');
 
 const renderFile = (file, data) => {
     return new Promise((resolve, reject) => {
@@ -741,7 +742,7 @@ class WebServer {
                 } catch (error) {
                     var msg = Logger.parseError(error);
                     if (error && !res.headersSent) {
-                        if (error instanceof ValidationError) {
+                        if (error instanceof ValidationError || error instanceof ExtensionError) {
                             res.status(404);
                             res.send(error.message);
                         } else if (error.message && error.message === "EmptyResponse") {

@@ -1,5 +1,6 @@
 const v8 = require('v8');
 const os = require('os');
+const { EOL } = os;
 const path = require('path');
 const fs = require('fs');
 
@@ -13,7 +14,7 @@ const WebServer = require('./webserver');
 const Registry = require('./registry');
 const VersionController = require('./version-controller');
 const DependencyController = require('./dependency-controller');
-const ExtensionController = require('./extension-controller');
+const { ExtensionController } = require('./extension-controller');
 const MigrationController = require('./migration-controller');
 const { AuthController } = require('./auth-controller');
 
@@ -73,10 +74,7 @@ class Controller {
             'state': 'starting'
         };
 
-        if (fs.existsSync(path.join(this._appRoot, '.git')))
-            this._vcs = { 'client': VcsEnum.GIT };
-        else if (fs.existsSync(path.join(this._appRoot, '.svn')))
-            this._vcs = { 'client': VcsEnum.SVN };
+        this._vcs = await this._checkVcs(this._appRoot);
 
         if (this._vcs)
             this._info['vcs'] = this._vcs;
@@ -157,6 +155,39 @@ class Controller {
             Logger.parseError(error);
         }
         return Promise.resolve();
+    }
+
+    async _checkVcs(appRoot) {
+        var vcs;
+        if (fs.existsSync(path.join(appRoot, '.svn')))
+            vcs = { 'client': VcsEnum.SVN };
+        else if (fs.existsSync(path.join(appRoot, '.git'))) {
+            vcs = { 'client': VcsEnum.GIT };
+            var tag;
+            try {
+                tag = await common.exec('cd ' + appRoot + ' && git describe --tags --exact-match');
+                if (tag) {
+                    if (tag.endsWith(EOL))
+                        tag = tag.substring(0, tag.length - EOL.length);
+                    vcs['tag'] = tag;
+                }
+            } catch (error) {
+                ;//console.log(error);
+            }
+            if (!tag) {
+                try {
+                    var revision = await common.exec('cd ' + appRoot + ' && git rev-parse HEAD');
+                    if (revision) {
+                        if (revision.endsWith(EOL))
+                            revision = revision.substring(0, revision.length - EOL.length);
+                        vcs['revision'] = revision;
+                    }
+                } catch (error) {
+                    ;//console.log(error);
+                }
+            }
+        }
+        return Promise.resolve(vcs);
     }
 
     getAppRoot() {

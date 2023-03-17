@@ -137,15 +137,7 @@ class ExtensionController {
                     var str = fs.readFileSync(manifest, 'utf8');
                     if (str.length > 0) {
                         var json = JSON.parse(str);
-                        var version = json['app_version'];
-                        if (version) {
-                            if (version.startsWith('^')) {
-                                var appVersion = this._controller.getVersionController().getVersion();
-                                var reqVersion = new AppVersion(version.substring(1));
-                                if (!MigrationController.compatible(reqVersion, appVersion))
-                                    throw new ExtensionError('Application version does not meet the extension requirements! App: ' + appVersion.toString() + ', Extension: ' + version);
-                            }
-                        }
+                        this._checkVersionCompatibility(json);
                         var dependencies = json['dependencies'];
                         if (dependencies && Object.keys(dependencies).length > 0) {
                             var arr = [];
@@ -197,6 +189,19 @@ class ExtensionController {
         return Promise.resolve();
     }
 
+    _checkVersionCompatibility(json) {
+        var version = json['app_version'];
+        if (version) {
+            if (version.startsWith('^')) {
+                var appVersion = this._controller.getVersionController().getVersion();
+                var reqVersion = new AppVersion(version.substring(1));
+                if (!MigrationController.compatible(reqVersion, appVersion))
+                    throw new ExtensionError('Application version does not meet the extension requirements! App: ' + appVersion.toString() + ', Extension: ' + version);
+            }
+        }
+        return true;
+    }
+
     async addExtension(req) {
         var meta;
         if (req.files && req.files['extension']) { // req.fields
@@ -206,6 +211,14 @@ class ExtensionController {
                 var extName = await ExtensionController._unzipStream(fs.createReadStream(file['path']), tmpDir);
                 if (extName) {
                     var source = path.join(tmpDir, extName);
+                    var manifest = path.join(source, 'manifest.json');
+                    if (fs.existsSync(manifest)) {
+                        var str = fs.readFileSync(manifest, 'utf8');
+                        if (str.length > 0) {
+                            var json = JSON.parse(str);
+                            this._checkVersionCompatibility(json);
+                        }
+                    }
                     var target = path.join(this._dir, extName);
                     if (fs.existsSync(target))
                         fs.rmSync(target, { recursive: true, force: true });
@@ -236,4 +249,4 @@ class ExtensionController {
     }
 }
 
-module.exports = ExtensionController;
+module.exports = { ExtensionController, ExtensionError };
