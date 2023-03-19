@@ -1,6 +1,6 @@
 const inflection = require('inflection');
 
-const operators = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
+const operators = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
 
 class QueryParser {
 
@@ -236,6 +236,12 @@ class QueryParser {
                         else
                             this.where(prop, 'is', null).orWhere(prop, 'not like', value); // <> / !=
                     });
+                    break;
+                case 'regex':
+                    qb.whereRaw(`${prop} REGEXP '${value}'`);
+                    break;
+                case 'nregex':
+                    qb.whereRaw(`${prop} NOT REGEXP '${value}'`);
                     break;
                 case 'lt':
                     qb.where(prop, '<', value);
