@@ -544,7 +544,7 @@ class WebServer {
      */
     _addEvalRoute(router) {
         const evalForm = '<form action="/sys/tools/dev/eval" method="post">' +
-            'Command:<br><textarea name="cmd" rows="4" cols="50"></textarea><br>' +
+            'Command:<br><textarea name="cmd" rows="4" cols="50">module.exports = function () { return 123 }</textarea><br>' +
             '<input type="submit" value="Evaluate"></form>';
 
         router.get('/eval', (req, res) => {

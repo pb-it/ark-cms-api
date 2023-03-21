@@ -754,7 +754,7 @@ class Model {
                                             throw new Error("Invalid base64 data!");
                                     } else if (data[str]['url']) {
                                         if (data[str]['url'].startsWith("http")) {
-                                            if (data[str]['force'] || !old || !old[str] || !attr['url_prop'] || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
+                                            if (data[str]['force'] || !attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
                                                 if (fileName)
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                 else {
