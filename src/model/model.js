@@ -797,8 +797,10 @@ class Model {
                                     } else {
                                         if (fileName) {
                                             if (old && old[str] && old[str] != fileName) {
-                                                if (fs.existsSync(file))
-                                                    fs.renameSync(path.join(localPath, old[str]), path.join(localPath, fileName));
+                                                var oldFile = path.join(localPath, old[str]);
+                                                var newFile = path.join(localPath, fileName);
+                                                if (fs.existsSync(oldFile) && !fs.existsSync(newFile))
+                                                    fs.renameSync(oldFile, newFile);
                                             }
                                         } else {
                                             if (old && old[str]) {
