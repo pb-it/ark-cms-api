@@ -618,17 +618,40 @@ class WebServer {
         router.post('/exec', async (req, res) => {
             var cmd = req.body['cmd'];
             var response;
-            if (cmd) {
-                Logger.info("[App] Executing command '" + cmd + "'");
-                try {
-                    response = await common.exec(cmd);
-                } catch (error) {
-                    response = error.toString();
+            try {
+                if (cmd) {
+                    Logger.info("[App] Executing command '" + cmd + "'");
+                    try {
+                        response = await common.exec(cmd);
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    if (response) {
+                        var format = req.query['_format'];
+                        if (format) {
+                            if (format == 'text')
+                                res.send(response);
+                            else if (format == 'json')
+                                res.json({ 'response': response });
+                            else
+                                throw new Error('Unknown format!');
+                        } else {
+                            if (response && (typeof response === 'string' || response instanceof String))
+                                response = response.replaceAll('\n', '<br>');
+                            res.send(response + '<br>' + execForm);
+                        }
+                    }
                 }
-                if (response && (typeof response === 'string' || response instanceof String))
-                    response = response.replaceAll('\n', '<br>');
+            } catch (error) {
+                if (error && error.message) {
+                    res.status(404);
+                    res.send(error.message);
+                }
             }
-            res.send(response + '<br>' + execForm);
+            if (!res.headersSent) {
+                res.status(500);
+                res.send("Something went wrong!");
+            }
             return Promise.resolve();
         });
     }

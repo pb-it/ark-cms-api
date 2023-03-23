@@ -555,37 +555,12 @@ class Model {
 
     async readAll(query) {
         var res;
-        var book = this._book;
-        if (this._bInitDone && book) {
-            if (query) {
-                var qp = new QueryParser(this, book);
-                var keys = Object.keys(query);
-                if (keys.length > 0) {
-                    var value;
-                    for (let prop in query) { // prop of keys
-                        value = query[prop];
-                        if (prop === "_sort") {
-                            var parts = value.split(':');
-                            if (parts.length == 2) {
-                                book = qp.getBook();
-                                book = book.query('orderBy', parts[0], parts[1]);
-                                qp.setBook(book);
-                            }
-                        } else if (prop === "_limit") {
-                            if (value != -1) {
-                                book = qp.getBook();
-                                book = book.query(function (qb) {
-                                    qb.limit(value);
-                                });
-                                qp.setBook(book);
-                            }
-                        } else {
-                            qp.query(prop, value);
-                        }
-                    }
-                }
-                book = qp.finalizeQuery();
-            }
+        if (this._bInitDone && this._book) {
+            var book;
+            if (query)
+                book = this.where(query);
+            else
+                book = this._book;
             if (!res) {
                 res = await book.fetchAll({
                     'withRelated': this._relationNames
@@ -594,6 +569,38 @@ class Model {
         } else
             throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(res.toJSON());
+    }
+
+    where(query) {
+        var book = this._book;
+        var qp = new QueryParser(this, book);
+        var keys = Object.keys(query);
+        if (keys.length > 0) {
+            var value;
+            for (let prop in query) { // prop of keys
+                value = query[prop];
+                if (prop === "_sort") {
+                    var parts = value.split(':');
+                    if (parts.length == 2) {
+                        book = qp.getBook();
+                        book = book.query('orderBy', parts[0], parts[1]);
+                        qp.setBook(book);
+                    }
+                } else if (prop === "_limit") {
+                    if (value != -1) {
+                        book = qp.getBook();
+                        book = book.query(function (qb) {
+                            qb.limit(value);
+                        });
+                        qp.setBook(book);
+                    }
+                } else {
+                    qp.query(prop, value);
+                }
+            }
+        }
+        book = qp.finalizeQuery();
+        return book;
     }
 
     /**

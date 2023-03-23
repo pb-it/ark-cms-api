@@ -4,12 +4,50 @@ const { writeFile } = require('fs').promises;
 const axios = require('axios');
 const fetch = require("cross-fetch");
 
+const Logger = require(path.join(__dirname, './logger/logger'));
 const base64 = require(path.join(__dirname, './base64'));
 
 class WebClient {
 
+    static _progress(progressEvent) {
+        const total = parseFloat(progressEvent.currentTarget.responseHeaders['Content-Length'])
+        const current = progressEvent.currentTarget.response.length
+
+        let percentCompleted = Math.floor(current / total * 100);
+        console.log('completed: ', percentCompleted);
+    }
+
+    static async wget(target, url) {
+        return new Promise((resolve, reject) => {
+            var bError = false;
+            const process = require("child_process").spawn('wget', ['-O', target, url]);
+
+            process.stdout.on('data', function (data) {
+                console.log(`stdout:\n${data}`);
+            });
+            process.stderr.on('data', function (data) {
+                //console.error(`stderr: ${data}`);
+                if (data.indexOf('404 Not Found') != -1)
+                    bError = true;
+            });
+
+            process.on('close', function (resp) {
+                if (bError) {
+                    if (fs.existsSync(target))
+                        fs.unlinkSync(target);
+                    reject();
+                } else
+                    resolve(resp);
+            });
+            process.on('error', function (err) {
+                reject(err);
+            });
+        });
+    }
+
     _ax;
     _options;
+    _bDebug;
 
     constructor(config) {
         if (!config) {
@@ -24,6 +62,10 @@ class WebClient {
         }
         this._ax = axios.create(config);
         this._options = [];
+
+        var debug = controller.getServerConfig()['debug'];
+        if (debug && debug['download'])
+            this._bDebug = true;
     }
 
     setOption(url, opt) {
@@ -57,6 +99,11 @@ class WebClient {
     }
 
     async download(url, config, file) {
+        if (this._bDebug) {
+            var start = Date.now();
+            Logger.info('[App] Start: ' + new Date(start).toISOString());
+        }
+
         if (!config) {
             var match;
             for (var key in this._options) {
@@ -74,6 +121,7 @@ class WebClient {
             else
                 opt = {};
             opt['responseType'] = 'stream';
+            //opt['onDownloadProgress'] = WebClient._progress;
             var stream = await this._ax.get(url, opt);
 
             var ext;
@@ -107,9 +155,28 @@ class WebClient {
             if (fs.existsSync(file))
                 throw new Error("File '" + file + "' already exists!");
 
+            if (this._bDebug) {
+                const contentLength = stream.headers['content-length'];
+                var total = 0;
+                var percentage = 0;
+                var last = 0;
+                stream.data.on('data', (chunk) => {
+                    total += chunk.length;
+                    percentage = ((total / contentLength) * 100);
+                    if (percentage - last > 1) {
+                        last = percentage;
+                        console.log(percentage.toFixed(2) + "%");
+                    }
+                });
+            }
+
+            //stream.data.pipe(fs.createWriteStream(file));
             await this._streamToFile(stream, file);
-        } else if (config['client'] == 'fetch')
+        } else if (config['client'] == 'fetch') {
             await this.fetchFile(url, file);
+        } else if (config['client'] == 'wget') {
+            await WebClient.wget(file, url);
+        }
 
         var name;
         var index = file.lastIndexOf(path.sep);
@@ -117,6 +184,20 @@ class WebClient {
             name = file.substr(index + 1);
         else
             name = file;
+
+        if (this._bDebug) {
+            var end = Date.now();
+            Logger.info('[App] End: ' + new Date(end).toISOString());
+            var duration = (end - start) / 1000;
+            Logger.info('[App] Duration: ' + duration.toFixed(2) + ' sec');
+
+            var stats = fs.statSync(file);
+            var size = stats.size / (1024 * 1024);
+            Logger.info('[App] Size: ' + size.toFixed(2) + 'MB');
+
+            Logger.info('[App] Speed: ' + (size / duration).toFixed(2) + 'MB/s');
+        }
+
         return Promise.resolve(name);
     }
 

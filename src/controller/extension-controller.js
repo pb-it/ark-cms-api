@@ -247,6 +247,14 @@ class ExtensionController {
         }
         return Promise.resolve(name);
     }
+
+    getExtension(name) {
+        var ext;
+        var data = this._extensions.filter(function (x) { return x['name'] == name });
+        if (data && data.length == 1)
+            ext = data[0];
+        return ext;
+    }
 }
 
 module.exports = { ExtensionController, ExtensionError };
