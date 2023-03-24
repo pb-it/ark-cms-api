@@ -44,10 +44,15 @@ class QueryParser {
                 }
             }.bind(this));
         } else {
-            var fn = this._query(prop, value);
-            this._book = this._book.query(function (qb) {
-                fn(qb);
-            }.bind(this));
+            if (prop != '_t') { // timestamp to break cache
+                var fn = this._query(prop, value);
+                if (fn) {
+                    this._book = this._book.query(function (qb) {
+                        fn(qb);
+                    }.bind(this));
+                } else
+                    throw new Error(`Unsupported query: ${prop}=${value}`);
+            }
         }
     }
 
