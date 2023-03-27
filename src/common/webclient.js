@@ -64,8 +64,20 @@ class WebClient {
         this._options = [];
 
         var debug = controller.getServerConfig()['debug'];
-        if (debug && debug['download'])
-            this._bDebug = true;
+        if (debug) {
+            if (debug['download'])
+                this._bDebug = true;
+
+            if (debug['axios'])
+                this._ax.interceptors.request.use(request => {
+                    console.log('Starting Request', JSON.stringify(request, null, 2));
+                    return request;
+                });
+        }
+    }
+
+    getAxios() {
+        return this._ax;
     }
 
     setOption(url, opt) {
@@ -76,12 +88,12 @@ class WebClient {
         return this._ax.get(url, opt);
     }
 
-    async post(url, obj) {
-        return this._ax.post(url, obj);
+    async post(url, obj, opt) {
+        return this._ax.post(url, obj, opt);
     }
 
-    async put(url, obj) {
-        return this._ax.put(url, obj);
+    async put(url, obj, opt) {
+        return this._ax.put(url, obj, opt);
     }
 
     async delete(url) {
@@ -231,6 +243,10 @@ class WebClient {
             var match = stream.headers['content-type'].match(/(image)+\//g);
             resolve(match && match.length != 0);
         });
+    }
+
+    async fetchJson(url, opt) {
+        return fetch(url, opt).then((response) => response.json());
     }
 
     async fetchBlob(url) {

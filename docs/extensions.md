@@ -96,8 +96,10 @@ module.exports.preCreateHook = async function (data) {
     
     ... // manipulate the data here!
 
-    // as example curl a given website
-    var body = await controller.getWebClient().curl(data['url']);
+    // as example by crawling a given website
+    const ext = await controller.getExtensionController().getExtension('http-agent');
+    const {agent} = ext['module'];
+    var body = agent.request(data['url']);
     const doc = new JSDOM(body).window.document;
     ...
 

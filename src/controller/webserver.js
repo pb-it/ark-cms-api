@@ -544,7 +544,8 @@ class WebServer {
      */
     _addEvalRoute(router) {
         const evalForm = '<form action="/sys/tools/dev/eval" method="post">' +
-            'Command:<br><textarea name="cmd" rows="4" cols="50">module.exports = function () { return 123 }</textarea><br>' +
+            'Command:<br><textarea name="cmd" rows="10" cols="80">async function test() {\n\tawait new Promise(resolve => ' +
+            'setTimeout(resolve, 1000));\n\treturn Promise.resolve(\'123\');\n}\n\nmodule.exports = test;</textarea><br>' +
             '<input type="submit" value="Evaluate"></form>';
 
         router.get('/eval', (req, res) => {
@@ -566,7 +567,7 @@ class WebServer {
                     response = response.replaceAll('\n', '<br>');
             }
             var form = '<form action="/sys/tools/dev/eval" method="post">' +
-                'Command:<br><textarea name="cmd" rows="4" cols="50">' + cmd + '</textarea><br>' +
+                'Command:<br><textarea name="cmd" rows="10" cols="80">' + cmd + '</textarea><br>' +
                 '<input type="submit" value="Evaluate"></form>';
             res.send(response + '<br>' + form);
             return Promise.resolve();
