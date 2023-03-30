@@ -72,6 +72,10 @@ class ExtensionController {
                         "dataType": "file",
                         "storage": "blob",
                         "hidden": true
+                    },
+                    {
+                        "name": "client-extension",
+                        "dataType": "text"
                     }
                 ],
                 "defaults": {
@@ -112,7 +116,7 @@ class ExtensionController {
         return Promise.resolve();
     }
 
-    async _loadExtension(meta, bOverride) {
+    async _loadExtension(meta, bSetup, bOverride) {
         var bLoaded = false;
         var ext;
         var name = meta['name'];
@@ -151,6 +155,11 @@ class ExtensionController {
                         }
                     }
                 }
+                /*if (bSetup) {
+                    var client = path.join(p, 'client.js');
+                    if (fs.existsSync(client))
+                        meta['client-extension'] = fs.readFileSync(client, 'utf8');
+                }*/
                 var index = path.join(p, 'index.js');
                 if (fs.existsSync(index)) {
                     var resolved = require.resolve(index);
@@ -158,8 +167,15 @@ class ExtensionController {
                         delete require.cache[resolved];
                     try {
                         module = require(index);
-                        if (module && module.init)
-                            await module.init();
+                        if (module) {
+                            if (module.init)
+                                await module.init();
+                            if (module.setup && bSetup) {
+                                var data = await module.setup();
+                                if (data['client-extension'])
+                                    meta['client-extension'] = data['client-extension'];
+                            }
+                        }
                         bLoaded = true;
                     } catch (error) {
                         Logger.parseError(error);
@@ -220,13 +236,23 @@ class ExtensionController {
                         }
                     }
                     var target = path.join(this._dir, extName);
-                    if (fs.existsSync(target))
+                    if (req.method === "PUT" && fs.existsSync(target))
                         fs.rmSync(target, { recursive: true, force: true });
                     //fs.renameSync(source, target); // fs.rename fails if two separate partitions are involved
                     fs.cpSync(source, target, { recursive: true });
                     fs.rmSync(source, { recursive: true, force: true });
-                    meta = await this._model.create({ 'name': extName, 'archive': { 'blob': fs.readFileSync(file['path']) } });
-                    await this._loadExtension(meta);
+                    meta = {};
+                    meta['name'] = extName;
+                    meta['archive'] = { 'blob': fs.readFileSync(file['path']) };
+                    await this._loadExtension(meta, true);
+                    if (req.method === "PUT") {
+                        var parts = req.originalUrl.split('/');
+                        if (parts.length == 4) {
+                            delete meta['name'];
+                            meta = await this._model.update(parseInt(parts[3]), meta);
+                        }
+                    } else
+                        meta = await this._model.create(meta);
                 }
             }
         }

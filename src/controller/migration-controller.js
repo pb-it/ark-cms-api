@@ -160,6 +160,27 @@ class MigrationController {
                             await this._shelf.upsertModel(mUser.getId(), def);
                             await mUser.initModel();
                         }
+                    case '0.4.3-beta':
+                    case '0.4.4-beta':
+                        var mExt = this._shelf.getModel('_extension');
+                        if (mExt) {
+                            var def = mExt.getDefinition();
+                            var bExist = false;
+                            for (var attr of def['attributes']) {
+                                if (attr['name'] == 'client-extension') {
+                                    bExist = true;
+                                    break;
+                                }
+                            }
+                            if (!bExist) {
+                                def['attributes'].push({
+                                    "name": "client-extension",
+                                    "dataType": "text"
+                                });
+                                await this._shelf.upsertModel(mExt.getId(), def);
+                                await mExt.initModel();
+                            }
+                        }
                         break;
                     default:
                 }
