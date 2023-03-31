@@ -30,6 +30,11 @@ class Model {
     _book;
 
     _extension;
+    _preCreateHook;
+    _preUpdateHook;
+    _preDeleteHook;
+    _postDeleteHook;
+    _postReadHook;
 
     _bInitDone;
 
@@ -56,6 +61,16 @@ class Model {
                 this._extension = _eval(extension, true);
                 if (this._extension.init)
                     await this._extension.init.bind(this)();
+                if (this._extension.preCreateHook)
+                    this.setPreCreateHook(this._extension.preCreateHook);
+                if (this._extension.preUpdateHook)
+                    this.setPreUpdateHook(this._extension.preUpdateHook);
+                if (this._extension.preDeleteHook)
+                    this.setPreDeleteHook(this._extension.preDeleteHook);
+                if (this._extension.postDeleteHook)
+                    this.setPostDeleteHook(this._extension.postDeleteHook);
+                if (this._extension.postReadHook)
+                    this.setPostReadHook(this._extension.postReadHook);
             }
         }
 
@@ -457,6 +472,26 @@ class Model {
         this._book = this._shelf.getBookshelf().Model.extend(obj);
     }
 
+    setPreCreateHook(func) {
+        this._preCreateHook = func.bind(this);
+    }
+
+    setPreUpdateHook(func) {
+        this._preUpdateHook = func.bind(this);
+    }
+
+    setPreDeleteHook(func) {
+        this._preDeleteHook = func.bind(this);
+    }
+
+    setPostDeleteHook(func) {
+        this._postDeleteHook = func.bind(this);
+    }
+
+    setPostReadHook(func) {
+        this._postReadHook = func.bind(this);
+    }
+
     initDone() {
         return this._bInitDone;
     }
@@ -505,55 +540,15 @@ class Model {
                 'require': true
             });
             res = obj.toJSON();
+
+            if (this._postReadHook)
+                data = await this._postReadHook(data);
         } else
             throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(res);
     }
 
-    async readRel(query, rel, sort) {
-        var res;
-        var obj;
-        var attr = this.getAttribute(rel);
-        if (attr) {
-            var name;
-            if (attr.model)
-                name = attr.model;
-            else
-                name = rel;
-            var model = this._shelf.getModel(name);
-            if (model) {
-                if (Array.isArray(query['id'])) {
-                    /*obj = await this._book.query(function (qb) {
-                        qb.whereIn('id', query['id'])
-                    }).fetchAll({
-                        'withRelated': rel
-                    });*/
-                    throw new Error("Query not supported yet");
-                } else {
-                    obj = await this._book.forge(query).fetch({
-                        'withRelated': rel
-                    });
-                }
-                var objs = obj.related(rel);
-                if (objs) {
-                    if (sort) {
-                        var parts = sort.split(':');
-                        if (parts.length == 2) {
-                            objs = objs.query('orderBy', parts[0], parts[1]);
-                        }
-                    }
-                    obj = await objs.fetch({
-                        'withRelated': model.getRelations()
-                    });
-                }
-            }
-        }
-        if (obj)
-            res = obj.toJSON();
-        return Promise.resolve(res);
-    }
-
-    async readAll(query) {
+    async readAll(query, bHook = true) {
         var res;
         if (this._bInitDone && this._book) {
             var book;
@@ -561,14 +556,20 @@ class Model {
                 book = this.where(query);
             else
                 book = this._book;
-            if (!res) {
-                res = await book.fetchAll({
-                    'withRelated': this._relationNames
-                });
-            }
+            var rs = await book.fetchAll({
+                'withRelated': this._relationNames
+            });
+            var arr = rs.toJSON();
+            if (this._postReadHook && bHook) {
+                res = [];
+                for (var data of arr) {
+                    res.push(await this._postReadHook(data));
+                }
+            } else
+                res = arr;
         } else
             throw new Error('Faulty model \'' + this._name + '\'');
-        return Promise.resolve(res.toJSON());
+        return Promise.resolve(res);
     }
 
     where(query) {
@@ -611,8 +612,8 @@ class Model {
     async create(data) {
         var res;
 
-        if (this._extension && this._extension.preCreateHook)
-            data = await this._extension.preCreateHook.bind(this)(data);
+        if (this._preCreateHook)
+            data = await this._preCreateHook(data);
 
         if (this._definition.options.increments) {
             var forge = await this._createForge(data);
@@ -663,8 +664,8 @@ class Model {
         }
         if (obj)
             current = obj.toJSON();
-        if (this._extension && this._extension.preUpdateHook)
-            data = await this._extension.preUpdateHook.bind(this)(current, data);
+        if (this._preUpdateHook)
+            data = await this._preUpdateHook(current, data);
 
         if (this._definition.options.increments) {
             var forge = await this._createForge(data, current);
@@ -878,8 +879,8 @@ class Model {
 
         res = obj.toJSON();
 
-        if (this._extension && this._extension.preDeleteHook)
-            await this._extension.preDeleteHook.bind(this)(res);
+        if (this._preDeleteHook)
+            await this._preDeleteHook(res);
 
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {
@@ -912,8 +913,8 @@ class Model {
             }
         }
 
-        if (this._extension && this._extension.postDeleteHook)
-            await this._extension.postDeleteHook.bind(this)(res);
+        if (this._postDeleteHook)
+            await this._postDeleteHook(res);
 
         return Promise.resolve(res);
     }

@@ -180,6 +180,25 @@ class MigrationController {
                                 await this._shelf.upsertModel(mExt.getId(), def);
                                 await mExt.initModel();
                             }
+                            await this._shelf.getModel('_model').initModel();
+                            await this._shelf.getModel('_user').initModel();
+                            var roleModel = this._shelf.getModel('_role');
+                            await roleModel.initModel();
+                            var rs = await roleModel.readAll({ 'role': 'user' });
+                            if (rs && rs.length == 1) {
+                                var userRole = rs[0];
+                                var permission = {
+                                    'model': mExt.getId(),
+                                    'role': userRole['id'],
+                                    'read': true,
+                                    'write': false
+                                };
+                                var pModel = this._shelf.getModel('_permission');
+                                await pModel.initModel();
+                                rs = await pModel.readAll(permission);
+                                if (!rs || rs.length == 0)
+                                    await pModel.create(permission);
+                            }
                         }
                         break;
                     default:

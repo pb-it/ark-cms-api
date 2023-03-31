@@ -12,6 +12,21 @@ class AuthError extends Error {
 
 class AuthController {
 
+    static createPasswordEntry(password) {
+        var salt = bcrypt.genSaltSync(10);
+        var hash = AuthController.hashPassword(password, salt);
+        return `${salt}:${hash}`;
+    }
+
+    static hashPassword(password, salt) {
+        var hash;
+        if (salt)
+            hash = bcrypt.hashSync(password, salt);
+        else
+            hash = crypto.createHash('sha256').update(password).digest('base64');
+        return hash;
+    }
+
     static greeting(req, res) {
         res.send('Hello, ' + req.session.user.username + '!' +
             ' <a href="/sys/auth/logout">Logout</a>');
@@ -83,6 +98,21 @@ class AuthController {
             }
             this._userModel = await shelf.upsertModel(null, definition);
         }
+        this._userModel.setPreCreateHook(async function (data) {
+            if (data['password'])
+                data['password'] = AuthController.createPasswordEntry(data['password']);
+            return Promise.resolve(data);
+        });
+        this._userModel.setPreUpdateHook(async function (current, data) {
+            if (data['password'])
+                data['password'] = AuthController.createPasswordEntry(data['password']);
+            return Promise.resolve(data);
+        });
+        this._userModel.setPostReadHook(async function (data) {
+            if (data['password'])
+                data['password'] = '******';
+            return Promise.resolve(data);
+        });
         if (!this._userModel.initDone())
             await this._userModel.initModel();
 
@@ -185,7 +215,7 @@ class AuthController {
         if (res && res.length == 1)
             adminUser = res[0];
         else
-            adminUser = await this._userModel.create({ 'username': 'admin', 'password': this._createPasswordEntry('admin'), 'email': 'admin@cms.local' });
+            adminUser = await this._userModel.create({ 'username': 'admin', 'password': 'admin', 'email': 'admin@cms.local' });
 
         var userRole;
         res = await this._roleModel.readAll({ 'role': 'administrator' });
@@ -224,6 +254,9 @@ class AuthController {
 
                 permission['model'] = shelf.getModel('_role').getId();
                 await this._permissionModel.create(permission);
+
+                permission['model'] = shelf.getModel('_extension').getId();
+                await this._permissionModel.create(permission);
             } else
                 throw new Error("Admin role missing");
         }
@@ -234,7 +267,7 @@ class AuthController {
     async checkAuthentication(username, password) {
         var user;
         try {
-            var res = await this._userModel.readAll({ 'username': username });
+            var res = await this._userModel.readAll({ 'username': username }, false);
             if (res && res.length == 1) {
                 var parts = res[0]['password'].split(':');
                 var salt;
@@ -245,7 +278,7 @@ class AuthController {
                     salt = parts[0];
                     hash = parts[1];
                 }
-                if (hash == this._hashPassword(password, salt)) {
+                if (hash == AuthController.hashPassword(password, salt)) {
                     var id = res[0]['id'];
                     user = { 'username': username };
                     user['id'] = id;
@@ -257,21 +290,6 @@ class AuthController {
             Logger.parseError(error);
         }
         return Promise.resolve(user);
-    }
-
-    _createPasswordEntry(password) {
-        var salt = bcrypt.genSaltSync(10);
-        var hash = this._hashPassword(password, salt);
-        return `${salt}:${hash}`;
-    }
-
-    _hashPassword(password, salt) {
-        var hash;
-        if (salt)
-            hash = bcrypt.hashSync(password, salt);
-        else
-            hash = crypto.createHash('sha256').update(password).digest('base64');
-        return hash;
     }
 
     async checkAuthorization(req, res, next) {
@@ -290,33 +308,40 @@ class AuthController {
                         bAllow = true;
                     else if (req.path == '/sys/info')
                         bAllow = true;
-                    else if (req.originalUrl.startsWith('/api/')) {
-                        var arr = req.path.split('/');
-                        if (arr.length >= 3) {
-                            var modelName = arr[2];
-                            var model = controller.getShelf().getModel(modelName);
-                            if (model) {
-                                var permissions;
-                                if (req.method === 'GET')
-                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
-                                else
-                                    permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
-                                if (permissions && permissions.length > 0) {
-                                    for (var permission of permissions) {
-                                        if (permission['user']) {
-                                            if (req.session.user.username == permission['user']['username']) {
-                                                bAllow = true;
-                                                break;
-                                            }
-                                        } else if (permission['role']) {
-                                            if (req.session.user.roles.includes(permission['role']['role'])) {
-                                                bAllow = true;
-                                                break;
-                                            }
+                    else {
+                        var model;
+                        if (req.originalUrl.startsWith('/api/')) {
+                            var arr = req.path.split('/');
+                            if (arr.length >= 3) {
+                                var modelName = arr[2];
+                                model = controller.getShelf().getModel(modelName);
+                            }
+                        }
+                        if (model) {
+                            var permissions;
+                            if (req.method === 'GET')
+                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
+                            else
+                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
+                            if (permissions && permissions.length > 0) {
+                                for (var permission of permissions) {
+                                    if (permission['user']) {
+                                        if (req.session.user.username == permission['user']['username']) {
+                                            bAllow = true;
+                                            break;
+                                        }
+                                    } else if (permission['role']) {
+                                        if (req.session.user.roles.includes(permission['role']['role'])) {
+                                            bAllow = true;
+                                            break;
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            var route = await this._controller.getWebServer().getMatchingCustomRoute(req);
+                            //if (route) // TODO: fix buggy route matching; autorization-concept for custom routes?
+                            bAllow = true;
                         }
                     }
                     if (bAllow)
@@ -336,7 +361,7 @@ class AuthController {
         var bDone = false;
         user = await this.checkAuthentication(user, current_password);
         if (user && user['id']) {
-            await this._userModel.update(user['id'], { 'password': this._createPasswordEntry(new_password), 'last_password_change_at': this._controller.getKnex().fn.now() });
+            await this._userModel.update(user['id'], { 'password': new_password, 'last_password_change_at': this._controller.getKnex().fn.now() });
             bDone = true;
         } else
             throw new AuthError('Invalid Credentials!');

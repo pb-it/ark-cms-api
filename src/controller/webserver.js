@@ -47,6 +47,7 @@ class WebServer {
 
     _controller;
 
+    _config;
     _app;
     _svr;
 
@@ -55,8 +56,8 @@ class WebServer {
     constructor(controller) {
         this._controller = controller;
 
-        var config = controller.getServerConfig();
-        this._app = this._initApp(config);
+        this._config = this._controller.getServerConfig();
+        this._app = this._initApp(this._config);
         this._addRoutes();
 
         this._routes = [];
@@ -208,6 +209,7 @@ class WebServer {
         var systemRouter = express.Router();
 
         this._addInfoRoute(systemRouter);
+        this._addSessionRoute(systemRouter);
         this._addLogRoute(systemRouter);
         this._addUpdateRoute(systemRouter);
         this._addRestartRoute(systemRouter);
@@ -236,6 +238,17 @@ class WebServer {
         router.get('/info', function (req, res) {
             res.json(this._info);
         }.bind(this._controller));
+    }
+
+    _addSessionRoute(router) {
+        router.get('/session', function (req, res) {
+            var bAuth = (this._config['auth'] == undefined || this._config['auth'] == true);
+            var session = { 'auth': bAuth };
+            if (bAuth && req.session.user) {
+                session['user'] = req.session.user;
+            }
+            res.json(session);
+        }.bind(this));
     }
 
     _addLogRoute(router) {
@@ -746,21 +759,10 @@ class WebServer {
                 });
 
                 try {
-                    var match;
-                    for (var route of this._routes) {
-                        if (route['regex'] && route['fn']) {
-                            match = new RegExp(route['regex'], 'ig').exec(req.path);
-                            if (match) {
-                                if (!req.locals)
-                                    req.locals = { 'match': match };
-                                else
-                                    req.locals['match'] = match;
-                                await route['fn'](req, res);
-                                break;
-                            }
-                        }
-                    }
-                    if (!match)
+                    var route = await this.getMatchingCustomRoute(req);
+                    if (route)
+                        await route['fn'](req, res);
+                    else
                         await this._controller.processRequest(req, res);
                     bSent = true;
                 } catch (error) {
@@ -798,6 +800,25 @@ class WebServer {
             } else
                 resolve();
         }.bind(this));
+    }
+
+    async getMatchingCustomRoute(req) {
+        //console.log(req.path); // originalUrl = baseUrl + path; url = with query
+        var res;
+        for (var route of this._routes) {
+            if (route['regex'] && route['fn']) {
+                var match = new RegExp(route['regex'], 'ig').exec(req.path);
+                if (match) {
+                    if (!req.locals)
+                        req.locals = { 'match': match };
+                    else
+                        req.locals['match'] = match;
+                    res = route;
+                    break;
+                }
+            }
+        }
+        return Promise.resolve(res);
     }
 }
 

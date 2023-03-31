@@ -382,7 +382,6 @@ class Controller {
 
         var name;
         var id;
-        var rel;
 
         var arr = req.params[0].split('/');
         var str = arr.shift();
@@ -494,9 +493,7 @@ class Controller {
                                 timestamp = data['created_at'];
                                 break;
                             case "GET":
-                                if (rel)
-                                    data = await model.readRel({ 'id': id }, rel);
-                                else if (id)
+                                if (id)
                                     data = await model.read(id);
                                 else
                                     data = await model.readAll(req.query);
