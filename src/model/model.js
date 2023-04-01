@@ -811,7 +811,7 @@ class Model {
                                                     fs.renameSync(oldFile, newFile);
                                             }
                                         } else {
-                                            if (old && old[str]) {
+                                            if (old && old[str] && data[str]['delete']) {
                                                 var file = path.join(localPath, old[str]);
                                                 if (fs.existsSync(file))
                                                     fs.unlinkSync(file);
