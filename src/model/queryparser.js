@@ -1,17 +1,19 @@
 const inflection = require('inflection');
 
-const operators = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
+const operators = ['null', 'count', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
 
 class QueryParser {
 
     _model;
     _book;
     _joins;
+    _leftJoins;
 
     constructor(model, book) {
         this._model = model;
         this._book = book; //model.getBook();
         this._joins = [];
+        this._leftJoins = [];
     }
 
     getBook() {
@@ -60,6 +62,16 @@ class QueryParser {
             var id = inflection.singularize(tableName) + "_id";
             for (let a of this._joins) {
                 this._book = this._book.query(function (qb) {
+                    qb.join(a, tableName + '.id', a + '.' + id);
+                    //console.log(qb.toSQL());
+                });
+            }
+        }
+        if (this._leftJoins.length > 0) {
+            var tableName = this._model._tableName;
+            var id = inflection.singularize(tableName) + "_id";
+            for (let a of this._leftJoins) {
+                this._book = this._book.query(function (qb) {
                     qb.leftJoin(a, tableName + '.id', a + '.' + id);
                     //console.log(qb.toSQL());
                 });
@@ -93,10 +105,12 @@ class QueryParser {
                     if (attribute['dataType'] == "relation")
                         relAttr = attribute;
                     else if (attribute['dataType'] == "boolean") {
-                        if (value == 'true')
-                            value = '1';
-                        else if (value == 'false')
-                            value = '0';
+                        if (!operator) {
+                            if (value == 'true')
+                                value = '1';
+                            else if (value == 'false')
+                                value = '0';
+                        }
                     }
                     break;
                 }
@@ -107,7 +121,7 @@ class QueryParser {
                     throw new Error("Not Implemented Yet");
                 } else {
                     var val;
-                    if (operator == 'null')
+                    if (operator == 'null' || operator == 'count')
                         val = value;
                     else {
                         if (Array.isArray(value))
@@ -145,17 +159,30 @@ class QueryParser {
             var junctionTable = this._model.getJunctionTableName(relAttr);
             var id = inflection.singularize(tableName) + "_id";
             var fid = inflection.singularize(relModelTable) + "_id";
-
-            if (this._joins.indexOf(junctionTable) == -1)
-                this._joins.push(junctionTable);
+            if (operation != 'count' || parseInt(value) == 0) {
+                if (this._leftJoins.indexOf(junctionTable) == -1)
+                    this._leftJoins.push(junctionTable);
+            } else {
+                if (this._joins.indexOf(junctionTable) == -1)
+                    this._joins.push(junctionTable);
+            }
 
             fn = function (qb) {
                 switch (operation) {
                     case 'null':
-                        if (value === 'true')
+                        if (value === '' || value === 'true')
                             qb.where(fid, 'is', null);
                         else
                             qb.where(fid, 'is not', null);
+                        break;
+                    case 'count':
+                        var count = parseInt(value);
+                        if (count == 0) {
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ')');
+                        } else if (count > 0) {
+                            qb.groupBy(id)
+                                .havingRaw('COUNT(*) = ?', [count]);
+                        }
                         break;
                     case 'containsAny': // includesSome
                     case 'in':
@@ -190,7 +217,7 @@ class QueryParser {
         return function (qb) {
             switch (operator) {
                 case 'null':
-                    if (value === 'true')
+                    if (value === '' || value === 'true')
                         qb.where(prop, 'is', null); // whereNotNull
                     else
                         qb.where(prop, 'is not', null);
