@@ -43,16 +43,14 @@ class QueryParser {
                     }
                 }
             }.bind(this));
-        } else {
-            if (prop != '_t') { // timestamp to break cache
-                var fn = this._query(prop, value);
-                if (fn) {
-                    this._book = this._book.query(function (qb) {
-                        fn(qb);
-                    }.bind(this));
-                } else
-                    throw new Error(`Unsupported query: ${prop}=${value}`);
-            }
+        } else if (prop != '_t') { // ignore timestamp to break cache
+            var fn = this._query(prop, value);
+            if (fn) {
+                this._book = this._book.query(function (qb) {
+                    fn(qb);
+                }.bind(this));
+            } else
+                throw new Error(`Unsupported query: ${prop}=${value}`);
         }
     }
 
@@ -91,8 +89,15 @@ class QueryParser {
 
             var relAttr;
             for (var attribute of this._model.getDefinition().attributes) {
-                if (attribute['dataType'] == "relation" && attribute['name'] == propName) {
-                    relAttr = attribute;
+                if (attribute['name'] == propName) {
+                    if (attribute['dataType'] == "relation")
+                        relAttr = attribute;
+                    else if (attribute['dataType'] == "boolean") {
+                        if (value == 'true')
+                            value = '1';
+                        else if (value == 'false')
+                            value = '0';
+                    }
                     break;
                 }
             }

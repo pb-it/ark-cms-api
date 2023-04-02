@@ -142,10 +142,10 @@ class ExtensionController {
                     if (str.length > 0) {
                         var json = JSON.parse(str);
                         this._checkVersionCompatibility(json);
-                        var dependencies = json['dependencies'];
-                        if (dependencies && Object.keys(dependencies).length > 0) {
+                        var npmDependencies = json['npm_dependencies'];
+                        if (npmDependencies && Object.keys(npmDependencies).length > 0) {
                             var arr = [];
-                            for (let [key, value] of Object.entries(dependencies)) {
+                            for (let [key, value] of Object.entries(npmDependencies)) {
                                 if (value)
                                     arr.push(`${key}@${value}`);
                                 else

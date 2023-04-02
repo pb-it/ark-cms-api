@@ -750,13 +750,20 @@ class WebServer {
             .all(async function (req, res, next) {
                 var bSent = false;
 
-                res.setTimeout(600000, function (socket) { // 10 minutes
-                    var msg = 'Response Processing Timed Out.';
-                    console.error(msg);
-                    res.status(500).send(msg);
-                    bSent = true;
-                    //socket.destroy();
-                });
+                var timeout;
+                if (this._config && this._config['api'])
+                    timeout = this._config['api']['timeout'];
+                if (timeout > 0) {
+                    if (this._svr.timeout < timeout) {
+                        res.setTimeout(timeout, function (socket) {
+                            var msg = 'Response Processing Timed Out.';
+                            console.error(msg);
+                            res.status(500).send(msg);
+                            bSent = true;
+                            //socket.destroy();
+                        });
+                    }
+                }
 
                 try {
                     var route = await this.getMatchingCustomRoute(req);
