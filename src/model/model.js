@@ -542,7 +542,7 @@ class Model {
             res = obj.toJSON();
 
             if (this._postReadHook)
-                data = await this._postReadHook(data);
+                res = await this._postReadHook(res);
         } else
             throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(res);

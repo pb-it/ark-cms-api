@@ -116,6 +116,19 @@ class WebClient {
             Logger.info('[App] Start: ' + new Date(start).toISOString());
         }
 
+        var fpath;
+        var name;
+        var ext;
+        var index = file.lastIndexOf(path.sep);
+        if (index >= 0) {
+            fpath = file.substr(0, index);
+            name = file.substr(index + 1);
+        } else
+            name = file;
+        index = name.lastIndexOf('.');
+        if (index != -1)
+            ext = name.substr(index + 1);
+
         if (!config) {
             var match;
             for (var key in this._options) {
@@ -136,31 +149,37 @@ class WebClient {
             //opt['onDownloadProgress'] = WebClient._progress;
             var stream = await this._ax.get(url, opt);
 
-            var ext;
+            var extFromHeader;
             var type = stream.headers['content-type'];
             var disposition = stream.headers['content-disposition'];
             if (disposition) {
-                ext = disposition.substr(disposition.lastIndexOf('.') + 1);
-                if (ext.endsWith('"'))
-                    ext = ext.substr(0, ext.length - 1);
+                extFromHeader = disposition.substr(disposition.lastIndexOf('.') + 1);
+                if (extFromHeader.endsWith('"'))
+                    extFromHeader = extFromHeader.substr(0, extFromHeader.length - 1);
             } else if (type) {
                 var parts = type.split('/');
                 if (parts.length == 2)
-                    ext = parts[1];
-                parts = ext.split(';');
-                ext = parts[0];
+                    extFromHeader = parts[1];
+                parts = extFromHeader.split(';');
+                extFromHeader = parts[0];
             }
-            if (ext) {
-                var index = file.lastIndexOf('.');
-                if (index == -1)
-                    file += '.' + ext;
-                else {
-                    var current = file.substr(index + 1);
-                    if (current != ext) {
-                        var pic = ['jpg', 'jpeg', 'webp'];
-                        if (!pic.includes(current) || !pic.includes(ext))
-                            file = file.substr(0, index + 1) + ext;
+            if (extFromHeader) {
+                var bChanged = false;
+                if (!ext) {
+                    name += '.' + extFromHeader;
+                    bChanged = true;
+                } else if (ext != extFromHeader) {
+                    var pic = ['jpg', 'jpeg', 'webp'];
+                    if (!pic.includes(ext) || !pic.includes(extFromHeader)) {
+                        name = name.substr(0, index + 1) + extFromHeader;
+                        bChanged = true;
                     }
+                }
+                if (bChanged) {
+                    if (fpath)
+                        file = `${fpath}${path.sep}${name}`;
+                    else
+                        file = name;
                 }
             }
 
@@ -189,13 +208,6 @@ class WebClient {
         } else if (config['client'] == 'wget') {
             await WebClient.wget(file, url);
         }
-
-        var name;
-        var index = file.lastIndexOf(path.sep);
-        if (index >= 0)
-            name = file.substr(index + 1);
-        else
-            name = file;
 
         if (this._bDebug) {
             var end = Date.now();
