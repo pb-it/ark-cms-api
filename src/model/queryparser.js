@@ -214,6 +214,14 @@ class QueryParser {
 
     _queryComparisonOperation(propName, operator, value) {
         var prop = this._model.getTableName() + '.' + propName;
+        for (var attribute of this._model.getDefinition().attributes) {
+            if (attribute['name'] == propName) {
+                if (attribute['dataType'] == "timestamp")
+                    if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
+                        value = value.substring(0, value.length - 1) + '+00:00';
+                break;
+            }
+        }
         return function (qb) {
             switch (operator) {
                 case 'null':

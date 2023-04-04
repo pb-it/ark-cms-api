@@ -10,6 +10,7 @@ var database = {
                     user: 'root',
                     password: '',
                     database: 'cms',
+                    //timezone: 'Z',
                     charset: 'utf8mb4',
                     connectTimeout: 60000
                 },
