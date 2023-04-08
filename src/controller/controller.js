@@ -435,7 +435,7 @@ class Controller {
                 } else if (name === '_extension' && req.method !== "GET") {
                     if (req.method === "POST" || req.method === "PUT") {
                         var data = await this._extensionController.addExtension(req);
-                        if (data) {
+                        if (data && data['id']) {
                             id = data['id'];
                             await this._protocol(req, null, req.method, '_extension', id, '-');
                             Logger.info("[App] ✔ Added extension '" + data['name'] + "'");
@@ -693,7 +693,7 @@ class Controller {
             if (!method)
                 method = req.method;
             if (!timestamp) {
-                if (method != 'DELETE' && (model == '_model' || model == '_extension')) {
+                if (id && method != 'DELETE' && (model == '_model' || model == '_extension')) {
                     var x = await this._shelf.getModel(model).read(id);
                     timestamp = x['updated_at'];
                 } else

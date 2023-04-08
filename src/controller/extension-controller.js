@@ -247,10 +247,11 @@ class ExtensionController {
                     await this._loadExtension(meta, true);
                     if (req.method === "PUT") {
                         var parts = req.originalUrl.split('/');
-                        if (parts.length == 4) {
+                        if (parts.length == 5) {
                             delete meta['name'];
-                            meta = await this._model.update(parseInt(parts[3]), meta);
-                        }
+                            meta = await this._model.update(parseInt(parts[4]), meta);
+                        } else
+                            throw new Error('Invalid extension ID');
                     } else
                         meta = await this._model.create(meta);
                 }
