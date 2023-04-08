@@ -337,7 +337,7 @@ class WebServer {
                 var msg;
                 try {
                     var bUpdate;
-                    if (this._vcs['client'] === VcsEnum.GIT) {
+                    if (this._vcs['client'] === VcsEnum.GIT && version !== 'latest') {
                         var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
                         var response = await this.getWebClient().curl(url);
                         var version = response['version'];
@@ -839,11 +839,13 @@ class WebServer {
     }
 
     async getMatchingCustomRoute(req) {
-        //console.log(req.path); // originalUrl = baseUrl + path; url = with query
+        //console.log(req.path); // originalUrl = baseUrl + path; url = path with query; baseUrl = /api/v1
         var res;
         for (var route of this._routes) {
             if (route['regex'] && route['fn']) {
-                var match = new RegExp(route['regex'], 'ig').exec(req.path);
+                var match;
+                if (route['regex'].startsWith('^/'))
+                    match = new RegExp(route['regex'], 'ig').exec(req.path);
                 if (match) {
                     if (!req.locals)
                         req.locals = { 'match': match };

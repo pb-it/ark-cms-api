@@ -541,9 +541,10 @@ class Controller {
                             }
                         }
 
-                        if (req.method === "DELETE")
+                        if (req.method === "DELETE") {
+                            //res.status(204); // 204: No Content
                             res.send("OK");
-                        else if (data)
+                        } else if (data)
                             res.json(data);
                         else
                             res.json([]);
