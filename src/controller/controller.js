@@ -478,7 +478,7 @@ class Controller {
                         throw new ValidationError("Unsuppourted method");
                 } else {
                     var model = this._shelf.getModel(name);
-                    if (model) {
+                    if (model && model.initDone()) {
                         str = arr.shift();
                         if (str) {
                             try {
@@ -549,7 +549,7 @@ class Controller {
                             res.json([]);
                         bSent = true;
                     } else
-                        throw new ValidationError("Model '" + name + "' not defined");
+                        throw new ValidationError("Model '" + name + "' not defined or failed to initiate");
                 }
             }
         }
