@@ -20,6 +20,8 @@ const VcsEnum = require('../common/vcs-enum');
 const { AuthController } = require('./auth-controller');
 const { AuthError } = require('./auth-controller');
 const { ExtensionError } = require('./extension-controller');
+const AppVersion = require('../common/app-version');
+const MigrationController = require('./migration-controller');
 
 const renderFile = (file, data) => {
     return new Promise((resolve, reject) => {
@@ -47,6 +49,7 @@ class WebServer {
 
     _controller;
 
+    _apiVersion;
     _config;
     _app;
     _svr;
@@ -56,6 +59,7 @@ class WebServer {
     constructor(controller) {
         this._controller = controller;
 
+        this._apiVersion = this._controller.getInfo()['api']['version'];
         this._config = this._controller.getServerConfig();
         this._app = this._initApp(this._config);
         this._addRoutes();
@@ -332,23 +336,48 @@ class WebServer {
                 var bRemove = req.query['rm'] && (req.query['rm'] === 'true');
                 var msg;
                 try {
-                    msg = await this.update(version, bReset, bRemove);
-                    console.log(msg);
-                    if (msg) {
-                        var strUpToDate;
-                        if (this._vcs['client'] === VcsEnum.GIT)
-                            strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
-                        else if (this._vcs['client'] === VcsEnum.SVN)
-                            strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+                    var bUpdate;
+                    if (this._vcs['client'] === VcsEnum.GIT) {
+                        var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
+                        var response = await this.getWebClient().curl(url);
+                        var version = response['version'];
 
-                        if (msg.startsWith(strUpToDate))
+                        var appVersion = this._versionController.getPkgVersion();
+                        var sAppVersion = appVersion.toString();
+                        if (version !== sAppVersion) {
+                            var newVersion = new AppVersion(version);
+                            if ((newVersion.major > appVersion.major ||
+                                (newVersion.major == appVersion.major && newVersion.minor > appVersion.minor)) &&
+                                !bReset) {
+                                msg = "An update of the major or minor release version may result in incompatibilitiy problems! Force only after studying changelog!";
+                            } else
+                                bUpdate = true;
+                        } else {
                             Logger.info("[App] Already up to date");
-                        else {
-                            Logger.info("[App] ✔ Updated");
-                            bUpdated = true;
+                            msg = "Already up to date";
                         }
                     } else
-                        throw new Error('Missing response from version control system!');
+                        bUpdate = true;
+
+                    if (bUpdate) {
+                        msg = await this.update(version, bReset, bRemove);
+                        console.log(msg);
+                        if (msg) {
+                            var strUpToDate;
+                            if (this._vcs['client'] === VcsEnum.GIT)
+                                strUpToDate = 'Already up to date.'; // 'Bereits aktuell.' ... localize
+                            else if (this._vcs['client'] === VcsEnum.SVN)
+                                strUpToDate = 'Updating \'.\':' + os.EOL + 'At revision';
+
+                            if (msg.startsWith(strUpToDate))
+                                Logger.info("[App] Already up to date");
+                            else {
+                                Logger.info("[App] ✔ Updated");
+                                bUpdated = true;
+                            }
+                        } else
+                            throw new Error('Missing response from version control system!');
+                    }
                 } catch (error) {
                     if (error['message'])
                         msg = error['message']; // 'Command failed:...'
@@ -792,7 +821,7 @@ class WebServer {
                     next();
                 return Promise.resolve();
             }.bind(this));
-        this._app.use('/api', apiRouter);
+        this._app.use('/api/' + this._apiVersion, apiRouter);
     }
 
     async teardown() {

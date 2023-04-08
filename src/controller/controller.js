@@ -71,6 +71,7 @@ class Controller {
         Logger.info("[node] Heap size limit: " + (v8.getHeapStatistics().heap_size_limit / (1024 * 1024))) + " MB";
 
         this._info = {
+            'api': { 'version': 'v1' },
             'state': 'starting'
         };
 
@@ -91,7 +92,7 @@ class Controller {
                 this._databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
             else
                 throw new Error('Faulty database configuration!');
-            this._info['db_client'] = this._databaseSettings['client'];
+            this._info['db'] = { 'client': this._databaseSettings['client'] };
 
             this._knex = require('knex')({
                 client: this._databaseSettings['client'],
@@ -127,7 +128,7 @@ class Controller {
             this._webclient = new WebClient();
 
             this._versionController = new VersionController(this);
-            this._info['version'] = this._versionController.getVersion().toString();
+            this._info['version'] = this._versionController.getPkgVersion().toString();
 
             this._dependencyController = new DependencyController(this);
             await this._dependencyController.init();
@@ -192,6 +193,10 @@ class Controller {
 
     getAppRoot() {
         return this._appRoot;
+    }
+
+    getInfo() {
+        return this._info;
     }
 
     getServerConfig() {
@@ -494,9 +499,9 @@ class Controller {
                                 break;
                             case "GET":
                                 if (id)
-                                    data = await model.read(id);
+                                    data = { 'data': await model.read(id) };
                                 else
-                                    data = await model.readAll(req.query);
+                                    data = { 'data': await model.readAll(req.query) };
                                 break;
                             case "PUT":
                                 data = await model.update(id, req.body);
@@ -565,19 +570,15 @@ class Controller {
                 if (definition['id'])
                     bNew = false;
                 var name = definition['name'];
-                var appVersion = this._versionController.getVersion();
+                var appVersion = this._versionController.getPkgVersion();
                 var sAppVersion = appVersion.toString();
                 if (version !== sAppVersion) {
                     var modelVersion = new AppVersion(version);
                     if (MigrationController.compatible(modelVersion, appVersion) || bForceMigration) {
                         definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
                         Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
-                    } else {
-                        if (modelVersion.major > appVersion.major || modelVersion.minor > appVersion.minor || modelVersion.patch > appVersion.patch)
-                            throw new ValidationError("Model version newer than application version! Force only after studying changelog!");
-                        else
-                            throw new ValidationError("An update of the minor release version may result in faulty models! Force only after studying changelog!");
-                    }
+                    } else
+                        throw new ValidationError("An update of the major or minor release version may result in faulty models! Force only after studying changelog!");
                 }
                 var model = await this._shelf.upsertModel(undefined, definition);
                 await model.initModel();

@@ -209,9 +209,9 @@ class ExtensionController {
         var version = json['app_version'];
         if (version) {
             if (version.startsWith('^')) {
-                var appVersion = this._controller.getVersionController().getVersion();
+                var appVersion = this._controller.getVersionController().getPkgVersion();
                 var reqVersion = new AppVersion(version.substring(1));
-                if (!MigrationController.compatible(reqVersion, appVersion))
+                if (appVersion.isLower(reqVersion))
                     throw new ExtensionError('Application version does not meet the extension requirements! App: ' + appVersion.toString() + ', Extension: ' + version);
             }
         }

@@ -89,7 +89,7 @@ class MigrationController {
     }
 
     async migrateDatabase(bForce) {
-        var appVersion = this._controller.getVersionController().getVersion();
+        var appVersion = this._controller.getVersionController().getPkgVersion();
         var sAppVersion = appVersion.toString();
         var sRegVersion = await this._controller.getRegistry().get('version');
         if (sRegVersion) {

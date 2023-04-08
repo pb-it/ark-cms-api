@@ -17,4 +17,4 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 EXPOSE 3002
-CMD [ "node", "server.js" ]
+CMD [ "node", "index.js" ]

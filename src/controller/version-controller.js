@@ -15,7 +15,7 @@ class VersionController {
         this._version = new AppVersion(pkg['version']);
     }
 
-    getVersion() {
+    getPkgVersion() {
         return this._version;
     }
 }
