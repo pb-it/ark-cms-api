@@ -306,16 +306,14 @@ class AuthController {
                     var bAllow = false;
                     if (req.session.user.roles.includes('administrator'))
                         bAllow = true;
-                    else if (req.path == '/sys/info')
+                    else if (req.path == '/sys/info' || req.path == '/sys/session')
                         bAllow = true;
-                    else {
+                    else if (req.originalUrl.startsWith('/api/data/')) {
                         var model;
-                        if (req.originalUrl.startsWith('/api/')) {
-                            var arr = req.path.split('/');
-                            if (arr.length >= 3) {
-                                var modelName = arr[2];
-                                model = controller.getShelf().getModel(modelName);
-                            }
+                        var arr = req.path.split('/');
+                        if (arr.length >= 5) {
+                            var modelName = arr[4];
+                            model = controller.getShelf().getModel(modelName);
                         }
                         if (model) {
                             var permissions;
@@ -339,10 +337,12 @@ class AuthController {
                                 }
                             }
                         } else {
-                            var route = await this._controller.getWebServer().getMatchingCustomRoute(req);
-                            //if (route) // TODO: fix buggy route matching; autorization-concept for custom routes?
-                            bAllow = true;
+                            ; // custom routes?
                         }
+                    } else if (req.originalUrl.startsWith('/api/ext/')) {
+                        //var route = await this._controller.getWebServer().getMatchingCustomRoute(req);
+                        //if (route) // TODO: fix buggy route matching; autorization-concept for custom routes?
+                        bAllow = true;
                     }
                     if (bAllow)
                         next();

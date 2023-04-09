@@ -246,10 +246,10 @@ class ExtensionController {
                     meta['archive'] = { 'blob': fs.readFileSync(file['path']) };
                     await this._loadExtension(meta, true);
                     if (req.method === "PUT") {
-                        var parts = req.originalUrl.split('/');
-                        if (parts.length == 5) {
+                        var parts = req.path.split('/'); // req.originalUrl = '/api/data/v1/_extension/x'
+                        if (parts.length == 3) {
                             delete meta['name'];
-                            meta = await this._model.update(parseInt(parts[4]), meta);
+                            meta = await this._model.update(parseInt(parts[2]), meta);
                         } else
                             throw new Error('Invalid extension ID');
                     } else

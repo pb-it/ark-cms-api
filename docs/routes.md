@@ -88,11 +88,20 @@ with option `rm=true` also the `node_modules` directory will be deleted and all 
 
 ### API
 
-`/api/*`
 
-* `/api/:model`
-* `/api/:model/:id`
+#### Data
 
-#### model
+`/api/data/v1/*`
 
-PUT `/api/_model?v=<version>&forceMigration=true`
+* `/api/data/v1/:model`
+* `/api/data/v1/:model/:id`
+
+
+##### model
+
+PUT `/api/data/v1/_model?v=<version>&forceMigration=true`
+
+
+#### Extensions
+
+`/api/ext/*`

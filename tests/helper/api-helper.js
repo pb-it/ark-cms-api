@@ -1,6 +1,7 @@
 class ApiHelper {
 
     _api;
+    _webclient;
     _modelsUrl;
     _modelsUrlPut;
 
@@ -8,11 +9,19 @@ class ApiHelper {
         this._api = api;
         this._webclient = webclient;
         this._modelsUrl = this._api + "/_model";
-        this._modelsUrlPut = this._modelsUrl + "?v=0.4.0-beta";
+        this._modelsUrlPut = this._modelsUrl + "?v=0.5.0-beta";
+    }
+
+    async getData(url) {
+        var data;
+        var response = await this._webclient.curl(url);
+        if (response && response['data'])
+            data = response['data'];
+        return Promise.resolve(data);
     }
 
     async getAllModels() {
-        return await this._webclient.curl(this._modelsUrl);
+        return this.getData(this._modelsUrl);
     }
 
     async uploadModel(model) {

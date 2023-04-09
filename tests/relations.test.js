@@ -26,7 +26,7 @@ beforeAll(async () => {
 
     webclient = new WebClient();
 
-    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
+    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api/data/v1"
     apiHelper = new ApiHelper(apiUrl, webclient);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -93,7 +93,7 @@ test('movie_db', async function () {
     var urlMovies = apiUrl + "/movies";
     await webclient.post(urlMovies, movie);
 
-    data = await webclient.curl(urlMovies);
+    data = await apiHelper.getData(urlMovies);
     expect(data.length).toEqual(1);
 
     var resMovie = data[0];
@@ -112,7 +112,7 @@ test('movie_db', async function () {
     var urlStudios = apiUrl + "/studios";
     await webclient.post(urlStudios, studio);
 
-    data = await webclient.curl(urlStudios);
+    data = await apiHelper.getData(urlStudios);
     expect(data.length).toEqual(1);
 
     var resStudio = data[0];
@@ -129,7 +129,7 @@ test('movie_db', async function () {
     var urlStars = apiUrl + "/stars";
     await webclient.post(urlStars, star);
 
-    data = await webclient.curl(urlStars);
+    data = await apiHelper.getData(urlStars);
     expect(data.length).toEqual(1);
 
     var resStar = data[0];
@@ -146,7 +146,7 @@ test('movie_db', async function () {
     expect(res['data']['movies'].length).toEqual(1);
     expect(res['data']['movies'][0]['id']).toEqual(movieId);
 
-    data = await webclient.curl(urlMovies);
+    data = await apiHelper.getData(urlMovies);
     expect(data.length).toEqual(1);
     res = data[0];
     expect(res['studio']['id']).toEqual(studioId);
@@ -154,7 +154,7 @@ test('movie_db', async function () {
     //update
     await webclient.put(urlMovies + "/" + movieId, { 'stars': [starId] });
 
-    data = await webclient.curl(urlStars);
+    data = await apiHelper.getData(urlStars);
     expect(data.length).toEqual(1);
     res = data[0];
     expect(res['movies'].length).toEqual(1);

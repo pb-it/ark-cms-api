@@ -55,6 +55,7 @@ class WebServer {
     _svr;
 
     _routes;
+    _extRoutes;
 
     constructor(controller) {
         this._controller = controller;
@@ -65,6 +66,7 @@ class WebServer {
         this._addRoutes();
 
         this._routes = [];
+        this._extRoutes = [];
     }
 
     _initApp(config) {
@@ -194,6 +196,25 @@ class WebServer {
         this._routes = [];
     }
 
+    addExtensionRoute(route) {
+        if (route['regex'] && route['fn']) {
+            this.deleteExtensionRoute(route);
+            this._extRoutes.push(route);
+        }
+    }
+
+    deleteExtensionRoute(route) {
+        if (route['regex']) {
+            this._extRoutes = this._extRoutes.filter(function (x) {
+                return (x['regex'] !== route['regex']);
+            });
+        }
+    }
+
+    deleteAllExtensionRoutes() {
+        this._extRoutes = [];
+    }
+
     _addRoutes() {
         this._app.get('/', function (req, res) {
             if (this._controller.getServerConfig()['ssl']) {
@@ -206,7 +227,7 @@ class WebServer {
         }.bind(this));
 
         this._addSystemRoutes();
-        this._addApiRoute();
+        this._addApiRoutes();
     }
 
     _addSystemRoutes() {
@@ -337,25 +358,31 @@ class WebServer {
                 var msg;
                 try {
                     var bUpdate;
-                    if (this._vcs['client'] === VcsEnum.GIT && version !== 'latest') {
-                        var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
-                        var response = await this.getWebClient().curl(url);
-                        var version = response['version'];
-
-                        var appVersion = this._versionController.getPkgVersion();
-                        var sAppVersion = appVersion.toString();
-                        if (version !== sAppVersion) {
-                            var newVersion = new AppVersion(version);
-                            if ((newVersion.major > appVersion.major ||
-                                (newVersion.major == appVersion.major && newVersion.minor > appVersion.minor)) &&
-                                !bReset) {
-                                msg = "An update of the major or minor release version may result in incompatibilitiy problems! Force only after studying changelog!";
+                    if (!bReset && this._vcs['client'] === VcsEnum.GIT) {
+                        if (version) {
+                            var v;
+                            if (version === 'latest') {
+                                var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
+                                var response = await this.getWebClient().curl(url);
+                                v = response['version'];
                             } else
-                                bUpdate = true;
-                        } else {
-                            Logger.info("[App] Already up to date");
-                            msg = "Already up to date";
-                        }
+                                v = version;
+
+                            var appVersion = this._versionController.getPkgVersion();
+                            var sAppVersion = appVersion.toString();
+                            if (v !== sAppVersion) {
+                                var newVersion = new AppVersion(v);
+                                if (newVersion.major > appVersion.major ||
+                                    (newVersion.major == appVersion.major && newVersion.minor > appVersion.minor)) {
+                                    msg = "An update of the major or minor release version may result in incompatibilitiy problems! Force only after studying changelog!";
+                                } else
+                                    bUpdate = true;
+                            } else {
+                                Logger.info("[App] Already up to date");
+                                msg = "Already up to date";
+                            }
+                        } else
+                            bUpdate = true;
                     } else
                         bUpdate = true;
 
@@ -773,9 +800,18 @@ class WebServer {
         });
     }
 
-    _addApiRoute() {
+    _addApiRoutes() {
         var apiRouter = express.Router();
-        apiRouter.route('*')
+
+        this._addDataRoute(apiRouter);
+        this._addExtensionRoute(apiRouter);
+
+        this._app.use('/api', apiRouter);
+    }
+
+    _addDataRoute(router) {
+        var dataRouter = express.Router();
+        dataRouter.route('*')
             .all(async function (req, res, next) {
                 var bSent = false;
 
@@ -821,7 +857,35 @@ class WebServer {
                     next();
                 return Promise.resolve();
             }.bind(this));
-        this._app.use('/api/' + this._apiVersion, apiRouter);
+        router.use('/data/' + this._apiVersion, dataRouter);
+    }
+
+    _addExtensionRoute(router) {
+        router.use('/ext', async function (req, res, next) {
+            var bSent = false;
+            var r;
+            for (var route of this._extRoutes) {
+                if (route['regex'] && route['fn']) {
+                    var match = new RegExp(route['regex'], 'ig').exec(req.path);
+                    if (match) {
+                        if (!req.locals)
+                            req.locals = { 'match': match };
+                        else
+                            req.locals['match'] = match;
+                        r = route;
+                        break;
+                    }
+                }
+            }
+            if (r) {
+                await r['fn'](req, res);
+                bSent = true;
+            } else
+                next(); // res.send('Unknown extension');
+            if (!bSent && !res.headersSent)
+                next();
+            return Promise.resolve();
+        }.bind(this));
     }
 
     async teardown() {
@@ -839,13 +903,11 @@ class WebServer {
     }
 
     async getMatchingCustomRoute(req) {
-        //console.log(req.path); // originalUrl = baseUrl + path; url = path with query; baseUrl = /api/v1
+        //console.log(req.path); // originalUrl = baseUrl + path; url = path with query; baseUrl = /api/data/v1
         var res;
         for (var route of this._routes) {
             if (route['regex'] && route['fn']) {
-                var match;
-                if (route['regex'].startsWith('^/'))
-                    match = new RegExp(route['regex'], 'ig').exec(req.path);
+                var match = new RegExp(route['regex'], 'ig').exec(req.path);
                 if (match) {
                     if (!req.locals)
                         req.locals = { 'match': match };

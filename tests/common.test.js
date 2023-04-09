@@ -35,7 +35,7 @@ beforeAll(async () => {
 
     webclient = new WebClient();
 
-    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api"
+    apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api/data/v1"
     apiHelper = new ApiHelper(apiUrl, webclient);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -93,7 +93,7 @@ test('media', async function () {
     var url = apiUrl + "/media";
     await webclient.post(url, media);
 
-    data = await webclient.curl(url);
+    data = await apiHelper.getData(url);
     expect(data.length).toEqual(1);
 
     expect(data[0]['base64']).toEqual(base64);
@@ -118,7 +118,7 @@ test('files', async function () {
     var url = apiUrl + "/files";
     await webclient.post(url, fData);
 
-    data = await webclient.curl(url);
+    data = await apiHelper.getData(url);
     expect(data.length).toEqual(1);
 
     var file = data[0]['file'];
@@ -152,7 +152,7 @@ test('snippets', async function () {
     var url = apiUrl + "/snippets";
     await webclient.post(url, snippet);
 
-    data = await webclient.curl(url);
+    data = await apiHelper.getData(url);
     expect(data.length).toEqual(1);
 
     res = data[0];
@@ -186,7 +186,7 @@ test('snippets', async function () {
     res = await webclient.post(url, snippet);
     var id = res['data']['id'];
 
-    res = await webclient.curl(url + "/" + id);
+    res = await apiHelper.getData(url + "/" + id);
     delete res['id'];
     delete res['created_at'];
     delete res['updated_at'];

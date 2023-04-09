@@ -37,7 +37,7 @@ beforeAll(async () => {
         webclient = new WebClient();
 
         rootUrl = "http://localhost:" + controller.getServerConfig()['port'];
-        apiUrl = rootUrl + "/api";
+        apiUrl = rootUrl + "/api/data/v1";
         apiHelper = new ApiHelper(apiUrl, webclient);
         databaseHelper = new DatabaseHelper(shelf);
 
@@ -95,7 +95,7 @@ test('youtube', async function () {
 
     var idUrl = url + '/' + res['data']['id'];
     await webclient.delete(idUrl);
-    data = await webclient.curl(url);
+    data = await apiHelper.getData(url);
     expect(data.length).toEqual(0);
     expect(fs.existsSync(fPath)).toEqual(false);
 
