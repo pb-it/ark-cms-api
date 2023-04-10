@@ -833,7 +833,7 @@ class WebServer {
                 try {
                     var route = await this.getMatchingCustomRoute(req);
                     if (route)
-                        await route['fn'](req, res);
+                        await route['fn'](req, res, next);
                     else
                         await this._controller.processRequest(req, res);
                     bSent = true;
@@ -878,7 +878,7 @@ class WebServer {
                 }
             }
             if (r) {
-                await r['fn'](req, res);
+                await r['fn'](req, res, next);
                 bSent = true;
             } else
                 next(); // res.send('Unknown extension');
