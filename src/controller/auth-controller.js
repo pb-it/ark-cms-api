@@ -201,7 +201,7 @@ class AuthController {
                     }
                 },
                 "extensions": {
-                    "client": "this._prepareDataAction = function (data) {\n    var str = \"\";\n    if (data['user'])\n        str += \"U(\" + data['user']['username'] + \")\";\n    else if (data['role'])\n        str += \"G(\" + data['role']['role'] + \")\";\n    if (data['model'])\n        str += \" - \" + data['model']['definition']['name'] + \" - \";\n    if (data['read'])\n\tstr += \"R\";\n    if (data['write'])\n\tstr += \"W\";\n    data['title'] = str;\n    return data;\n}"
+                    "client": "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['user'])\n         str += \"U(\" + data['user']['username'] + \")\";\n      else if (data['role'])\n         str += \"G(\" + data['role']['role'] + \")\";\n      if (data['model'])\n         str += \" - \" + data['model']['definition']['name'] + \" - \";\n      if (data['read'])\n\t str += \"R\";\n      if (data['write'])\n\t str += \"W\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };"
                 }
             }
             this._permissionModel = await shelf.upsertModel(null, definition);

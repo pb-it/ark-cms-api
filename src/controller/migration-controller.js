@@ -68,6 +68,15 @@ class MigrationController {
                     if (extensions)
                         definition['extensions'] = extensions;
                     break;
+                case '0.3.0-beta':
+                case '0.3.2-beta':
+                case '0.4.0-beta':
+                case '0.4.1-beta':
+                case '0.4.2-beta':
+                case '0.4.3-beta':
+                case '0.4.4-beta':
+                case '0.4.5-beta':
+                    break;
                 default:
             }
         }
@@ -199,6 +208,33 @@ class MigrationController {
                                 if (!rs || rs.length == 0)
                                     await pModel.create(permission);
                             }
+                        }
+                        break;
+                    case '0.4.5-beta':
+                        var def;
+                        var model = this._shelf.getModel('_model');
+                        if (model) {
+                            def = model.getDefinition();
+                            if (def['extensions'] && def['extensions']['client'])
+                                def['extensions']['client'] = "function init() {\n   this._prepareDataAction = function (data) {\n      if (data['definition'])\n         data['name'] = data['definition']['name'];\n      return data;\n   }\n}\n\nexport { init };";
+                            await this._shelf.upsertModel(model.getId(), def);
+                            await model.initModel();
+                        }
+                        model = this._shelf.getModel('_change');
+                        if (model) {
+                            def = model.getDefinition();
+                            if (def['extensions'] && def['extensions']['client'])
+                                def['extensions']['client'] = "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['method'])\n         str += data['method'] + \": \";\n      if (data['model'])\n         str += data['model'];\n      if (data['record_id'])\n         str += \"(\" + data['record_id'] + \")\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };";
+                            await this._shelf.upsertModel(model.getId(), def);
+                            await model.initModel();
+                        }
+                        model = this._shelf.getModel('_permission');
+                        if (model) {
+                            def = model.getDefinition();
+                            if (def['extensions'] && def['extensions']['client'])
+                                def['extensions']['client'] = "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['user'])\n         str += \"U(\" + data['user']['username'] + \")\";\n      else if (data['role'])\n         str += \"G(\" + data['role']['role'] + \")\";\n      if (data['model'])\n         str += \" - \" + data['model']['definition']['name'] + \" - \";\n      if (data['read'])\n\t str += \"R\";\n      if (data['write'])\n\t str += \"W\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };";
+                            await this._shelf.upsertModel(model.getId(), def);
+                            await model.initModel();
                         }
                         break;
                     default:

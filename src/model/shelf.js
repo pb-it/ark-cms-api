@@ -40,7 +40,7 @@ class Shelf {
                 }
             },
             "extensions": {
-                "client": "this._prepareDataAction = function (data) {\n    if (data['definition'])\n        data['name'] = data['definition']['name'];\n    return data;\n}"
+                "client": "function init() {\n   this._prepareDataAction = function (data) {\n      if (data['definition'])\n         data['name'] = data['definition']['name'];\n      return data;\n   }\n}\n\nexport { init };"
             }
         }
         var mModel = new Model(this, null, definition);
@@ -93,7 +93,7 @@ class Shelf {
                     }
                 ],
                 "extensions": {
-                    "client": "this._prepareDataAction = function (data) {\n    var str = \"\";\n    if (data['method'])\n        str += data['method'] + \": \";\n    if (data['model'])\n        str += data['model'];\n    if (data['record_id'])\n\tstr += \"(\" + data['record_id'] + \")\";\n    data['title'] = str;\n    return data;\n}"
+                    "client": "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['method'])\n         str += data['method'] + \": \";\n      if (data['model'])\n         str += data['model'];\n      if (data['record_id'])\n         str += \"(\" + data['record_id'] + \")\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };"
                 }
             }
             mChange = await this.upsertModel(null, definition);
