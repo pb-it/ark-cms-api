@@ -406,7 +406,7 @@ class Model {
                 var tableInfo = await table.columnInfo();
                 if (tableInfo.hasOwnProperty(attribute['name'])) {
                     var resultset = await knex.select('id as ' + id, attribute['name'] + " as " + fid).from(this._tableName).where(attribute['name'], 'is not', null);
-                    console.log(resultset);
+                    //console.log(resultset);
                     await knex(relTable).insert(resultset);
                     return Promise.resolve();
                 }
@@ -721,24 +721,18 @@ class Model {
                 attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                 if (attr) {
                     if (attr['dataType'] === "file") {
-                        if (attr['storage'] == 'base64') {
-                            if (data[str]) {
+                        if (data[str]) {
+                            if (attr['storage'] == 'base64') {
                                 if (data[str]['url'] && data[str]['url'].startsWith("http"))
                                     forge[str] = await controller.getWebClient().fetchBase64(data[str]['url']);
                                 else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
                                     forge[str] = data[str]['base64'];
-                            } else
-                                forge[str] = null;
-                        } else if (attr['storage'] == 'blob') {
-                            if (data[str]) {
+                            } else if (attr['storage'] == 'blob') {
                                 if (data[str]['blob'])
                                     forge[str] = data[str]['blob'];
-                            } else
-                                forge[str] = null;
-                        } else if (attr['storage'] == 'filesystem') {
-                            var localPath = controller.getPathForFile(attr);
-                            if (localPath) {
-                                if (data[str]) {
+                            } else if (attr['storage'] == 'filesystem') {
+                                var localPath = controller.getPathForFile(attr);
+                                if (localPath) {
                                     var tmpDir = await controller.getTmpDir();
                                     var tmpFilePath;
                                     var fileName;
@@ -823,22 +817,26 @@ class Model {
                                         forge[str] = fileName;
                                     else
                                         forge[str] = null;
+                                } else
+                                    throw new Error("Invalid CDN path!");
+                            }
+                            if (attr['filename_prop'] && data[str]['filename'])
+                                forge[attr['filename_prop']] = data[str]['filename'];
+                            if (attr['url_prop']) {
+                                if (data[str]['url']) {
+                                    if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
+                                        forge[attr['url_prop']] = data[str]['url'];
                                 } else {
-                                    //TODO: delete file if old entry exists
-                                    forge[str] = null;
+                                    if (old && old[attr['url_prop']])
+                                        forge[attr['url_prop']] = null;
                                 }
-                            } else
-                                throw new Error("Invalid CDN path!");
-                        }
-                        if (attr['filename_prop'] && data[str]['filename'])
-                            forge[attr['filename_prop']] = data[str]['filename'];
-                        if (attr['url_prop']) {
-                            if (data[str]['url']) {
-                                if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
-                                    forge[attr['url_prop']] = data[str]['url'];
-                            } else {
-                                if (old && old[attr['url_prop']])
-                                    forge[attr['url_prop']] = null;
+                            }
+                        } else {
+                            forge[str] = null;
+                            if (attr['filename_prop'])
+                                forge[attr['filename_prop']] = null;
+                            if (attr['url_prop']) {
+                                forge[attr['url_prop']] = null;
                             }
                         }
                     } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)

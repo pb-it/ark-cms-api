@@ -97,9 +97,9 @@ module.exports.preCreateHook = async function (data) {
     ... // manipulate the data here!
 
     // as example by crawling a given website
-    const ext = await controller.getExtensionController().getExtension('http-agent');
-    const {agent} = ext['module'];
-    var body = agent.request(data['url']);
+    const ext = controller.getExtensionController().getExtension('http-proxy');
+    const { HttpProxy } = ext['module'];
+    var body = HttpProxy.request(data['url']);
     const doc = new JSDOM(body).window.document;
     ...
 

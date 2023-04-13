@@ -531,7 +531,7 @@ class Controller {
                                     if (key != 'id') {
                                         attribute = model.getAttribute(key);
                                         if (attribute) {
-                                            if (attribute['dataType'] == 'file' && req.body[key]['base64'])
+                                            if (attribute['dataType'] == 'file' && req.body[key] && req.body[key]['base64'])
                                                 protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
                                             else
                                                 protocol[key] = req.body[key];

@@ -106,9 +106,9 @@ class QueryParser {
                         relAttr = attribute;
                     else if (attribute['dataType'] == "boolean") {
                         if (!operator) {
-                            if (value == 'true')
+                            if (value == 'true' || value == 'on')
                                 value = '1';
-                            else if (value == 'false')
+                            else if (value == 'false' || value == 'off')
                                 value = '0';
                         }
                     }
