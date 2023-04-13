@@ -19,7 +19,7 @@
 
 `/sys/update?version=latest` or `v=latest` 
 
-`/sys/update?reset=true` or `force=true` executes `git reset --hard`
+`/sys/update?reset=true` executes `git reset --hard`
 
 > Be aware that this will delete all local changes!
 > 
@@ -27,6 +27,7 @@
 
 with option `rm=true` also the `node_modules` directory will be deleted and all dependencies new fetched
 
+with option `force=true` warnings regarding incompatibilities with an upgrade of minor or major release versions will be ignored
 
 #### Reload models
 
