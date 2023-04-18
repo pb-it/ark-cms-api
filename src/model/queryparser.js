@@ -200,7 +200,7 @@ class QueryParser {
                     case 'containsAll': // includesEvery
                         if (Array.isArray(value)) {
                             qb.whereIn(fid, value)
-                                .groupBy(id)
+                                .groupBy(junctionTable + '.' + id)
                                 .havingRaw('COUNT(*) >= ?', value.length);
                         } else
                             qb.where(fid, value);
