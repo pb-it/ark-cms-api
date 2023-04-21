@@ -720,127 +720,135 @@ class Model {
             if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
                 attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                 if (attr) {
-                    if (attr['dataType'] === "file") {
-                        if (data[str]) {
-                            if (attr['storage'] == 'base64') {
-                                if (data[str]['url'] && data[str]['url'].startsWith("http"))
-                                    forge[str] = await controller.getWebClient().fetchBase64(data[str]['url']);
-                                else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
-                                    forge[str] = data[str]['base64'];
-                            } else if (attr['storage'] == 'blob') {
-                                if (data[str]['blob'])
-                                    forge[str] = data[str]['blob'];
-                            } else if (attr['storage'] == 'filesystem') {
-                                var localPath = controller.getPathForFile(attr);
-                                if (localPath) {
-                                    var tmpDir = await controller.getTmpDir();
-                                    var tmpFilePath;
-                                    var fileName;
-                                    if (data[str]['filename'])
-                                        fileName = data[str]['filename'];
-                                    if (data[str]['base64']) {
-                                        if (data[str]['base64'].startsWith("data:")) {
-                                            if (fileName) {
-                                                tmpFilePath = path.join(tmpDir, fileName);
-                                                if (fs.existsSync(tmpFilePath))
-                                                    throw new Error("File already exists!");
-                                            } else {
-                                                var ext = base64.getExtension(data[str]['base64']);
-                                                do {
-                                                    fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
+                    if (!attr.hasOwnProperty("persistent") || attr.persistent == true) {
+                        if (attr['dataType'] === 'timestamp' || attr['dataType'] === 'datetime') {
+                            var value = data[str];
+                            if (value && (typeof value === 'string' || value instanceof String) && value.endsWith('Z'))
+                                forge[str] = value.substring(0, value.length - 1) + '+00:00';
+                            else
+                                forge[str] = value;
+                        } else if (attr['dataType'] === 'file') {
+                            if (data[str]) {
+                                if (attr['storage'] == 'base64') {
+                                    if (data[str]['url'] && data[str]['url'].startsWith("http"))
+                                        forge[str] = await controller.getWebClient().fetchBase64(data[str]['url']);
+                                    else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
+                                        forge[str] = data[str]['base64'];
+                                } else if (attr['storage'] == 'blob') {
+                                    if (data[str]['blob'])
+                                        forge[str] = data[str]['blob'];
+                                } else if (attr['storage'] == 'filesystem') {
+                                    var localPath = controller.getPathForFile(attr);
+                                    if (localPath) {
+                                        var tmpDir = await controller.getTmpDir();
+                                        var tmpFilePath;
+                                        var fileName;
+                                        if (data[str]['filename'])
+                                            fileName = data[str]['filename'];
+                                        if (data[str]['base64']) {
+                                            if (data[str]['base64'].startsWith("data:")) {
+                                                if (fileName) {
                                                     tmpFilePath = path.join(tmpDir, fileName);
-                                                } while (fs.existsSync(tmpFilePath));
-                                            }
-                                            base64.createFile(tmpFilePath, data[str]['base64']);
-                                        } else
-                                            throw new Error("Invalid base64 data!");
-                                    } else if (data[str]['url']) {
-                                        if (data[str]['url'].startsWith("http")) {
-                                            if (data[str]['force'] || !attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
-                                                if (fileName)
-                                                    tmpFilePath = path.join(tmpDir, fileName);
-                                                else {
-                                                    var ext = common.getFileExtensionFromUrl(data[str]['url']);
-                                                    if (ext) {
-                                                        ext = ext.toLowerCase();
-                                                        if (ext === "jpg!d")
-                                                            ext = "jpg";
-                                                        fileName = `${uid}.${ext}`;
-                                                    }
-                                                    var uid;
+                                                    if (fs.existsSync(tmpFilePath))
+                                                        throw new Error("File already exists!");
+                                                } else {
+                                                    var ext = base64.getExtension(data[str]['base64']);
                                                     do {
-                                                        uid = crypto.randomBytes(16).toString("hex");
-                                                        if (ext)
-                                                            fileName = `${uid}.${ext}`;
-                                                        else
-                                                            fileName = uid;
+                                                        fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
                                                         tmpFilePath = path.join(tmpDir, fileName);
                                                     } while (fs.existsSync(tmpFilePath));
                                                 }
-                                                fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
-                                                tmpFilePath = path.join(tmpDir, fileName);
-                                            }
-                                        } else
-                                            throw new Error("Invalid URL!");
-                                    }
-
-                                    if (tmpFilePath) {
-                                        if (old && old[str]) {
-                                            var oldFile = path.join(localPath, old[str]);
-                                            if (fs.existsSync(oldFile))
-                                                fs.unlinkSync(oldFile);
+                                                base64.createFile(tmpFilePath, data[str]['base64']);
+                                            } else
+                                                throw new Error("Invalid base64 data!");
+                                        } else if (data[str]['url']) {
+                                            if (data[str]['url'].startsWith("http")) {
+                                                if (data[str]['force'] || !attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
+                                                    if (fileName)
+                                                        tmpFilePath = path.join(tmpDir, fileName);
+                                                    else {
+                                                        var ext = common.getFileExtensionFromUrl(data[str]['url']);
+                                                        if (ext) {
+                                                            ext = ext.toLowerCase();
+                                                            if (ext === "jpg!d")
+                                                                ext = "jpg";
+                                                            fileName = `${uid}.${ext}`;
+                                                        }
+                                                        var uid;
+                                                        do {
+                                                            uid = crypto.randomBytes(16).toString("hex");
+                                                            if (ext)
+                                                                fileName = `${uid}.${ext}`;
+                                                            else
+                                                                fileName = uid;
+                                                            tmpFilePath = path.join(tmpDir, fileName);
+                                                        } while (fs.existsSync(tmpFilePath));
+                                                    }
+                                                    fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
+                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                }
+                                            } else
+                                                throw new Error("Invalid URL!");
                                         }
-                                        // fs.rename fails if two separate partitions are involved
-                                        if (data[str]['force'])
-                                            fs.copyFileSync(tmpFilePath, path.join(localPath, fileName));
-                                        else
-                                            fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
-                                        fs.unlinkSync(tmpFilePath);
-                                    } else {
-                                        if (fileName) {
-                                            if (old && old[str] && old[str] != fileName) {
+
+                                        if (tmpFilePath) {
+                                            if (old && old[str]) {
                                                 var oldFile = path.join(localPath, old[str]);
-                                                var newFile = path.join(localPath, fileName);
-                                                if (fs.existsSync(oldFile) && !fs.existsSync(newFile))
-                                                    fs.renameSync(oldFile, newFile);
+                                                if (fs.existsSync(oldFile))
+                                                    fs.unlinkSync(oldFile);
                                             }
+                                            // fs.rename fails if two separate partitions are involved
+                                            if (data[str]['force'])
+                                                fs.copyFileSync(tmpFilePath, path.join(localPath, fileName));
+                                            else
+                                                fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
+                                            fs.unlinkSync(tmpFilePath);
                                         } else {
-                                            if (old && old[str] && data[str]['delete']) {
-                                                var file = path.join(localPath, old[str]);
-                                                if (fs.existsSync(file))
-                                                    fs.unlinkSync(file);
+                                            if (fileName) {
+                                                if (old && old[str] && old[str] != fileName) {
+                                                    var oldFile = path.join(localPath, old[str]);
+                                                    var newFile = path.join(localPath, fileName);
+                                                    if (fs.existsSync(oldFile) && !fs.existsSync(newFile))
+                                                        fs.renameSync(oldFile, newFile);
+                                                }
+                                            } else {
+                                                if (old && old[str] && data[str]['delete']) {
+                                                    var file = path.join(localPath, old[str]);
+                                                    if (fs.existsSync(file))
+                                                        fs.unlinkSync(file);
+                                                }
                                             }
                                         }
-                                    }
 
-                                    if (fileName)
-                                        forge[str] = fileName;
-                                    else
-                                        forge[str] = null;
-                                } else
-                                    throw new Error("Invalid CDN path!");
-                            }
-                            if (attr['filename_prop'] && data[str]['filename'])
-                                forge[attr['filename_prop']] = data[str]['filename'];
-                            if (attr['url_prop']) {
-                                if (data[str]['url']) {
-                                    if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
-                                        forge[attr['url_prop']] = data[str]['url'];
-                                } else {
-                                    if (old && old[attr['url_prop']])
-                                        forge[attr['url_prop']] = null;
+                                        if (fileName)
+                                            forge[str] = fileName;
+                                        else
+                                            forge[str] = null;
+                                    } else
+                                        throw new Error("Invalid CDN path!");
+                                }
+                                if (attr['filename_prop'] && data[str]['filename'])
+                                    forge[attr['filename_prop']] = data[str]['filename'];
+                                if (attr['url_prop']) {
+                                    if (data[str]['url']) {
+                                        if (!old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url'])
+                                            forge[attr['url_prop']] = data[str]['url'];
+                                    } else {
+                                        if (old && old[attr['url_prop']])
+                                            forge[attr['url_prop']] = null;
+                                    }
+                                }
+                            } else {
+                                forge[str] = null;
+                                if (attr['filename_prop'])
+                                    forge[attr['filename_prop']] = null;
+                                if (attr['url_prop']) {
+                                    forge[attr['url_prop']] = null;
                                 }
                             }
-                        } else {
-                            forge[str] = null;
-                            if (attr['filename_prop'])
-                                forge[attr['filename_prop']] = null;
-                            if (attr['url_prop']) {
-                                forge[attr['url_prop']] = null;
-                            }
-                        }
-                    } else if (!attr.hasOwnProperty("persistent") || attr.persistent == true)
-                        forge[str] = data[str];
+                        } else
+                            forge[str] = data[str];
+                    }
                 } else if (str === 'id' && this._definition.options.increments) {
                     forge[str] = data[str];
                 } else

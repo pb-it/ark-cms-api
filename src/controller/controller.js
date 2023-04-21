@@ -499,10 +499,11 @@ class Controller {
                                 timestamp = data['created_at'];
                                 break;
                             case "GET":
+                                data = { 'timestamp': new Date() };
                                 if (id)
-                                    data = { 'data': await model.read(id) };
+                                    data['data'] = await model.read(id);
                                 else
-                                    data = { 'data': await model.readAll(req.query) };
+                                    data['data'] = await model.readAll(req.query);
                                 break;
                             case "PUT":
                                 data = await model.update(id, req.body);
