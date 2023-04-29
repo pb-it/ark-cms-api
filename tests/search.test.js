@@ -167,17 +167,17 @@ test('movie_db', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('2');
 
-    urlSearch = apiUrl + "/stars?movies_containsAny=1,3";
+    urlSearch = apiUrl + "/stars?movies_any=1,3";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2');
 
-    urlSearch = apiUrl + "/stars?movies_containsAll=1,3";
+    urlSearch = apiUrl + "/stars?movies_every=1,3";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1');
 
-    urlSearch = apiUrl + "/stars?movies_ncontainsAny=3";
+    urlSearch = apiUrl + "/stars?movies_none=3";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('3,4,5,6,7');

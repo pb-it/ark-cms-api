@@ -23,6 +23,6 @@
 
 #### Arrays / Relations
 
-* containsAny
-* ncontainsAny
-* containsAll
+* any
+* none
+* every

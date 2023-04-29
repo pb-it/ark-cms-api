@@ -161,7 +161,8 @@ class WebClient {
                 if (parts.length == 2)
                     extFromHeader = parts[1];
                 parts = extFromHeader.split(';');
-                extFromHeader = parts[0];
+                if (parts[0] != 'octet-stream') // 'application/octet-stream', 'binary/octet-stream'
+                    extFromHeader = parts[0];
             }
             if (extFromHeader) {
                 var bChanged = false;

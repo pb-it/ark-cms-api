@@ -1,6 +1,6 @@
 const inflection = require('inflection');
 
-const operators = ['null', 'count', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'containsAny', 'ncontainsAny', 'containsAll'];
+const operators = ['null', 'count', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'any', 'none', 'every'];
 
 class QueryParser {
 
@@ -130,7 +130,7 @@ class QueryParser {
                             val = value.split(',').map(Number);
                     }
                     if (!operator)
-                        operator = 'containsAny';
+                        operator = 'any';
                     fn = this._queryRelation(relAttr, operator, val);
                 }
             } else {
@@ -184,20 +184,19 @@ class QueryParser {
                                 .havingRaw('COUNT(*) = ?', [count]);
                         }
                         break;
-                    case 'containsAny': // includesSome
-                    case 'in':
+                    case 'any': // containsAny / includesSome
                         if (Array.isArray(value))
                             qb.whereIn(fid, value);
                         else
                             qb.where(fid, value);
                         break;
-                    case 'ncontainsAny':
+                    case 'none':
                         if (Array.isArray(value))
                             qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
                         else
                             qb.where(fid, 'is not', value);
                         break;
-                    case 'containsAll': // includesEvery
+                    case 'every': // containsAll / includesEvery
                         if (Array.isArray(value)) {
                             qb.whereIn(fid, value)
                                 .groupBy(junctionTable + '.' + id)
