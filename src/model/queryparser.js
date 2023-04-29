@@ -204,6 +204,8 @@ class QueryParser {
                         } else
                             qb.where(fid, value);
                         break;
+                    default:
+                        throw new Error(`unkown operator: ${operation}`);
                 }
             };
         } else

@@ -157,12 +157,12 @@ test('movie_db', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2');
 
-    urlSearch = apiUrl + "/stars?movies_in=3";
+    urlSearch = apiUrl + "/stars?movies_any=3";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2');
 
-    urlSearch = apiUrl + "/stars?movies_in=3&id_nin=1";
+    urlSearch = apiUrl + "/stars?movies_any=3&id_nin=1";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('2');
