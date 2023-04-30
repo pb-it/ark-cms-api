@@ -152,17 +152,18 @@ class WebClient {
             var extFromHeader;
             var type = stream.headers['content-type'];
             var disposition = stream.headers['content-disposition'];
-            if (disposition) {
+            if (disposition && disposition != 'inline') {
                 extFromHeader = disposition.substr(disposition.lastIndexOf('.') + 1);
                 if (extFromHeader.endsWith('"'))
                     extFromHeader = extFromHeader.substr(0, extFromHeader.length - 1);
             } else if (type) {
                 var parts = type.split('/');
-                if (parts.length == 2)
+                if (parts.length == 2 && !parts[1].startsWith('octet-stream')) {// 'application/octet-stream', 'binary/octet-stream'
                     extFromHeader = parts[1];
-                parts = extFromHeader.split(';');
-                if (parts[0] != 'octet-stream') // 'application/octet-stream', 'binary/octet-stream'
-                    extFromHeader = parts[0];
+                    parts = extFromHeader.split(';');
+                    if (parts[0])
+                        extFromHeader = parts[0];
+                }
             }
             if (extFromHeader) {
                 var bChanged = false;
