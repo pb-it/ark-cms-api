@@ -4,7 +4,7 @@ async function sleep(ms) {
 
 async function exec(cmd) {
     return new Promise((resolve, reject) => {
-        require("child_process").exec(cmd, function (err, stdout, stderr) {
+        require("child_process").exec(cmd, { maxBuffer: undefined }, function (err, stdout, stderr) {
             if (err)
                 reject(err);
             else {

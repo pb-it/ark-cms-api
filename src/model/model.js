@@ -647,6 +647,7 @@ class Model {
         var obj;
         if (this._definition.options.increments) {
             obj = await this._book.where({ 'id': id }).fetch({
+                'withRelated': this._relationNames,
                 'require': true
             });
         } else {
@@ -659,6 +660,7 @@ class Model {
                 }
             }
             obj = await this._book.where(key).fetch({
+                'withRelated': this._relationNames,
                 'require': false
             });
         }

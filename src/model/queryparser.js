@@ -1,6 +1,7 @@
 const inflection = require('inflection');
 
-const operators = ['null', 'count', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte', 'any', 'none', 'every'];
+const OPERATORS = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte'];
+const OPERATORS_MULTI_REL = ['null', 'count', 'any', 'none', 'every'];
 
 class QueryParser {
 
@@ -92,7 +93,7 @@ class QueryParser {
                 propName = prop;
             else {
                 var end = prop.substring(index + 1);
-                if (operators.includes(end)) {
+                if (OPERATORS.includes(end) || OPERATORS_MULTI_REL.includes(end)) {
                     propName = prop.substring(0, index);
                     operator = end;
                 } else
@@ -134,9 +135,12 @@ class QueryParser {
                     fn = this._queryRelation(relAttr, operator, val);
                 }
             } else {
-                if (operator)
-                    fn = this._queryComparisonOperation(propName, operator, value);
-                else {
+                if (operator) {
+                    if (OPERATORS.includes(operator))
+                        fn = this._queryComparisonOperation(propName, operator, value);
+                    else
+                        throw new Error(`unkown operator: ${operator}`);
+                } else {
                     fn = function (qb) {
                         if (Array.isArray(value))
                             qb.where(propName, 'in', value);
@@ -302,7 +306,8 @@ class QueryParser {
                     qb.where(prop, '>=', value);
                     break;
                 default:
-                    qb.where(prop, value);
+                    //qb.where(prop, value);
+                    throw new Error(`unkown operator: ${operator}`);
             }
         }
     }

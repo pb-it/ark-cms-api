@@ -71,6 +71,7 @@ class ExtensionController {
                         "name": "archive",
                         "dataType": "file",
                         "storage": "blob",
+                        "length": 16777216,
                         "hidden": true
                     },
                     {
