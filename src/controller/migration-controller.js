@@ -94,7 +94,7 @@ class MigrationController {
     constructor(controller) {
         this._controller = controller;
         this._shelf = this._controller.getShelf();
-        this._models = this._shelf.getModels();
+        this._models = this._shelf.getModel();
     }
 
     async migrateDatabase(bForce) {
@@ -209,7 +209,6 @@ class MigrationController {
                                     await pModel.create(permission);
                             }
                         }
-                        break;
                     case '0.4.5-beta':
                         var def;
                         var model = this._shelf.getModel('_model');
@@ -236,6 +235,26 @@ class MigrationController {
                             await this._shelf.upsertModel(model.getId(), def);
                             await model.initModel();
                         }
+                    case '0.5.1-beta':
+                        var def;
+                        var tableName;
+                        var models = this._shelf.getModel();
+                        if (models) {
+                            for (var model of models) {
+                                def = model.getDefinition();
+                                if (def['options']['timestamps']) {
+                                    if (def['tableName'])
+                                        tableName = def['tableName'];
+                                    else
+                                        tableName = def['name'];
+                                    await knex.raw('ALTER TABLE ' + tableName + ' MODIFY created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
+                                    await knex.raw('ALTER TABLE ' + tableName + ' MODIFY updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
+                                }
+                            }
+                        }
+                        await knex.raw('ALTER TABLE _change MODIFY timestamp TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
+                        await knex.raw('ALTER TABLE _user MODIFY last_login_at TIMESTAMP(3)');
+                        await knex.raw('ALTER TABLE _user MODIFY last_password_change_at TIMESTAMP(3)');
                         break;
                     default:
                 }

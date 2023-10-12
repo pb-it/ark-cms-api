@@ -518,7 +518,7 @@ class Controller {
                                     else
                                         data = await model.delete(req.body);
                                 }
-                                timestamp = this._knex.fn.now();
+                                timestamp = this._knex.fn.now(DEFAULT_TIMESTAMP_PRECISION);
                                 break;
                             default:
                                 throw new ValidationError("Unsuppourted method");
@@ -622,7 +622,7 @@ class Controller {
                     Logger.parseError(error);
                 }
                 if (id) {
-                    var models = this._shelf.getModels();
+                    var models = this._shelf.getModel();
                     var model;
                     for (var m of models) {
                         if (m.getId() == id) {

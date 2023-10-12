@@ -21,7 +21,6 @@ const { AuthController } = require('./auth-controller');
 const { AuthError } = require('./auth-controller');
 const { ExtensionError } = require('./extension-controller');
 const AppVersion = require('../common/app-version');
-const MigrationController = require('./migration-controller');
 
 const renderFile = (file, data) => {
     return new Promise((resolve, reject) => {

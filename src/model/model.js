@@ -10,6 +10,8 @@ const Logger = require(path.join(__dirname, '../common/logger/logger'));
 const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
 
+global.DEFAULT_TIMESTAMP_PRECISION = 3;
+
 class UnknownModelError extends Error {
     constructor(message) {
         super(message);
@@ -83,9 +85,13 @@ class Model {
                     if (this._definition.options.increments)
                         table.increments('id');
                     if (this._definition.options.timestamps) {
-                        table.timestamps(true, true);
-                        //table.dateTime('created_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
-                        //table.dateTime('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'));
+                        // https://knexjs.org/guide/schema-builder.html#timestamps
+                        if (controller.getDatabaseSettings()['client'].startsWith('mysql')) {
+                            //table.specificType('created_at', 'TIMESTAMP(3)').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP(3)')); // 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+                            table.timestamp('created_at', { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(knex.fn.now(DEFAULT_TIMESTAMP_PRECISION));
+                            table.timestamp('updated_at', { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(knex.fn.now(DEFAULT_TIMESTAMP_PRECISION));
+                        } else
+                            table.timestamps(true, true);
                     }
                 }
                 switch (this._definition.charEncoding) {
@@ -110,13 +116,13 @@ class Model {
             Logger.info("Added table '" + this._tableName + "'");
         } else {
             var tableInfo = await knex.table(this._tableName).columnInfo();
-            if (this._definition.options.timestamps) {
+            /*if (this._definition.options.timestamps) {
                 if (!tableInfo.hasOwnProperty('created_at') || !tableInfo.hasOwnProperty('updated_at')) {
                     await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
                         table.timestamps(true, true);
                     }.bind(this));
                 }
-            }
+            }*/
             if (this._definition.attributes) {
                 await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
                     await this._addColumns(table, tableInfo, this._definition.attributes);
@@ -295,31 +301,31 @@ class Model {
                     column.notNullable();
                 break;
             case "time":
-                var column = table.time(attribute.name, attribute.enum);
+                var column = table.time(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION });
                 if (attribute.defaultValue)
                     column.defaultTo(attribute.defaultValue);
                 if (attribute.required)
                     column.notNullable();
                 break;
             case "date":
-                var column = table.date(attribute.name, attribute.enum);
+                var column = table.date(attribute.name);
                 if (attribute.defaultValue)
                     column.defaultTo(attribute.defaultValue);
                 if (attribute.required)
                     column.notNullable();
                 break;
             case "datetime":
-                var column = table.datetime(attribute.name, attribute.enum);
+                var column = table.datetime(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION });
                 if (attribute.defaultValue)
                     column.defaultTo(attribute.defaultValue);
                 if (attribute.required)
                     column.notNullable();
                 break;
             case "timestamp":
-                var column = table.timestamp(attribute.name, attribute.enum);
+                var column = table.timestamp(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION });
                 if (attribute.defaultValue) {
                     if (attribute.defaultValue === 'CURRENT_TIMESTAMP')
-                        column.defaultTo(this._shelf.getKnex().raw('CURRENT_TIMESTAMP')); //table.timestamps(true, false);
+                        column.defaultTo(this._shelf.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION)); // column.defaultTo(this._shelf.getKnex().raw('CURRENT_TIMESTAMP'));
                     else
                         column.defaultTo(attribute.defaultValue);
                 }

@@ -66,7 +66,20 @@ class Shelf {
                     },
                     {
                         "name": "method",
-                        "dataType": "string"
+                        "dataType": "enumeration",
+                        "view": "select",
+                        "options": [
+                            {
+                                "value": "PUT"
+                            },
+                            {
+                                "value": "POST"
+                            },
+                            {
+                                "value": "DELETE"
+                            }
+                        ],
+                        "bUseString": true
                     },
                     {
                         "name": "model",
@@ -214,16 +227,15 @@ class Shelf {
 
     getModel(name) {
         var model;
-        if (this._models) {
-            var arr = this._models.filter(function (x) { return x.getName() === name });
-            if (arr && arr.length == 1)
-                model = arr[0];
-        }
+        if (name) {
+            if (this._models) {
+                var arr = this._models.filter(function (x) { return x.getName() === name });
+                if (arr && arr.length == 1)
+                    model = arr[0];
+            }
+        } else
+            model = this._models;
         return model;
-    }
-
-    getModels() {
-        return this._models;
     }
 }
 

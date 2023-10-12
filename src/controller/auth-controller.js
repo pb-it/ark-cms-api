@@ -283,7 +283,7 @@ class AuthController {
                     user = { 'username': username };
                     user['id'] = id;
                     user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
-                    await this._userModel.update(id, { 'last_login_at': this._controller.getKnex().fn.now() });
+                    await this._userModel.update(id, { 'last_login_at': this._controller.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
                 }
             }
         } catch (error) {
@@ -361,7 +361,7 @@ class AuthController {
         var bDone = false;
         user = await this.checkAuthentication(user, current_password);
         if (user && user['id']) {
-            await this._userModel.update(user['id'], { 'password': new_password, 'last_password_change_at': this._controller.getKnex().fn.now() });
+            await this._userModel.update(user['id'], { 'password': new_password, 'last_password_change_at': this._controller.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
             bDone = true;
         } else
             throw new AuthError('Invalid Credentials!');

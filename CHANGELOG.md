@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.5.2-beta](https://github.com/pb-it/wing-cms-api/0.5.2-beta) (2023-10-12)
+
+### NOTICE
+
+* Changed default precision for timestamps on MySQL databases to '3' / milliseconds
+
+
 ## [0.5.1-beta](https://github.com/pb-it/wing-cms-api/0.5.1-beta) (2023-04-29)
 
 * Minor changes
