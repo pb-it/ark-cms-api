@@ -491,12 +491,13 @@ class Controller {
                                 throw new ValidationError("Invalid path");
                         }
                         var data;
-                        var timestamp;
+                        var timestamp; // new Date(); req.headers["Date"]; this._knex.fn.now(DEFAULT_TIMESTAMP_PRECISION);
                         switch (req.method) {
                             case "POST":
                                 data = await model.create(req.body);
                                 id = data['id'];
-                                timestamp = data['created_at'];
+                                if (data['created_at'])
+                                    timestamp = data['created_at'];
                                 break;
                             case "GET":
                                 data = { 'timestamp': new Date() };
@@ -507,7 +508,8 @@ class Controller {
                                 break;
                             case "PUT":
                                 data = await model.update(id, req.body);
-                                timestamp = data['updated_at'];
+                                if (data['updated_at'])
+                                    timestamp = data['updated_at'];
                                 break;
                             case "DELETE":
                                 if (model.getDefinition().options.increments)
@@ -518,24 +520,29 @@ class Controller {
                                     else
                                         data = await model.delete(req.body);
                                 }
-                                timestamp = this._knex.fn.now(DEFAULT_TIMESTAMP_PRECISION);
                                 break;
                             default:
-                                throw new ValidationError("Unsuppourted method");
+                                throw new ValidationError("Unsupported method");
                         }
 
-                        if (timestamp) { //req.method !== "GET"
+                        if (req.method !== "GET") {
                             if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
                                 var protocol = {};
                                 var attribute;
-                                for (var key in req.body) {
-                                    if (key != 'id') {
+                                var bDelete = (req.method === "DELETE");
+                                var tmp;
+                                if (bDelete)
+                                    tmp = data;
+                                else
+                                    tmp = req.body;
+                                for (var key in tmp) {
+                                    if (bDelete || key != 'id') {
                                         attribute = model.getAttribute(key);
                                         if (attribute) {
-                                            if (attribute['dataType'] == 'file' && req.body[key] && req.body[key]['base64'])
-                                                protocol[key] = req.body[key]['base64'].substring(0, 80) + '...';
+                                            if (attribute['dataType'] == 'file' && tmp[key] && tmp[key]['base64'])
+                                                protocol[key] = tmp[key]['base64'].substring(0, 80) + '...';
                                             else
-                                                protocol[key] = req.body[key];
+                                                protocol[key] = tmp[key];
                                         }
                                     }
                                 }
