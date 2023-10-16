@@ -5,7 +5,6 @@ const { Duplex } = require('stream');
 
 const Logger = require('../common/logger/logger');
 const AppVersion = require('../common/app-version');
-const MigrationController = require('./migration-controller');
 
 class ExtensionError extends Error {
     constructor(message) {
@@ -99,9 +98,10 @@ class ExtensionController {
 
     async loadAllExtensions(bClean) {
         this._extensions = [];
+
+        var p;
+        var stat;
         if (bClean) {
-            var p;
-            var stat;
             for (const item of fs.readdirSync(this._dir)) {
                 p = path.join(this._dir, item);
                 stat = fs.statSync(p);
@@ -109,10 +109,32 @@ class ExtensionController {
                     fs.rmSync(p, { recursive: true, force: true });
             }
         }
-        //const entries = await fs.promises.readdir(this._dir);
+
         var data = await this._model.readAll();
         for (var meta of data) {
-            await this._loadExtension(meta);
+            if (!this.getExtension(meta['name']))
+                await this._loadExtension(meta);
+        }
+
+        for (const item of fs.readdirSync(this._dir)) {
+            try {
+                p = path.join(this._dir, item);
+                stat = fs.statSync(p);
+                if (stat.isFile(p) && path.extname(p) == '.zip') {
+                    p = path.join(this._dir, item);
+                    data = await this._addExtension(p);
+                    if (data && data['id']) {
+                        Logger.info("[App] ✔ Added extension '" + data['name'] + "'");
+                        fs.rmSync(p);
+                    }
+                }
+            } catch (error) {
+                if (error instanceof ExtensionError) {
+                    Logger.info("[ExtensionController] ✘ " + error.message);
+                } else {
+                    Logger.parseError(error);
+                }
+            }
         }
         return Promise.resolve();
     }
@@ -143,6 +165,19 @@ class ExtensionController {
                     if (str.length > 0) {
                         var json = JSON.parse(str);
                         this._checkVersionCompatibility(json);
+                        var extDependencies = json['ext_dependencies'];
+                        if (extDependencies && Object.keys(extDependencies).length > 0) {
+                            var data = await this._model.readAll();
+                            var depMeta;
+                            for (let [key, value] of Object.entries(extDependencies)) {
+                                depMeta = data.filter(function (x) { return x['name'] === key });
+                                if (depMeta && depMeta.length == 1) {
+                                    if (!this.getExtension(key))
+                                        await this._loadExtension(depMeta);
+                                } else
+                                    throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which cannot be found!');
+                            }
+                        }
                         var npmDependencies = json['npm_dependencies'];
                         if (npmDependencies && Object.keys(npmDependencies).length > 0) {
                             var arr = [];
@@ -203,7 +238,7 @@ class ExtensionController {
             Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
         } else
             Logger.info("[ExtensionController] ✘ Loading extension '" + name + "' failed");
-        return Promise.resolve();
+        return Promise.resolve(bLoaded);
     }
 
     _checkVersionCompatibility(json) {
@@ -221,42 +256,61 @@ class ExtensionController {
 
     async addExtension(req) {
         var meta;
-        if (req.files && req.files['extension']) { // req.fields
+        var id;
+        if (req.method === "PUT") {
+            var parts = req.path.split('/'); // req.originalUrl = '/api/data/v1/_extension/x'
+            if (parts.length == 3)
+                id = parseInt(parts[2]);
+            else
+                throw new ExtensionError('Invalid extension ID');
+        }
+        if (req.files && req.files['extension']) {// req.fields
             var file = req.files['extension'];
-            if (file['type'] == 'application/zip') {
-                var tmpDir = this._controller.getTmpDir();
-                var extName = await ExtensionController._unzipStream(fs.createReadStream(file['path']), tmpDir);
-                if (extName) {
-                    var source = path.join(tmpDir, extName);
-                    var manifest = path.join(source, 'manifest.json');
-                    if (fs.existsSync(manifest)) {
-                        var str = fs.readFileSync(manifest, 'utf8');
-                        if (str.length > 0) {
-                            var json = JSON.parse(str);
-                            this._checkVersionCompatibility(json);
-                        }
-                    }
-                    var target = path.join(this._dir, extName);
-                    if (req.method === "PUT" && fs.existsSync(target))
-                        fs.rmSync(target, { recursive: true, force: true });
-                    //fs.renameSync(source, target); // fs.rename fails if two separate partitions are involved
-                    fs.cpSync(source, target, { recursive: true });
-                    fs.rmSync(source, { recursive: true, force: true });
-                    meta = {};
-                    meta['name'] = extName;
-                    meta['archive'] = { 'blob': fs.readFileSync(file['path']) };
-                    await this._loadExtension(meta, true);
-                    if (req.method === "PUT") {
-                        var parts = req.path.split('/'); // req.originalUrl = '/api/data/v1/_extension/x'
-                        if (parts.length == 3) {
-                            delete meta['name'];
-                            meta = await this._model.update(parseInt(parts[2]), meta);
-                        } else
-                            throw new Error('Invalid extension ID');
-                    } else
-                        meta = await this._model.create(meta);
+            if (file['type'] == 'application/zip' && file['path'])
+                meta = await this._addExtension(file['path'], id);
+            else
+                throw new ExtensionError('Extensions need to be uploaded as ZIP');
+        }
+        return Promise.resolve(meta);
+    }
+
+    async _addExtension(file, id) {
+        var meta;
+        var tmpDir = this._controller.getTmpDir();
+        var extName = await ExtensionController._unzipStream(fs.createReadStream(file), tmpDir);
+        if (extName) {
+            if (!id && this.getExtension(extName))
+                throw new ExtensionError("Skipped loading extension '" + extName + "', because no ID was provided and name already in use!");
+            var source = path.join(tmpDir, extName);
+            var manifest = path.join(source, 'manifest.json');
+            if (fs.existsSync(manifest)) {
+                var str = fs.readFileSync(manifest, 'utf8');
+                if (str.length > 0) {
+                    var json = JSON.parse(str);
+                    this._checkVersionCompatibility(json);
                 }
             }
+            var target = path.join(this._dir, extName);
+            if (fs.existsSync(target)) {
+                if (!id)
+                    Logger.warning("[ExtensionController] ⚠ Extension '" + extName + "' will overwrite existing folder '" + target + "'");
+                fs.rmSync(target, { recursive: true, force: true });
+            }
+            //fs.renameSync(source, target); // fs.rename fails if two separate partitions are involved
+            fs.cpSync(source, target, { recursive: true });
+            fs.rmSync(source, { recursive: true, force: true });
+            meta = {};
+            meta['name'] = extName;
+            meta['archive'] = { 'blob': fs.readFileSync(file) };
+            var bLoaded = await this._loadExtension(meta, true);
+            if (bLoaded) {
+                if (id) {
+                    delete meta['name'];
+                    meta = await this._model.update(id, meta);
+                } else
+                    meta = await this._model.create(meta);
+            } else
+                meta = null;
         }
         return Promise.resolve(meta);
     }

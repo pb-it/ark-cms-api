@@ -14,6 +14,7 @@ const WebServer = require('./webserver');
 const Registry = require('./registry');
 const VersionController = require('./version-controller');
 const DependencyController = require('./dependency-controller');
+const DataTypeController = require('./data-type-controller');
 const { ExtensionController } = require('./extension-controller');
 const MigrationController = require('./migration-controller');
 const { AuthController } = require('./auth-controller');
@@ -133,6 +134,8 @@ class Controller {
             this._dependencyController = new DependencyController(this);
             await this._dependencyController.init();
 
+            this._dataTypeController = new DataTypeController(this);
+
             this._extensionController = new ExtensionController(this);
             await this._extensionController.initExtensionController();
 
@@ -241,6 +244,10 @@ class Controller {
 
     getDependencyController() {
         return this._dependencyController;
+    }
+
+    getDataTypeController() {
+        return this._dataTypeController;
     }
 
     getExtensionController() {
@@ -443,7 +450,7 @@ class Controller {
                             res.json(data);
                             bSent = true;
                         } else
-                            throw new ValidationError("Adding extension failed");
+                            throw new ValidationError("Adding extension failed! Please have a look at the server log for further information!");
                     } else if (req.method === "DELETE") {
                         str = arr.shift();
                         if (str) {

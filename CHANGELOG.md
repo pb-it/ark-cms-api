@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.5.3-beta](https://github.com/pb-it/wing-cms-api/0.5.3-beta) (2023-10-16)
+
+### NOTICE
+
+* Added functions to enable custom data types
+
+
 ## [0.5.2-beta](https://github.com/pb-it/wing-cms-api/0.5.2-beta) (2023-10-12)
 
 ### NOTICE

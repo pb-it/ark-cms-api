@@ -620,24 +620,49 @@ class WebServer {
             res.send(evalForm);
         });
         router.post('/eval', async (req, res) => {
-            var cmd = req.body['cmd'];
-            var response;
-            if (cmd) {
-                Logger.info("[App] Evaluating command '" + cmd + "'");
-                try {
-                    //response = eval(code);
-                    var e = _eval(cmd, true);
-                    response = await e();
-                } catch (error) {
-                    response = error.toString();
+            try {
+                var cmd = req.body['cmd'];
+                if (cmd) {
+                    var response;
+                    Logger.info("[App] Evaluating command '" + cmd + "'");
+                    try {
+                        //response = eval(code);
+                        var e = _eval(cmd, true);
+                        response = await e();
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    var format = req.query['_format'];
+                    if (format) {
+                        if (format == 'text')
+                            res.send(response);
+                        else if (format == 'json')
+                            res.json({ 'response': response });
+                        else
+                            throw new Error('Unknown format!');
+                    } else {
+                        if (response) {
+                            if (typeof response === 'string' || response instanceof String)
+                                response = response.replaceAll('\n', '<br>');
+                        } else
+                            response = 'Empty response!'; //'An error occurred while processing your request!'
+                        var form = '<form action="/sys/tools/dev/eval" method="post">' +
+                            'Command:<br><textarea name="cmd" rows="10" cols="80">' + cmd + '</textarea><br>' +
+                            '<input type="submit" value="Evaluate"></form>';
+                        res.send(response + '<br>' + form);
+                    }
+                } else
+                    throw new Error('Empty request!');
+            } catch (error) {
+                if (error && error.message) {
+                    res.status(404);
+                    res.send(error.message);
                 }
-                if (response && (typeof response === 'string' || response instanceof String))
-                    response = response.replaceAll('\n', '<br>');
             }
-            var form = '<form action="/sys/tools/dev/eval" method="post">' +
-                'Command:<br><textarea name="cmd" rows="10" cols="80">' + cmd + '</textarea><br>' +
-                '<input type="submit" value="Evaluate"></form>';
-            res.send(response + '<br>' + form);
+            if (!res.headersSent) {
+                res.status(500);
+                res.send("Something went wrong!");
+            }
             return Promise.resolve();
         });
     }
@@ -655,23 +680,46 @@ class WebServer {
             res.send(form);
         });
         router.post('/func', async (req, res) => {
-            var code = req.body['code'];
-            var response;
-            if (code) {
-                Logger.info("[App] Running function '" + code + "'");
-                try {
-                    //response = new Function(code)();
-                    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-                    response = await new AsyncFunction(code)();
-                } catch (error) {
-                    response = error.toString();
+            try {
+                var code = req.body['code'];
+                if (code) {
+                    var response;
+                    Logger.info("[App] Running function '" + code + "'");
+                    try {
+                        //response = new Function(code)();
+                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+                        response = await new AsyncFunction(code)();
+                    } catch (error) {
+                        response = error.toString();
+                    }
+                    var format = req.query['_format'];
+                    if (format) {
+                        if (format == 'text')
+                            res.send(response);
+                        else if (format == 'json')
+                            res.json({ 'response': response });
+                        else
+                            throw new Error('Unknown format!');
+                    } else {
+                        if (response) {
+                            if (typeof response === 'string' || response instanceof String)
+                                response = response.replaceAll('\n', '<br>');
+                        } else
+                            response = 'Empty response!'; //'An error occurred while processing your request!'
+                        res.send(response + '<br><br>' + form);
+                    }
+                } else
+                    throw new Error('Empty request!');
+            } catch (error) {
+                if (error && error.message) {
+                    res.status(404);
+                    res.send(error.message);
                 }
-                if (response && (typeof response === 'string' || response instanceof String))
-                    response = response.replaceAll('\n', '<br>');
             }
-            if (!response)
-                response = 'Empty response!'; //'An error occurred while processing your request!'
-            res.send(response + '<br><br>' + form);
+            if (!res.headersSent) {
+                res.status(500);
+                res.send("Something went wrong!");
+            }
             return Promise.resolve();
         });
     }
@@ -685,32 +733,34 @@ class WebServer {
             res.send(execForm);
         });
         router.post('/exec', async (req, res) => {
-            var cmd = req.body['cmd'];
-            var response;
             try {
+                var cmd = req.body['cmd'];
                 if (cmd) {
+                    var response;
                     Logger.info("[App] Executing command '" + cmd + "'");
                     try {
                         response = await common.exec(cmd);
                     } catch (error) {
                         response = error.toString();
                     }
-                    if (response) {
-                        var format = req.query['_format'];
-                        if (format) {
-                            if (format == 'text')
-                                res.send(response);
-                            else if (format == 'json')
-                                res.json({ 'response': response });
-                            else
-                                throw new Error('Unknown format!');
-                        } else {
-                            if (response && (typeof response === 'string' || response instanceof String))
+                    var format = req.query['_format'];
+                    if (format) {
+                        if (format == 'text')
+                            res.send(response);
+                        else if (format == 'json')
+                            res.json({ 'response': response });
+                        else
+                            throw new Error('Unknown format!');
+                    } else {
+                        if (response) {
+                            if (typeof response === 'string' || response instanceof String)
                                 response = response.replaceAll('\n', '<br>');
-                            res.send(response + '<br>' + execForm);
-                        }
+                        } else
+                            response = 'Empty response!'; //'An error occurred while processing your request!'
+                        res.send(response + '<br>' + execForm);
                     }
-                }
+                } else
+                    throw new Error('Empty request!');
             } catch (error) {
                 if (error && error.message) {
                     res.status(404);
@@ -840,7 +890,10 @@ class WebServer {
                     var msg = Logger.parseError(error);
                     if (error && !res.headersSent) {
                         if (error instanceof ValidationError || error instanceof ExtensionError) {
-                            res.status(404);
+                            //res.status(400); // Bad Request
+                            //res.status(404);
+                            //res.status(409); // Conflict
+                            res.status(422); // Unprocessable Entity
                             res.send(error.message);
                         } else if (error.message && error.message === "EmptyResponse") {
                             res.status(404);

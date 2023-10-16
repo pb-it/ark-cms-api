@@ -255,6 +255,27 @@ class MigrationController {
                         await knex.raw('ALTER TABLE _change MODIFY timestamp TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
                         await knex.raw('ALTER TABLE _user MODIFY last_login_at TIMESTAMP(3)');
                         await knex.raw('ALTER TABLE _user MODIFY last_password_change_at TIMESTAMP(3)');
+                    case '0.5.2-beta':
+                        var def;
+                        var tableName;
+                        var models = this._shelf.getModel();
+                        var bUpdate;
+                        if (models) {
+                            for (var model of models) {
+                                def = model.getDefinition();
+                                bUpdate = false;
+                                for (var attr of def['attributes']) {
+                                    if (attr['dataType'] === 'text' && (attr['view'] || attr['bSyntaxPrefix'])) {
+                                        attr['dataType'] = 'mime-text';
+                                        bUpdate = true;
+                                    }
+                                }
+                                if (bUpdate) {
+                                    await this._shelf.upsertModel(model.getId(), def);
+                                    await model.initModel();
+                                }
+                            }
+                        }
                         break;
                     default:
                 }

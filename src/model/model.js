@@ -372,7 +372,12 @@ class Model {
                 //if (attribute['url_prop'])
                 break;
             default:
-                throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
+                const dtc = controller.getDataTypeController();
+                var dt = dtc.getDataType(attribute['dataType']);
+                if (dt && dt.add)
+                    dt.add(this, table, attribute);
+                else
+                    throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
         }
         Logger.info("Added column '" + attribute.name + "' to table '" + this._tableName + "'");
     }
