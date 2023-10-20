@@ -483,7 +483,7 @@ class Controller {
                         } else
                             throw new ValidationError("Invalid extension ID");
                     } else
-                        throw new ValidationError("Unsuppourted method");
+                        throw new ValidationError("Unsupported method");
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model && model.initDone()) {
@@ -707,7 +707,7 @@ class Controller {
 
     async _protocol(req, timestamp, method, model, id, data, uid) {
         if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-            if (!method)
+            if (!method && req)
                 method = req.method;
             if (!timestamp) {
                 if (id && method != 'DELETE' && (model == '_model' || model == '_extension')) {
@@ -716,7 +716,7 @@ class Controller {
                 } else
                     timestamp = null;
             }
-            if (!uid) {
+            if (!uid && req && req.session) {
                 var user = req.session.user;
                 if (user)
                     uid = user['id'];

@@ -529,7 +529,7 @@ class WebServer {
                 });
             } else {
                 var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/login.ejs'), { 'error': 'Login failed!' });
-                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.writeHead(401, { 'Content-Type': 'text/html;charset=utf-8' });
                 res.end(result);
             }
             return Promise.resolve();
@@ -612,8 +612,15 @@ class WebServer {
      */
     _addEvalRoute(router) {
         const evalForm = '<form action="/sys/tools/dev/eval" method="post">' +
-            'Command:<br><textarea name="cmd" rows="10" cols="80">async function test() {\n\tawait new Promise(resolve => ' +
-            'setTimeout(resolve, 1000));\n\treturn Promise.resolve(\'123\');\n}\n\nmodule.exports = test;</textarea><br>' +
+            'Command:<br><textarea name="cmd" rows="10" cols="80">' +
+            `// https://www.npmjs.com/package/eval
+async function test() {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return Promise.resolve(\'123\');
+};
+
+module.exports = test;` +
+            '</textarea><br>' +
             '<input type="submit" value="Evaluate"></form>';
 
         router.get('/eval', (req, res) => {
@@ -624,14 +631,26 @@ class WebServer {
                 var cmd = req.body['cmd'];
                 if (cmd) {
                     var response;
-                    Logger.info("[App] Evaluating command '" + cmd + "'");
-                    try {
-                        //response = eval(code);
-                        var e = _eval(cmd, true);
-                        response = await e();
-                    } catch (error) {
-                        response = error.toString();
-                    }
+                    var type;
+                    if (req.query)
+                        type = req.query['type'];
+                    if (!type || type === 'module') {
+                        Logger.info("[App] Evaluating command '" + cmd + "'");
+                        try {
+                            //response = eval(code);
+                            var e = _eval(cmd, true);
+                            if (typeof e === 'function') // e instanceof Function
+                                response = await e();
+                            else if (typeof e === 'object')
+                                response = JSON.stringify(e);
+                            else
+                                throw new Error('Evaluation failed!');
+                        } catch (error) {
+                            Logger.parseError(error);
+                            response = error.toString();
+                        }
+                    } else
+                        throw new Error('Input type not supported!');
                     var format = req.query['_format'];
                     if (format) {
                         if (format == 'text')
