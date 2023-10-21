@@ -33,7 +33,9 @@ class Model {
 
     _extension;
     _preCreateHook;
+    _postCreateHook;
     _preUpdateHook;
+    _postUpdateHook;
     _preDeleteHook;
     _postDeleteHook;
     _postReadHook;
@@ -65,8 +67,12 @@ class Model {
                     await this._extension.init.bind(this)();
                 if (this._extension.preCreateHook)
                     this.setPreCreateHook(this._extension.preCreateHook);
+                if (this._extension.postCreateHook)
+                    this.setPostCreateHook(this._extension.postCreateHook);
                 if (this._extension.preUpdateHook)
                     this.setPreUpdateHook(this._extension.preUpdateHook);
+                if (this._extension.postUpdateHook)
+                    this.setPostUpdateHook(this._extension.postUpdateHook);
                 if (this._extension.preDeleteHook)
                     this.setPreDeleteHook(this._extension.preDeleteHook);
                 if (this._extension.postDeleteHook)
@@ -487,8 +493,16 @@ class Model {
         this._preCreateHook = func.bind(this);
     }
 
+    setPostCreateHook(func) {
+        this._postCreateHook = func.bind(this);
+    }
+
     setPreUpdateHook(func) {
         this._preUpdateHook = func.bind(this);
+    }
+
+    setPostUpdateHook(func) {
+        this._postUpdateHook = func.bind(this);
     }
 
     setPreDeleteHook(func) {

@@ -250,7 +250,7 @@ class WebServer {
             this._addFuncRoute(devRouter);
             this._addExecRoute(devRouter);
             this._addEditRoute(devRouter);
-            this._addUploadRoute(devRouter);
+            this._addPatchRoute(devRouter);
             toolsRouter.use('/dev', devRouter);
         }
         systemRouter.use('/tools', toolsRouter);
@@ -799,7 +799,7 @@ module.exports = test;` +
             var response;
             try {
                 var file = req.query['file'];
-                if (file && fs.existsSync(file)) {
+                if (file && fs.existsSync(path.join(this._controller.getAppRoot(), file))) {
                     var text = fs.readFileSync(file, 'utf8');
                     response = '<form action="/sys/tools/dev/edit" method="post">' +
                         'File:<br><input name="file" value="' + file + '"></input><br>' +
@@ -824,7 +824,7 @@ module.exports = test;` +
             var text = req.body['text'];
             var response;
             if (file && text) {
-                if (fs.existsSync(file)) {
+                if (fs.existsSync(path.join(this._controller.getAppRoot(), file))) {
                     try {
                         fs.writeFileSync(file, text);
                         response = 'Saved';
@@ -839,25 +839,25 @@ module.exports = test;` +
         });
     }
 
-    _addUploadRoute(router) {
-        const uploadForm = '<form action="/sys/tools/dev/upload" enctype="multipart/form-data" method="post">' +
+    _addPatchRoute(router) {
+        const uploadForm = '<form action="/sys/tools/dev/patch" enctype="multipart/form-data" method="post">' +
             'File:<br><input type="file" name="file" accept="application/zip"/><br>' +
-            '<input type="submit" value="Upload"></form>';
+            '<input type="submit" value="Patch"></form>';
 
-        router.get('/upload', (req, res) => {
+        router.get('/patch', (req, res) => {
             res.send(uploadForm);
         });
-        router.post('/upload', async (req, res) => {
+        router.post('/patch', async (req, res) => {
             var response;
             var file;
             if (req.files)
                 file = req.files['file'];
             if (file) {
-                Logger.info("[App] Processing upload");
+                Logger.info("[App] Processing patch");
                 try {
                     //var tmpDir = this._controller.getTmpDir();
                     await WebServer._unzipFile(file['path'], this._controller.getAppRoot());
-                    response = 'Uploaded';
+                    response = 'Patched';
                 } catch (error) {
                     response = error.toString();
                 }

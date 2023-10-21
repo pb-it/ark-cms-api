@@ -208,7 +208,7 @@ class ExtensionController {
                                 await module.init();
                             if (module.setup && bSetup) {
                                 var data = await module.setup();
-                                if (data['client-extension'])
+                                if (data && data['client-extension'])
                                     meta['client-extension'] = data['client-extension'];
                             }
                         }

@@ -103,9 +103,19 @@ class AuthController {
                 data['password'] = AuthController.createPasswordEntry(data['password']);
             return Promise.resolve(data);
         });
+        this._userModel.setPostCreateHook(async function (data) {
+            if (data['password'])
+                data['password'] = '******';
+            return Promise.resolve(data);
+        });
         this._userModel.setPreUpdateHook(async function (current, data) {
             if (data['password'])
                 data['password'] = AuthController.createPasswordEntry(data['password']);
+            return Promise.resolve(data);
+        });
+        this._userModel.setPostUpdateHook(async function (data) {
+            if (data['password'])
+                data['password'] = '******';
             return Promise.resolve(data);
         });
         this._userModel.setPostReadHook(async function (data) {

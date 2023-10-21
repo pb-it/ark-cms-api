@@ -81,10 +81,16 @@ with option `force=true` warnings regarding incompatibilities with an upgrade of
 
 `/sys/tools/dev/edit`
 
+Parameters:
 
-#### Upload (env:development)
+* `file=./src/...` (path must be absolute or relative to appRoot)
 
-`/sys/tools/dev/upload`
+
+#### Patch (env:development)
+
+`/sys/tools/dev/patch`
+
+> Patches files inside of appRoot with content of the provided ZIP archive
 
 
 ### API

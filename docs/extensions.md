@@ -100,10 +100,10 @@ module.exports.preCreateHook = async function (data) {
     const ext = controller.getExtensionController().getExtension('http-proxy');
     const { HttpProxy } = ext['module'];
     var body = HttpProxy.request(data['url']);
-    const doc = new JSDOM(body).window.document;
+    var doc = new JSDOM(body).window.document;
     ...
 
-    controller.getShelf().getModel("test");
+    var model = controller.getShelf().getModel("test");
 
     return data;
 }
