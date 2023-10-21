@@ -799,12 +799,29 @@ module.exports = test;` +
             var response;
             try {
                 var file = req.query['file'];
-                if (file && fs.existsSync(path.join(this._controller.getAppRoot(), file))) {
-                    var text = fs.readFileSync(file, 'utf8');
+                var p;
+                if (file) {
+                    if (process.platform === 'linux') {
+                        if (file.startsWith('/'))
+                            p = file;
+                        else
+                            p = path.join(this._controller.getAppRoot(), file);
+                    } else {
+                        if (file.startsWith('.'))
+                            p = path.join(this._controller.getAppRoot(), file);
+                        else
+                            p = file;
+                    }
+                }
+                if (file && fs.existsSync(p)) {
+                    var text = fs.readFileSync(p, 'utf8');
                     response = '<form action="/sys/tools/dev/edit" method="post">' +
                         'File:<br><input name="file" value="' + file + '"></input><br>' +
-                        'Text:<br><textarea name="text" rows="10" cols="50">' + text + '</textarea>' +
-                        '<input type="submit" value="Save"></form>';
+                        'Text:<br><textarea name="text" rows="10" cols="50">' +
+                        text.replace(/[\u00A0-\u9999<>\&]/g, function (i) {
+                            return '&#' + i.charCodeAt(0) + ';';
+                        }) +
+                        '</textarea><input type="submit" value="Save"></form>';
                 } else {
                     if (file)
                         response = 'File \'' + file + '\' does not exist!<br>';
@@ -824,9 +841,21 @@ module.exports = test;` +
             var text = req.body['text'];
             var response;
             if (file && text) {
-                if (fs.existsSync(path.join(this._controller.getAppRoot(), file))) {
+                var p;
+                if (process.platform === 'linux') {
+                    if (file.startsWith('/'))
+                        p = file;
+                    else
+                        p = path.join(this._controller.getAppRoot(), file);
+                } else {
+                    if (file.startsWith('.'))
+                        p = path.join(this._controller.getAppRoot(), file);
+                    else
+                        p = file;
+                }
+                if (fs.existsSync(p)) {
                     try {
-                        fs.writeFileSync(file, text);
+                        fs.writeFileSync(p, text);
                         response = 'Saved';
                     } catch (error) {
                         response = error.toString();
