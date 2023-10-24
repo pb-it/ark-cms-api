@@ -378,6 +378,7 @@ class Controller {
      * flag to process multiple request at once
      */
     setRestartRequest() {
+        Logger.info("[App] Received restart request");
         this._info['state'] = 'openRestartRequest';
         //await controller.restart();
     }

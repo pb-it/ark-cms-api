@@ -173,7 +173,7 @@ class ExtensionController {
                                 depMeta = data.filter(function (x) { return x['name'] === key });
                                 if (depMeta && depMeta.length == 1) {
                                     if (!this.getExtension(key))
-                                        await this._loadExtension(depMeta);
+                                        await this._loadExtension(depMeta[0]);
                                 } else
                                     throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which cannot be found!');
                             }
@@ -279,8 +279,6 @@ class ExtensionController {
         var tmpDir = this._controller.getTmpDir();
         var extName = await ExtensionController._unzipStream(fs.createReadStream(file), tmpDir);
         if (extName) {
-            if (!id && this.getExtension(extName))
-                throw new ExtensionError("Skipped loading extension '" + extName + "', because no ID was provided and name already in use!");
             var source = path.join(tmpDir, extName);
             var manifest = path.join(source, 'manifest.json');
             if (fs.existsSync(manifest)) {
@@ -290,6 +288,17 @@ class ExtensionController {
                     this._checkVersionCompatibility(json);
                 }
             }
+
+            var exist = this.getExtension(extName);
+            if (exist) {
+                if (id) {
+                    var module = exist['module'];
+                    if (module && module.teardown)
+                        await module.teardown();
+                } else
+                    throw new ExtensionError("Skipped loading extension '" + extName + "', because no ID was provided and name already in use!");
+            }
+
             var target = path.join(this._dir, extName);
             if (fs.existsSync(target)) {
                 if (!id)
