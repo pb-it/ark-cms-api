@@ -321,6 +321,12 @@ class ExtensionController {
         if (data) {
             name = data['name'];
             if (name) {
+                var extension = this.getExtension(name);
+                if (extension) {
+                    var module = extension['module'];
+                    if (module && module.teardown)
+                        await module.teardown();
+                }
                 var p = path.join(this._dir, name);
                 if (fs.existsSync(p))
                     fs.rmSync(p, { recursive: true, force: true });

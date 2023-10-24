@@ -670,17 +670,20 @@ module.exports = test;` +
                             '<input type="submit" value="Evaluate"></form>';
                         res.send(response + '<br>' + form);
                     }
-                } else
-                    throw new Error('Empty request!');
+                } else {
+                    res.status(400); // Bad Request / 422 (Unprocessable Entity)
+                    res.send('Empty request');
+                }
             } catch (error) {
-                if (error && error.message) {
-                    res.status(404);
-                    res.send(error.message);
+                Logger.parseError(error);
+                if (error && error['message']) {
+                    res.status(500);
+                    res.send(error['message']);
                 }
             }
             if (!res.headersSent) {
-                res.status(500);
-                res.send("Something went wrong!");
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
             }
             return Promise.resolve();
         });
@@ -727,17 +730,20 @@ module.exports = test;` +
                             response = 'Empty response!'; //'An error occurred while processing your request!'
                         res.send(response + '<br><br>' + form);
                     }
-                } else
-                    throw new Error('Empty request!');
+                } else {
+                    res.status(400); // Bad Request / 422 (Unprocessable Entity)
+                    res.send('Empty request');
+                }
             } catch (error) {
-                if (error && error.message) {
-                    res.status(404);
-                    res.send(error.message);
+                Logger.parseError(error);
+                if (error && error['message']) {
+                    res.status(500);
+                    res.send(error['message']);
                 }
             }
             if (!res.headersSent) {
-                res.status(500);
-                res.send("Something went wrong!");
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
             }
             return Promise.resolve();
         });
@@ -778,17 +784,20 @@ module.exports = test;` +
                             response = 'Empty response!'; //'An error occurred while processing your request!'
                         res.send(response + '<br>' + execForm);
                     }
-                } else
-                    throw new Error('Empty request!');
+                } else {
+                    res.status(400); // Bad Request / 422 (Unprocessable Entity)
+                    res.send('Empty request');
+                }
             } catch (error) {
-                if (error && error.message) {
-                    res.status(404);
-                    res.send(error.message);
+                Logger.parseError(error);
+                if (error && error['message']) {
+                    res.status(500);
+                    res.send(error['message']);
                 }
             }
             if (!res.headersSent) {
-                res.status(500);
-                res.send("Something went wrong!");
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
             }
             return Promise.resolve();
         });
@@ -796,8 +805,8 @@ module.exports = test;` +
 
     _addEditRoute(router) {
         router.get('/edit', (req, res) => {
-            var response;
             try {
+                var response;
                 var file = req.query['file'];
                 var p;
                 if (file) {
@@ -831,10 +840,22 @@ module.exports = test;` +
                         'File:<br><input name="file"></input><br>' +
                         '<input type="submit" value="Open"></form>'
                 }
+                res.send(response);
             } catch (error) {
-                response = error.toString();
+                Logger.parseError(error);
+                if (error) {
+                    res.status(500);
+                    if (error['message'])
+                        res.send(error['message']);
+                    else
+                        res.send(error.toString());
+                }
             }
-            res.send(response);
+            if (!res.headersSent) {
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
+            }
+            return Promise.resolve();
         });
         router.post('/edit', async (req, res) => {
             var file = req.body['file'];
