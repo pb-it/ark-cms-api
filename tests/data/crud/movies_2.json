@@ -6,15 +6,18 @@
     },
     {
         "id": 2,
-        "name": "Thor"
+        "name": "Thor",
+        "studio": 1
     },
     {
         "id": 3,
-        "name": "Avengers"
+        "name": "Avengers",
+        "studio": 1
     },
     {
         "id": 4,
-        "name": "Pirates of the Caribbean"
+        "name": "Pirates of the Caribbean",
+        "studio": 3
     },
     {
         "id": 5,

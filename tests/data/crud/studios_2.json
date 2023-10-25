@@ -2,5 +2,13 @@
     {
         "id": 1,
         "name": "Marvel Studios"
+    },
+    {
+        "id": 2,
+        "name": "DC"
+    },
+    {
+        "id": 3,
+        "name": "Walt Disney Pictures"
     }
 ]

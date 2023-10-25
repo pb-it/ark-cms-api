@@ -46,7 +46,7 @@ class QueryParser {
                     }
                 }
             }.bind(this));
-        } else if (prop != '_t') { // ignore timestamp to break cache
+        } else {
             var fn = this._query(prop, value);
             if (fn) {
                 this._book = this._book.query(function (qb) {
@@ -117,23 +117,25 @@ class QueryParser {
                 }
             }
             if (relAttr && relAttr['multiple']) {
-                var via = relAttr['via'];
-                if (via) {
-                    throw new Error("Not Implemented Yet");
-                } else {
-                    var val;
-                    if (operator == 'null' || operator == 'count')
+                var val;
+                if (operator == 'null' || operator == 'count')
+                    val = value;
+                else {
+                    if (Array.isArray(value))
                         val = value;
-                    else {
-                        if (Array.isArray(value))
+                    else if (typeof value === 'string' || value instanceof String) {
+                        if (value.indexOf(',') == -1)
                             val = value;
-                        else if (typeof value === 'string' || value instanceof String)
+                        else
                             val = value.split(',').map(Number);
                     }
-                    if (!operator)
-                        operator = 'any';
-                    fn = this._queryRelation(relAttr, operator, val);
                 }
+                if (!operator)
+                    operator = 'any';
+                if (relAttr['via'])
+                    fn = this._queryViaRelation(relAttr, operator, val);
+                else
+                    fn = this._queryRelation(relAttr, operator, val);
             } else {
                 if (operator) {
                     if (OPERATORS.includes(operator))
@@ -150,6 +152,67 @@ class QueryParser {
                 }
             }
         }
+        return fn;
+    }
+
+    _queryViaRelation(relAttr, operation, value) {
+        var fn;
+        var subType = relAttr['model'];
+        var relModel = this._model.getShelf().getModel(subType);
+        if (relModel) {
+            var tableName = this._model.getTableName();
+            var relModelTable = relModel.getTableName();
+
+            var id = tableName + '.id';
+            var fid = relModelTable + '.' + relAttr['via'];
+
+            fn = function (qb) {
+                switch (operation) {
+                    case 'null':
+                        qb.leftJoin(relModelTable, id, fid);
+                        if (value === '' || value === 'true')
+                            qb.where(fid, 'is', null);
+                        else
+                            qb.where(fid, 'is not', null);
+                        break;
+                    case 'count':
+                        var count = parseInt(value);
+                        if (count == 0) {
+                            qb.whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
+                        } else if (count > 0) {
+                            qb.join(relModelTable, id, fid);
+                            qb.groupBy(id)
+                                .havingRaw('COUNT(*) = ?', [count]);
+                        }
+                        break;
+                    case 'any': // containsAny / includesSome
+                        qb.join(relModelTable, id, fid);
+                        if (Array.isArray(value))
+                            qb.whereIn(relModelTable + '.id', value);
+                        else
+                            qb.where(relModelTable + '.id', value);
+                        break;
+                    case 'none':
+                        if (Array.isArray(value))
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + relModelTable + '.id IN (' + value.join(', ') + ') )');
+                        else
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + relModelTable + '.id = ' + value + ' )');
+                        break;
+                    case 'every': // containsAll / includesEvery
+                        qb.join(relModelTable, id, fid);
+                        if (Array.isArray(value)) {
+                            qb.whereIn(relModelTable + '.id', value)
+                                .groupBy(id)
+                                .havingRaw('COUNT(*) >= ?', value.length);
+                        } else
+                            qb.where(relModelTable + '.id', value);
+                        break;
+                    default:
+                        throw new Error(`unkown operator: ${operation}`);
+                }
+            };
+        } else
+            throw new Error(`unkown type: ${subType}`);
         return fn;
     }
 
@@ -198,7 +261,7 @@ class QueryParser {
                         if (Array.isArray(value))
                             qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
                         else
-                            qb.where(fid, 'is not', value);
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' = ' + value + ' )');
                         break;
                     case 'every': // containsAll / includesEvery
                         if (Array.isArray(value)) {

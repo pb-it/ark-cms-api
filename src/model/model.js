@@ -605,14 +605,14 @@ class Model {
             var value;
             for (let prop in query) { // prop of keys
                 value = query[prop];
-                if (prop === "_sort") {
+                if (prop === '_sort') {
                     var parts = value.split(':');
                     if (parts.length == 2) {
                         book = qp.getBook();
                         book = book.query('orderBy', parts[0], parts[1]);
                         qp.setBook(book);
                     }
-                } else if (prop === "_limit") {
+                } else if (prop === '_limit') {
                     if (value != -1) {
                         book = qp.getBook();
                         book = book.query(function (qb) {
@@ -620,9 +620,8 @@ class Model {
                         });
                         qp.setBook(book);
                     }
-                } else {
+                } else if (prop !== '_t') // ignore timestamp to break cache
                     qp.query(prop, value);
-                }
             }
         }
         book = qp.finalizeQuery();
