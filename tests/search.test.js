@@ -33,28 +33,12 @@ beforeAll(async () => {
     if (bCleanupBeforeTests)
         ; //TODO:
 
+    await _setup();
+
     return Promise.resolve();
 });
 
-afterAll(async () => {
-    if (bCleanupAfterTests) {
-        try {
-            var models = await apiHelper.getAllModels();
-            for (var model of models)
-                await databaseHelper.deleteModel(model);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    try {
-        await controller.shutdown();
-    } catch (error) {
-        console.log(error);
-    }
-    return Promise.resolve();
-});
-
-test('movie_db', async function () {
+async function _setup() {
     var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
     await apiHelper.uploadModel(modelMovies);
 
@@ -118,14 +102,30 @@ test('movie_db', async function () {
     data = data = await apiHelper.getData(urlStars);
     expect(data.length).toEqual(stars.length);
 
-    //search
+    return Promise.resolve();
+}
+
+afterAll(async () => {
+    if (bCleanupAfterTests) {
+        try {
+            var models = await apiHelper.getAllModels();
+            for (var model of models)
+                await databaseHelper.deleteModel(model);
+        } catch (error) {
+            console.log(error);
+        }
+    }
+    try {
+        await controller.shutdown();
+    } catch (error) {
+        console.log(error);
+    }
+    return Promise.resolve();
+});
+
+test('#basic', async function () {
     var urlSearch;
     var idArr;
-
-    urlSearch = apiUrl + "/stars?_limit=3";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,3');
 
     urlSearch = apiUrl + "/stars?id_in=1,3,5";
     data = data = await apiHelper.getData(urlSearch);
@@ -147,7 +147,18 @@ test('movie_db', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('2');
 
-    // relations
+    urlSearch = apiUrl + "/stars?_limit=3";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,3');
+
+    return Promise.resolve();
+});
+
+test('#relations', async function () {
+    var urlSearch;
+    var idArr;
+
     urlSearch = apiUrl + "/stars?movies_null=true";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
@@ -183,42 +194,14 @@ test('movie_db', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('3,4,5,6,7');
 
-    urlSearch = apiUrl + "/stars?[or][movies]=3&[or][movies_null]=true";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,5');
+    return Promise.resolve();
+});
 
-    /*urlSearch = apiUrl + "/stars?[or][0][movies]=3&[or][1][movies_null]=true";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,5');*/
-
-    urlSearch = apiUrl + "/stars?gender=female&movies_null=true";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('');
-
-    urlSearch = apiUrl + "/stars?gender=female&movies_null=true&[or][movies]=5";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('4,7');
-
-    urlSearch = apiUrl + "/stars?gender=female&[or][movies_null]=true&[or][movies]=5";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('4,5,6,7');
-
-    /*urlSearch = apiUrl + "/stars?gender=female&[or][0][movies_null]=true&[or][1][movies]=5";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('7');*/
-
-    urlSearch = apiUrl + "/movies?studio_null=false&stars_null=false";
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,3,4');
-
+test('#relation_via', async function () {
     // aggregation via foreign single-relation
+    var urlSearch;
+    var idArr;
+
     urlSearch = apiUrl + "/studios?movies_null=false";
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
@@ -283,6 +266,89 @@ test('movie_db', async function () {
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('3');
+
+    return Promise.resolve();
+});
+
+test('#multiple_and', async function () {
+    var urlSearch;
+    var idArr;
+
+    urlSearch = apiUrl + "/stars?gender=female&movies_null=true";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('');
+
+    urlSearch = apiUrl + "/movies?studio_null=false&stars_null=false";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,3,4');
+
+    urlSearch = apiUrl + "/stars?[or][movies]=3&[or][movies_null]=true";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,5');
+
+    /*urlSearch = apiUrl + "/stars?[or][0][movies]=3&[or][1][movies_null]=true";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,5');*/
+
+
+
+    urlSearch = apiUrl + "/stars?gender=female&movies_null=true&[or][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('4,7');
+
+    urlSearch = apiUrl + "/stars?gender=female&[or][movies_null]=true&[or][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('4,5,6,7');
+
+    /*urlSearch = apiUrl + "/stars?gender=female&[or][0][movies_null]=true&[or][1][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('7');*/
+
+    return Promise.resolve();
+});
+
+test('#multiple_or', async function () {
+    var urlSearch;
+    var idArr;
+
+    urlSearch = apiUrl + "/stars?[or][movies]=3&[or][movies_null]=true";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,5');
+
+    /*urlSearch = apiUrl + "/stars?[or][0][movies]=3&[or][1][movies_null]=true";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,5');*/
+
+    return Promise.resolve();
+});
+
+test('#multiple_mix', async function () {
+    var urlSearch;
+    var idArr;
+
+    urlSearch = apiUrl + "/stars?gender=female&movies_null=true&[or][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('4,7'); // female && null || 5 -> zero female without movies; two actors with movie 5
+
+    urlSearch = apiUrl + "/stars?gender=female&[or][movies_null]=true&[or][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('4,5,6,7'); // female || null || 5
+
+    /*urlSearch = apiUrl + "/stars?gender=female&[or][0][movies_null]=true&[or][1][movies]=5";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('7');*/
 
     return Promise.resolve();
 });

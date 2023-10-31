@@ -999,7 +999,13 @@ module.exports = test;` +
                 }
             }
             if (r) {
-                await r['fn'](req, res, next);
+                try {
+                    await r['fn'](req, res, next);
+                } catch (error) {
+                    Logger.parseError(error);
+                    res.status(500); // Internal Server Error
+                    res.send('An unexpected error has occurred');
+                }
                 bSent = true;
             } else
                 next(); // res.send('Unknown extension');

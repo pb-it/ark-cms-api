@@ -117,7 +117,9 @@ class Model {
                 }
 
                 if (this._definition.attributes)
-                    await this._addColumns(table, null, this._definition.attributes);
+                    this._addColumns(table, null, this._definition.attributes);
+
+                return Promise.resolve();
             }.bind(this));
             Logger.info("Added table '" + this._tableName + "'");
         } else {
@@ -130,8 +132,8 @@ class Model {
                 }
             }*/
             if (this._definition.attributes) {
-                await this._shelf.getKnex().schema.alterTable(this._tableName, async function (table) {
-                    await this._addColumns(table, tableInfo, this._definition.attributes);
+                await this._shelf.getKnex().schema.alterTable(this._tableName, function (table) {
+                    this._addColumns(table, tableInfo, this._definition.attributes);
                 }.bind(this));
             }
         }
@@ -157,7 +159,7 @@ class Model {
         return Promise.resolve();
     }
 
-    async _addColumns(table, tableInfo, attributes) {
+    _addColumns(table, tableInfo, attributes) {
         for (let attribute of attributes) {
             if (attribute['dataType'] === "relation") {
                 this._relationNames.push(attribute['name']);
@@ -182,7 +184,6 @@ class Model {
             }
 
         }
-        return Promise.resolve();
     }
 
     _addColumn(table, attribute) {
@@ -917,6 +918,7 @@ class Model {
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {
                 if (attribute['via']) {
+                    //obj.related([attribute['name']]);
                     //TODO: load attribute.model where id match and delete attribute.via property
                 } else if (attribute['multiple']) {
                     await obj[attribute['name']]().detach();

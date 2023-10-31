@@ -31,6 +31,7 @@
         "test-relations": "jest tests/relations.test.js",
         "test-extensions": "jest tests/extensions.test.js",
         "test-search": "jest tests/search.test.js",
+        "test-delete": "jest tests/delete.test.js",
         "lint": "eslint src/js"
     },
     "dependencies": {

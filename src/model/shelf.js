@@ -107,7 +107,8 @@ class Shelf {
                 ],
                 "extensions": {
                     "client": "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['method'])\n         str += data['method'] + \": \";\n      if (data['model'])\n         str += data['model'];\n      if (data['record_id'])\n         str += \"(\" + data['record_id'] + \")\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };"
-                }
+                },
+                "bConfirmFullFetch": true
             }
             mChange = await this.upsertModel(null, definition);
         }
@@ -151,6 +152,7 @@ class Shelf {
                         await m.initModel();
                     } catch (error) {
                         Logger.parseError(error);
+                        Logger.error("✘ Initializing model '" + m.getName() + "' failed");
                     }
                 }
             }

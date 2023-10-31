@@ -237,7 +237,7 @@ class ExtensionController {
             this._extensions.push(ext);
             Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
         } else
-            Logger.info("[ExtensionController] ✘ Loading extension '" + name + "' failed");
+            Logger.error("[ExtensionController] ✘ Loading extension '" + name + "' failed");
         return Promise.resolve(bLoaded);
     }
 
