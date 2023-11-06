@@ -12,6 +12,14 @@ class ApiHelper {
         this._modelsUrlPut = this._modelsUrl + "?v=0.5.0-beta";
     }
 
+    getUrl() {
+        return this._api;
+    }
+
+    getWebClient() {
+        return this._webclient;
+    }
+
     async getData(url) {
         var data;
         var response = await this._webclient.curl(url);

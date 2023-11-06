@@ -128,7 +128,8 @@ class QueryParser {
                             val = value;
                         else
                             val = value.split(',').map(Number);
-                    }
+                    } else
+                        val = value;
                 }
                 if (!operator)
                     operator = 'any';

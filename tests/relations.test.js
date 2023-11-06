@@ -7,6 +7,7 @@ const controller = require('../src/controller/controller');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
+const TestHelper = require('./helper/test-helper');
 
 var apiUrl;
 var apiHelper;
@@ -55,37 +56,7 @@ afterAll(async () => {
 });
 
 test('movie_db', async function () {
-    var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
-    await apiHelper.uploadModel(modelMovies);
-
-    var modelStudios = JSON.parse(fs.readFileSync('./tests/data/models/studios.json', 'utf8'));
-    await apiHelper.uploadModel(modelStudios);
-
-    var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
-    await apiHelper.uploadModel(modelStars);
-
-    await shelf.loadAllModels();
-    await shelf.initAllModels();
-
-    var data = await apiHelper.getAllModels();
-
-    var res = data.filter(function (x) {
-        return x['definition']['name'] === "movies";
-    })[0];
-    var modelMoviesId = res['id'];
-    expect(res['definition']).toEqual(modelMovies);
-
-    res = data.filter(function (x) {
-        return x['definition']['name'] === "studios";
-    })[0];
-    var modelStudiosId = res['id'];
-    expect(res['definition']).toEqual(modelStudios);
-
-    res = data.filter(function (x) {
-        return x['definition']['name'] === "stars";
-    })[0];
-    var modelStarsId = res['id'];
-    expect(res['definition']).toEqual(modelStars);
+    await TestHelper.setupModels(apiHelper);
 
     //insert testdata
     var movie = JSON.parse(fs.readFileSync('./tests/data/crud/movies_1.json', 'utf8'));

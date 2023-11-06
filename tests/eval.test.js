@@ -1,11 +1,11 @@
 if (!global.controller)
-    global.controller = require('../src/controller/controller');
+    global.controller = require('../src/controller/controller.js');
 const WebClient = require('../src/common/webclient.js');
-const controller = require('../src/controller/controller');
+const controller = require('../src/controller/controller.js');
 
 const ApiHelper = require('./helper/api-helper.js');
-const DatabaseHelper = require('./helper/database-helper');
-const TestHelper = require('./helper/test-helper');
+const DatabaseHelper = require('./helper/database-helper.js');
+const TestHelper = require('./helper/test-helper.js');
 
 var apiUrl;
 var apiHelper;
@@ -17,8 +17,8 @@ const bCleanupAfterTests = true;
 
 beforeAll(async () => {
     if (!controller.isRunning()) {
-        const server = require('./config/server-config');
-        const database = require('./config/database-config');
+        const server = require('./config/server-config.js');
+        const database = require('./config/database-config.js');
         await controller.setup(server, database);
         shelf = controller.getShelf();
     }
@@ -31,6 +31,9 @@ beforeAll(async () => {
 
     if (bCleanupBeforeTests)
         ; //TODO:
+
+    await TestHelper.setupModels(apiHelper);
+    await TestHelper.setupData(apiHelper);
 
     return Promise.resolve();
 });
@@ -53,26 +56,21 @@ afterAll(async () => {
     return Promise.resolve();
 });
 
-test('movie_db', async function () {
-    await TestHelper.setupModels(apiHelper);
-    await TestHelper.setupData(apiHelper);
-
-    data = await apiHelper.getData(urlStudios);
-    expect(data.length).toEqual(3);
-
-    var studioId = 1;
-    var urlSearch = apiUrl + "/movies?studio=" + studioId;
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,3');
-
-    var res = await webclient.delete(urlStudios + "/" + studioId);
-    data = await apiHelper.getData(urlStudios);
-    expect(data.length).toEqual(2);
-
-    data = data = await apiHelper.getData(urlSearch);
-    idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,3'); //TODO: result should be empty after deleting studio
-
+test('#eval', async function () {
+    var snippet = `async function eval() {
+    const model = controller.getShelf().getModel('studios');
+    var tmp = await model.readAll({ 'movies_any': 4 });
+    return Promise.resolve(tmp);
+};
+module.exports = eval;`;
+    var url = "http://localhost:" + controller.getServerConfig()['port'] + "/sys/tools/dev/eval?_format=text";
+    var response = await webclient.post(url, { 'cmd': snippet });
+    /*try {
+        var res = await webclient.post(url, { 'cmd': snippet });
+    } catch (error) {
+        console.log(error);
+    }*/
+    var res = response.data.map((x) => x['id']).join(',')
+    expect(res).toEqual('3');
     return Promise.resolve();
 });

@@ -26,12 +26,13 @@
         "start-win-prod": "set NODE_ENV=production&& node --max_old_space_size=8192 index.js",
         "start-unix-dev": "node --max_old_space_size=8192 index.js",
         "start-win-dev": "set NODE_ENV=development&& node --max_old_space_size=8192 index.js",
-        "test": "jest --runInBand ./tests/common.test.js ./tests/relations.test.js ./tests/search.test.js",
+        "test": "jest --runInBand ./tests/common.test.js ./tests/relations.test.js ./tests/search.test.js ./tests/eval.test.js",
         "test-common": "jest tests/common.test.js",
         "test-relations": "jest tests/relations.test.js",
         "test-extensions": "jest tests/extensions.test.js",
         "test-search": "jest tests/search.test.js",
         "test-delete": "jest tests/delete.test.js",
+        "test-eval": "jest tests/eval.test.js",
         "lint": "eslint src/js"
     },
     "dependencies": {

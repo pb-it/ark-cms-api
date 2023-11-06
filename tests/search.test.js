@@ -1,5 +1,3 @@
-const fs = require('fs');
-
 if (!global.controller)
     global.controller = require('../src/controller/controller');
 const WebClient = require('../src/common/webclient.js');
@@ -7,6 +5,7 @@ const controller = require('../src/controller/controller');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
+const TestHelper = require('./helper/test-helper');
 
 var apiUrl;
 var apiHelper;
@@ -33,77 +32,11 @@ beforeAll(async () => {
     if (bCleanupBeforeTests)
         ; //TODO:
 
-    await _setup();
+    await TestHelper.setupModels(apiHelper);
+    await TestHelper.setupData(apiHelper);
 
     return Promise.resolve();
 });
-
-async function _setup() {
-    var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
-    await apiHelper.uploadModel(modelMovies);
-
-    var modelStudios = JSON.parse(fs.readFileSync('./tests/data/models/studios.json', 'utf8'));
-    await apiHelper.uploadModel(modelStudios);
-
-    var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
-    await apiHelper.uploadModel(modelStars);
-
-    await shelf.loadAllModels();
-    await shelf.initAllModels();
-
-    var data = await apiHelper.getAllModels();
-
-    var res = data.filter(function (x) {
-        return x['definition']['name'] === "movies";
-    })[0];
-    var modelMoviesId = res['id'];
-    expect(res['definition']).toEqual(modelMovies);
-
-    res = data.filter(function (x) {
-        return x['definition']['name'] === "studios";
-    })[0];
-    var modelStudiosId = res['id'];
-    expect(res['definition']).toEqual(modelStudios);
-
-    res = data.filter(function (x) {
-        return x['definition']['name'] === "stars";
-    })[0];
-    var modelStarsId = res['id'];
-    expect(res['definition']).toEqual(modelStars);
-
-    //insert testdata
-    var studios = JSON.parse(fs.readFileSync('./tests/data/crud/studios_2.json', 'utf8'));
-
-    var urlStudios = apiUrl + "/studios";
-    for (var studio of studios) {
-        await webclient.post(urlStudios, studio);
-    }
-
-    data = await apiHelper.getData(urlStudios);
-    expect(data.length).toEqual(studios.length);
-
-    var movies = JSON.parse(fs.readFileSync('./tests/data/crud/movies_2.json', 'utf8'));
-
-    var urlMovies = apiUrl + "/movies";
-    for (var movie of movies) {
-        await webclient.post(urlMovies, movie);
-    }
-
-    data = data = await apiHelper.getData(urlMovies);
-    expect(data.length).toEqual(movies.length);
-
-    var stars = JSON.parse(fs.readFileSync('./tests/data/crud/stars_2.json', 'utf8'));
-
-    var urlStars = apiUrl + "/stars";
-    for (var star of stars) {
-        await webclient.post(urlStars, star);
-    }
-
-    data = data = await apiHelper.getData(urlStars);
-    expect(data.length).toEqual(stars.length);
-
-    return Promise.resolve();
-}
 
 afterAll(async () => {
     if (bCleanupAfterTests) {

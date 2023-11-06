@@ -244,7 +244,7 @@ class WebServer {
 
         var toolsRouter = express.Router();
         this._addDatabaseRoutes(toolsRouter);
-        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
             var devRouter = express.Router();
             this._addEvalRoute(devRouter);
             this._addFuncRoute(devRouter);
