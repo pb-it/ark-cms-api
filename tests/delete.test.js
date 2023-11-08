@@ -53,9 +53,10 @@ afterAll(async () => {
     return Promise.resolve();
 });
 
-test('movie_db', async function () {
+test('#movie_db', async function () {
     await TestHelper.setupModels(apiHelper);
     await TestHelper.setupData(apiHelper);
+    var urlStudios = apiUrl + "/studios";
 
     data = await apiHelper.getData(urlStudios);
     expect(data.length).toEqual(3);
@@ -72,7 +73,12 @@ test('movie_db', async function () {
 
     data = data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
-    expect(idArr.sort().join(',')).toEqual('1,2,3'); //TODO: result should be empty after deleting studio
+    expect(idArr.sort().join(',')).toEqual('');
+
+    urlSearch = apiUrl + "/movies?studio=3";
+    data = data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('4');
 
     return Promise.resolve();
 });

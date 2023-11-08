@@ -5,56 +5,134 @@ const OPERATORS_MULTI_REL = ['null', 'count', 'any', 'none', 'every'];
 
 class QueryParser {
 
+    static _parse(query) {
+        var obj = {};
+        var keys = Object.keys(query);
+        if (keys.length > 0) {
+            if (keys.length == 1) {
+                var prop = keys[0];
+                if (prop === '$or')
+                    obj = { 'operator': 'or', 'args': QueryParser._parseArgs(query[prop]) };
+                else if (prop === '$and')
+                    obj = { 'operator': 'and', 'args': QueryParser._parseArgs(query[prop]) };
+                else if (!prop.startsWith('_'))
+                    obj = { 'operator': 'eq', 'field': prop, 'value': query[prop] }
+            } else
+                obj = { 'operator': 'and', 'args': QueryParser._parseArgs(query) };
+        }
+        return obj;
+    }
+
+    static _parseArgs(obj) {
+        var args;
+        var keys = Object.keys(obj);
+        if (keys.length > 0) {
+            args = [];
+            for (let key in obj) {
+                if (!key.startsWith('_')) {
+                    if (key === '$or')
+                        args.push({ 'operator': 'or', 'args': QueryParser._parseArgs(obj[key]) });
+                    else if (key === '$and')
+                        args.push({ 'operator': 'and', 'args': QueryParser._parseArgs(obj[key]) });
+                    else
+                        args.push({ 'operator': 'eq', 'field': key, 'value': obj[key] });
+                }
+            }
+        }
+        return args;
+    }
+
     _model;
     _book;
+    _obj;
+    _bFirst;
+    _bOr;
     _joins;
     _leftJoins;
 
-    constructor(model, book) {
+    constructor(model) {
         this._model = model;
-        this._book = book; //model.getBook();
+        this._book = model.getBook();
+        this._bFirst = true;
+        this._bOr = false;
         this._joins = [];
         this._leftJoins = [];
     }
 
-    getBook() {
-        return this._book;
-    }
-
-    setBook(book) {
-        this._book = book;
-    }
-
-    query(prop, value) {
-        if (prop == 'or') {
-            var fn;
-            this._book = this._book.query(function (qb) {
-                if (Array.isArray(value)) { //TODO: parathesed queries fail currently because of missing joins
-                    qb.where(function (oqb) {
-                        var fn;
-                        for (var q of value) {
-                            for (const [p, v] of Object.entries(q)) {
-                                fn = this._query(p, v);
-                                //fn(oqb);
-                                oqb.orWhere(fn.bind(this));
-                            }
-                        }
-                    }.bind(this));
-                } else {
-                    for (const [p, v] of Object.entries(value)) {
-                        qb.orWhere(this._query(p, v));
-                    }
-                }
-            }.bind(this));
-        } else {
-            var fn = this._query(prop, value);
-            if (fn) {
-                this._book = this._book.query(function (qb) {
-                    fn(qb);
-                }.bind(this));
-            } else
-                throw new Error(`Unsupported query: ${prop}=${value}`);
+    executeQuery(query) {
+        if (Object.keys(query).length > 0) {
+            this._obj = QueryParser._parse(query);
+            if (Object.keys(this._obj).length > 0)
+                this.queryObj(this._obj);
+            if (query.hasOwnProperty('_sort')) {
+                var parts = query['_sort'].split(':');
+                if (parts.length == 2)
+                    this._book = this._book.query('orderBy', parts[0], parts[1]);
+            }
+            if (query.hasOwnProperty('_limit')) {
+                if (query['_limit'] != -1)
+                    this._book = this._book.query(function (qb) {
+                        this.limit(query['_limit']);
+                    });
+            }
         }
+        return this.finalizeQuery();
+    }
+
+    queryObj(obj, bExec = true) {
+        var func;
+        if (obj['operator'] === 'or' || obj['operator'] === 'and') {
+            var arr = [];
+            var fn;
+            for (var q of obj['args']) {
+                fn = this.queryObj(q, obj['operator'] !== 'or' && obj['operator'] !== 'and');
+                if (fn)
+                    arr.push(fn);
+            }
+            if (arr.length > 0) {
+                this._book = this._book.query(function (qb) {
+                    if (arr.length == 1) {
+                        if (obj['operator'] === 'or') {
+                            if (this._bFirst) { // knex may rearrange query - 'or' on first part have to be switched/delayed
+                                qb.where(arr[0]);
+                                this._bOr = true;
+                            } else
+                                qb.orWhere(arr[0]);
+                        } else
+                            qb.where(arr[0]);
+                    } else {
+                        var fn;
+                        if (obj['operator'] === 'or')
+                            fn = function (oqb) {
+                                for (var fn of arr)
+                                    oqb.orWhere(fn);
+                            };
+                        else
+                            fn = function (oqb) {
+                                for (var fn of arr)
+                                    oqb.where(fn);
+                            };
+                        if (this._bOr)
+                            qb.orWhere(fn);
+                        else
+                            qb.where(fn);
+                    }
+                    this._bFirst = false;
+                }.bind(this));
+            }
+        } else {
+            var fn = this._query(obj['field'], obj['value']);
+            if (fn) {
+                if (bExec) {
+                    this._book = this._book.query(function (qb) {
+                        fn(qb);
+                    }.bind(this));
+                } else
+                    func = fn;
+            } else
+                throw new Error(`Unsupported query: ${obj['field']}=${obj['value']}`);
+        }
+        return func;
     }
 
     finalizeQuery() {

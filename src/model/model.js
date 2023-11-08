@@ -599,34 +599,8 @@ class Model {
     }
 
     where(query) {
-        var book = this._book;
-        var qp = new QueryParser(this, book);
-        var keys = Object.keys(query);
-        if (keys.length > 0) {
-            var value;
-            for (let prop in query) { // prop of keys
-                value = query[prop];
-                if (prop === '_sort') {
-                    var parts = value.split(':');
-                    if (parts.length == 2) {
-                        book = qp.getBook();
-                        book = book.query('orderBy', parts[0], parts[1]);
-                        qp.setBook(book);
-                    }
-                } else if (prop === '_limit') {
-                    if (value != -1) {
-                        book = qp.getBook();
-                        book = book.query(function (qb) {
-                            qb.limit(value);
-                        });
-                        qp.setBook(book);
-                    }
-                } else if (prop !== '_t') // ignore timestamp to break cache
-                    qp.query(prop, value);
-            }
-        }
-        book = qp.finalizeQuery();
-        return book;
+        var qp = new QueryParser(this);
+        return qp.executeQuery(query);
     }
 
     /**
@@ -918,8 +892,11 @@ class Model {
         for (var attribute of this._definition.attributes) {
             if (attribute['dataType'] === "relation") {
                 if (attribute['via']) {
-                    //obj.related([attribute['name']]);
-                    //TODO: load attribute.model where id match and delete attribute.via property
+                    var related = obj.related(attribute['name']);
+                    //console.log(related.pluck('id'));
+                    for (var x of related) {
+                        await x.set(attribute['via'], null).save();
+                    }
                 } else if (attribute['multiple']) {
                     await obj[attribute['name']]().detach();
                 }

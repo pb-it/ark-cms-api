@@ -579,127 +579,129 @@ class Controller {
     async putModel(req) {
         var bDone = false;
         var id;
-        if (req.params[0] === '/_model') {
-            var version = req.query['v'];
-            var bForceMigration = (req.query['forceMigration'] === 'true');
-            if (version) {
-                var definition = req.body;
-                var bNew = true;
-                if (definition['id'])
-                    bNew = false;
-                var name = definition['name'];
-                var appVersion = this._versionController.getPkgVersion();
-                var sAppVersion = appVersion.toString();
-                if (version !== sAppVersion) {
-                    var modelVersion = new AppVersion(version);
-                    if (MigrationController.compatible(modelVersion, appVersion) || bForceMigration) {
-                        definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
-                        Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
-                    } else
-                        throw new ValidationError("An update of the major or minor release version may result in faulty models! Force only after studying changelog!");
-                }
-                var model = await this._shelf.upsertModel(undefined, definition);
-                await model.initModel();
-                id = model.getId();
-                var user = req.session.user;
-                var uid;
-                if (user)
-                    uid = user['id'];
-                else
-                    uid = null;
-                await this._protocol(req, null, req.method, '_model', id, req.body, uid);
-                if (bNew && user && user.username !== 'admin') {
-                    var permission = {
-                        'user': uid,
-                        'model': id,
-                        'read': true,
-                        'write': true
-                    };
-                    model = this._shelf.getModel('_permission');
-                    var data = await model.create(permission);
-                    if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
-                        var pid = data['id'];
-                        var timestamp = data['created_at'];
-                        await this._protocol(req, timestamp, 'POST', '_permission', pid, permission, uid);
+        var name;
+        try {
+            if (req.params[0] === '/_model') {
+                var version = req.query['v'];
+                var bForceMigration = (req.query['forceMigration'] === 'true');
+                if (version) {
+                    var definition = req.body;
+                    var bNew = true;
+                    if (definition['id'])
+                        bNew = false;
+                    name = definition['name'];
+                    var appVersion = this._versionController.getPkgVersion();
+                    var sAppVersion = appVersion.toString();
+                    if (version !== sAppVersion) {
+                        var modelVersion = new AppVersion(version);
+                        if (MigrationController.compatible(modelVersion, appVersion) || bForceMigration) {
+                            definition = MigrationController.updateModelDefinition(definition, modelVersion, appVersion);
+                            Logger.info("[MigrationController] ✔ Updated definition of model '" + name + "' to version '" + sAppVersion + "'");
+                        } else
+                            throw new ValidationError("An update of the major or minor release version may result in faulty models! Force only after studying changelog!");
                     }
-                }
-                Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
-                bDone = true;
-            } else
-                throw new ValidationError("Please specify model version");
-        } else {
-            if (req.params[0].startsWith('/_model/')) {
-                var arr = req.params[0].substring('/_model/'.length).split('/');
-                var str = arr.shift();
-                try {
-                    id = parseInt(str);
-                } catch (error) {
-                    Logger.parseError(error);
-                }
-                if (id) {
-                    var models = this._shelf.getModel();
-                    var model;
-                    for (var m of models) {
-                        if (m.getId() == id) {
-                            model = m;
-                            break;
+                    var model = await this._shelf.upsertModel(undefined, definition);
+                    await model.initModel();
+                    id = model.getId();
+                    var user = req.session.user;
+                    var uid;
+                    if (user)
+                        uid = user['id'];
+                    else
+                        uid = null;
+                    await this._protocol(req, null, req.method, '_model', id, req.body, uid);
+                    if (bNew && user && user.username !== 'admin') {
+                        var permission = {
+                            'user': uid,
+                            'model': id,
+                            'read': true,
+                            'write': true
+                        };
+                        model = this._shelf.getModel('_permission');
+                        var data = await model.create(permission);
+                        if (!this._serverConfig.hasOwnProperty('protocol') || this._serverConfig['protocol']) {
+                            var pid = data['id'];
+                            var timestamp = data['created_at'];
+                            await this._protocol(req, timestamp, 'POST', '_permission', pid, permission, uid);
                         }
                     }
-                    if (model) {
-                        str = arr.shift();
-                        if (str) {
-                            var definition;
-                            if (str === 'states') {
-                                definition = model.getDefinition();
-                                definition['states'] = req.body;
-                            } else if (str === 'filters') {
-                                definition = model.getDefinition();
-                                definition['filters'] = req.body;
-                            } else if (str === 'defaults') {
-                                str = arr.shift();
-                                if (str === "view") {
-                                    definition = model.getDefinition();
-                                    var defaults = definition['defaults'];
-                                    if (!defaults) {
-                                        defaults = {};
-                                        definition['defaults'] = defaults;
-                                    }
-                                    defaults['view'] = req.body;
-                                } else if (str === "sort") {
-                                    definition = model.getDefinition();
-                                    var defaults = definition['defaults'];
-                                    if (!defaults) {
-                                        defaults = {};
-                                        definition['defaults'] = defaults;
-                                    }
-                                    defaults['sort'] = req.body['sort'];
-                                }
+                    Logger.info("[App] ✔ Creation or replacement of model '" + name + "' successful");
+                    bDone = true;
+                } else
+                    throw new ValidationError("Please specify model version");
+            } else {
+                if (req.params[0].startsWith('/_model/')) {
+                    var arr = req.params[0].substring('/_model/'.length).split('/');
+                    var str = arr.shift();
+                    try {
+                        id = parseInt(str);
+                    } catch (error) {
+                        Logger.parseError(error);
+                    }
+                    if (id) {
+                        var models = this._shelf.getModel();
+                        var model;
+                        for (var m of models) {
+                            if (m.getId() == id) {
+                                model = m;
+                                break;
                             }
-                            if (definition) {
-                                try {
+                        }
+                        if (model) {
+                            name = model.getName();
+                            str = arr.shift();
+                            if (str) {
+                                var definition;
+                                if (str === 'states') {
+                                    definition = model.getDefinition();
+                                    definition['states'] = req.body;
+                                } else if (str === 'filters') {
+                                    definition = model.getDefinition();
+                                    definition['filters'] = req.body;
+                                } else if (str === 'defaults') {
+                                    str = arr.shift();
+                                    if (str === "view") {
+                                        definition = model.getDefinition();
+                                        var defaults = definition['defaults'];
+                                        if (!defaults) {
+                                            defaults = {};
+                                            definition['defaults'] = defaults;
+                                        }
+                                        defaults['view'] = req.body;
+                                    } else if (str === "sort") {
+                                        definition = model.getDefinition();
+                                        var defaults = definition['defaults'];
+                                        if (!defaults) {
+                                            defaults = {};
+                                            definition['defaults'] = defaults;
+                                        }
+                                        defaults['sort'] = req.body['sort'];
+                                    }
+                                }
+                                if (definition) {
                                     model = await this._shelf.upsertModel(id, definition);
                                     if (definition['attributes'])
                                         await model.initModel();
                                     await this._protocol(req, null, req.method, '_model', id, req.body);
-                                    Logger.info("[App] ✔ Updated model '" + model.getName() + "'");
+                                    Logger.info("[App] ✔ Updated model '" + name + "'");
                                     bDone = true;
-                                } catch (error) {
-                                    Logger.parseError(error);
-                                    var msg = "Creation or replacement of model";
-                                    if (name)
-                                        msg += " '" + name + "'";
-                                    else if (id)
-                                        msg += " [id:" + id + "]";
-                                    msg += " failed";
-                                    throw new ValidationError(msg);
                                 }
                             }
-                        }
+                        } else
+                            throw new ValidationError("Invalid model ID");
                     } else
                         throw new ValidationError("Invalid model ID");
-                } else
-                    throw new ValidationError("Invalid model ID");
+                }
             }
+        } catch (error) {
+            Logger.parseError(error);
+            var msg = "Creation or replacement of model";
+            if (name)
+                msg += " '" + name + "'";
+            else if (id)
+                msg += " [id:" + id + "]";
+            msg += " failed";
+            throw new ValidationError(msg);
         }
         if (!bDone || !id)
             throw new ValidationError("Invalid path");
