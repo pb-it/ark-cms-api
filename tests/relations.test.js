@@ -40,7 +40,7 @@ beforeAll(async () => {
 afterAll(async () => {
     if (bCleanupAfterTests) {
         try {
-            var models = await apiHelper.getAllModels();
+            var models = await apiHelper.getModel();
             for (var model of models)
                 await databaseHelper.deleteModel(model);
         } catch (error) {
@@ -114,8 +114,8 @@ test('movie_db', async function () {
 
     //update via relation
     res = await webclient.put(urlStudios + "/" + studioId, { 'movies': [movieId] });
-    expect(res['data']['movies'].length).toEqual(1);
-    expect(res['data']['movies'][0]['id']).toEqual(movieId);
+    expect(res['movies'].length).toEqual(1);
+    expect(res['movies'][0]['id']).toEqual(movieId);
 
     data = await apiHelper.getData(urlMovies);
     expect(data.length).toEqual(1);

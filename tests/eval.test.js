@@ -41,7 +41,7 @@ beforeAll(async () => {
 afterAll(async () => {
     if (bCleanupAfterTests) {
         try {
-            var models = await apiHelper.getAllModels();
+            var models = await apiHelper.getModel();
             for (var model of models)
                 await databaseHelper.deleteModel(model);
         } catch (error) {
@@ -70,7 +70,7 @@ module.exports = eval;`;
     } catch (error) {
         console.log(error);
     }*/
-    var res = response.data.map((x) => x['id']).join(',')
+    var res = response.map((x) => x['id']).join(',')
     expect(res).toEqual('3');
     return Promise.resolve();
 });

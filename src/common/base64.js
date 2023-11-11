@@ -7,7 +7,7 @@ module.exports.getStringFromBuffer = getStringFromBuffer;
 
 module.exports.getStringFromBlob = async function (blob) {
     var buffer = Buffer.from(await blob.text());
-    return Promise.resolve(getStringFromBuffer(blob.type, buffer.toString('base64')));
+    return Promise.resolve(getStringFromBuffer(blob.type, buffer));
 }
 
 module.exports.getExtension = function (data) {

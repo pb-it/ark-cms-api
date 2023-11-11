@@ -41,7 +41,7 @@ beforeAll(async () => {
 afterAll(async () => {
     if (bCleanupAfterTests) {
         try {
-            var models = await apiHelper.getAllModels();
+            var models = await apiHelper.getModel();
             for (var model of models)
                 await databaseHelper.deleteModel(model);
         } catch (error) {

@@ -54,7 +54,7 @@ beforeAll(async () => {
 afterAll(async () => {
     if (bCleanupAfterTests) {
         try {
-            var models = await apiHelper.getAllModels();
+            var models = await apiHelper.getModel();
             for (var model of models)
                 await databaseHelper.deleteModel(model);
         } catch (error) {
@@ -76,11 +76,11 @@ test('youtube', async function () {
 
     await apiHelper.uploadModel(model);
 
-    var urlInfo = rootUrl + "/system/info";
-    var data = await webclient.curl(urlInfo);
+    var urlInfo = rootUrl + "/sys/info";
+    var data = await webclient.get(urlInfo);
     if (data['state'] === 'openRestartRequest') {
-        var urlRestart = rootUrl + "/system/restart";
-        data = await webclient.curl(urlRestart); //TODO: find server restart procedure without terminating test
+        var urlRestart = rootUrl + "/sys/restart";
+        data = await webclient.get(urlRestart); //TODO: find server restart procedure without terminating test
         await new Promise(r => setTimeout(r, 5000));
     }
 
@@ -89,11 +89,11 @@ test('youtube', async function () {
     var url = apiUrl + "/youtube";
     var res = await webclient.post(url, video);
     var file = 'dQw4w9WgXcQ.mp4';
-    expect(res['data']['video']).toEqual(file);
+    expect(res['video']).toEqual(file);
     var fPath = cdn + "/" + file;
     expect(fs.existsSync(fPath)).toEqual(true);
 
-    var idUrl = url + '/' + res['data']['id'];
+    var idUrl = url + '/' + res['id'];
     await webclient.delete(idUrl);
     data = await apiHelper.getData(url);
     expect(data.length).toEqual(0);

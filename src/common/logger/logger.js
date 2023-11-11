@@ -2,9 +2,10 @@ const path = require('path');
 const fs = require('fs');
 const controller = require('../../controller/controller');
 
-const common = require(path.join(__dirname, "../common"));
-const SeverityEnum = require(path.join(__dirname, "severity-enum"));
-const LogEntry = require(path.join(__dirname, "log-entry"));
+const common = require(path.join(__dirname, '../common.js'));
+const SeverityEnum = require(path.join(__dirname, './severity-enum.js'));
+const LogEntry = require(path.join(__dirname, './log-entry.js'));
+const HttpError = require(path.join(__dirname, '../http-error.js'));
 
 const logFile = path.join(__dirname, "../../../logs/log.json");
 
@@ -43,15 +44,27 @@ class Logger {
                 msg += " ";
             else
                 msg = "";
-            if (err.isAxiosError && err.response && err.response.status) { //axios
+            if (err instanceof HttpError) {
+                msg = "[http] ";
+                if (err.message)
+                    msg += err.message;
+                else if (err.response) {
+                    if (err.response.status)
+                        msg += err.response.status + ': ';
+                    if (err.response.statusText)
+                        msg += err.response.statusText;
+                    if (err.response.url)
+                        message += ' - ' + err.response.url;
+                } else
+                    msg += 'An unexpected error has occurred';
+            } else if (err.isAxiosError && err.response && err.response.status) //axios
                 msg = "[axios] download failed with error: " + err.response.status + " - " + err.response.statusText;
-            } else if (err.code && err.sqlMessage) { //SQL/knex error
+            else if (err.code && err.sqlMessage) //SQL/knex error
                 msg = "[knex] " + err.code;
-            } else if (err.name && err.message) { // Error/CustomError/TypeError
+            else if (err.name && err.message) // Error/CustomError/TypeError
                 msg = err.name + ": " + err.message;
-            } else {
+            else
                 msg = "undefined";
-            }
             console.log(err);
         }
         Logger.error(msg, err);

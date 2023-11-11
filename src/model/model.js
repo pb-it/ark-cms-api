@@ -732,7 +732,7 @@ class Model {
                             if (data[str]) {
                                 if (attr['storage'] == 'base64') {
                                     if (data[str]['url'] && data[str]['url'].startsWith("http"))
-                                        forge[str] = await controller.getWebClient().fetchBase64(data[str]['url']);
+                                        forge[str] = await controller.getWebClientController().getWebClient().getBase64(data[str]['url']);
                                     else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
                                         forge[str] = data[str]['base64'];
                                 } else if (attr['storage'] == 'blob') {
@@ -785,7 +785,7 @@ class Model {
                                                             tmpFilePath = path.join(tmpDir, fileName);
                                                         } while (fs.existsSync(tmpFilePath));
                                                     }
-                                                    fileName = await controller.getWebClient().download(data[str]['url'], null, tmpFilePath);
+                                                    fileName = await controller.getWebClientController().getWebClient().download(data[str]['url'], tmpFilePath);
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                 }
                                             } else

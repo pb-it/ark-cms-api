@@ -8,7 +8,6 @@ const common = require('../common/common');
 const Logger = require('../common/logger/logger');
 const ValidationError = require('../common/validation-error');
 const VcsEnum = require('../common/vcs-enum');
-const WebClient = require('../common/webclient');
 const AppVersion = require('../common/app-version');
 const WebServer = require('./webserver');
 const Registry = require('./registry');
@@ -18,6 +17,7 @@ const DataTypeController = require('./data-type-controller');
 const { ExtensionController } = require('./extension-controller');
 const MigrationController = require('./migration-controller');
 const { AuthController } = require('./auth-controller');
+const WebClientController = require('./webclient-controller');
 
 const Shelf = require('../model/shelf');
 
@@ -51,7 +51,6 @@ class Controller {
 
     _logger;
     _registry;
-    _webclient;
     _tmpDir;
 
     _versionController;
@@ -59,6 +58,7 @@ class Controller {
     _extensionController;
     _migrationsController;
     _authController;
+    _webclientController;
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
@@ -126,7 +126,7 @@ class Controller {
             this._registry = new Registry(this._knex);
             await this._registry.initRegistry();
 
-            this._webclient = new WebClient();
+            this._webclientController = new WebClientController();
 
             this._versionController = new VersionController(this);
             this._info['version'] = this._versionController.getPkgVersion().toString();
@@ -234,8 +234,8 @@ class Controller {
         return this._registry;
     }
 
-    getWebClient() {
-        return this._webclient;
+    getWebClientController() {
+        return this._webclientController;
     }
 
     getVersionController() {

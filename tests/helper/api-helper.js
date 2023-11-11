@@ -22,21 +22,23 @@ class ApiHelper {
 
     async getData(url) {
         var data;
-        var response = await this._webclient.curl(url);
+        var response = await this._webclient.get(url);
         if (response && response['data'])
             data = response['data'];
         return Promise.resolve(data);
     }
 
-    async getAllModels() {
-        return this.getData(this._modelsUrl);
+    async getModel(id) {
+        var url = this._modelsUrl;
+        if (id)
+            url += '/' + id;
+        return this.getData(url);
     }
 
     async uploadModel(model) {
-        var def;
+        var id;
         try {
-            var res = await this._webclient.put(this._modelsUrlPut, model);
-            def = { 'id': res['data'], 'definition': JSON.parse(res['config']['data']) };
+            id = await this._webclient.put(this._modelsUrlPut, model);
         } catch (error) {
             console.log(error);
             var msg;
@@ -51,7 +53,7 @@ class ApiHelper {
             else
                 throw error;
         }
-        return Promise.resolve(def);
+        return Promise.resolve(id);
     }
 }
 

@@ -17,7 +17,7 @@ class TestHelper {
         await shelf.loadAllModels();
         await shelf.initAllModels();
 
-        var data = await apiHelper.getAllModels();
+        var data = await apiHelper.getModel();
 
         var res = data.filter(function (x) {
             return x['definition']['name'] === "movies";

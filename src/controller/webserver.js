@@ -362,7 +362,7 @@ class WebServer {
                             var v;
                             if (version === 'latest') {
                                 var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
-                                var response = await this.getWebClient().curl(url);
+                                var response = await this.getWebClientController().getWebClient().get(url);
                                 v = response['version'];
                             } else
                                 v = version;

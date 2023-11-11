@@ -48,7 +48,7 @@ beforeAll(async () => {
 afterAll(async () => {
     if (bCleanupAfterTests) {
         try {
-            var models = await apiHelper.getAllModels();
+            var models = await apiHelper.getModel();
             for (var model of models)
                 await databaseHelper.deleteModel(model);
         } catch (error) {
@@ -71,7 +71,7 @@ test('media', async function () {
 
     await apiHelper.uploadModel(model);
 
-    var data = await apiHelper.getAllModels();
+    var data = await apiHelper.getModel();
     var res = data.filter(function (x) {
         return x['definition']['name'] === "media";
     })[0];
@@ -79,7 +79,7 @@ test('media', async function () {
     expect(res['definition']).toEqual(model);
 
     var media = JSON.parse(fs.readFileSync('./tests/data/crud/media_1.json', 'utf8'));
-    var base64 = await webclient.fetchBase64(media['url']);
+    var base64 = await webclient.getBase64(media['url']);
     //media['base64'] = { 'base64': base64 };
     media['base64'] = { 'url': media['url'] };
     /*await fetch(url)
@@ -106,7 +106,7 @@ test('files', async function () {
 
     await apiHelper.uploadModel(model);
 
-    var data = await apiHelper.getAllModels();
+    var data = await apiHelper.getModel();
     var res = data.filter(function (x) {
         return x['definition']['name'] === "files";
     })[0];
@@ -139,7 +139,7 @@ test('snippets', async function () {
 
     var def = await apiHelper.uploadModel(model);
 
-    var data = await apiHelper.getAllModels();
+    var data = await apiHelper.getModel();
     var res = data.filter(function (x) {
         return x['definition']['name'] === "snippets";
     })[0];
@@ -176,15 +176,17 @@ test('snippets', async function () {
     } catch (error) {
         err = error;
     }
-    expect(err['message']).toEqual('Request failed with status code 500');
+    expect(err['message']).toEqual('500: Internal Server Error - http://localhost:3003/api/data/v1/snippets');
+    expect(err['response']['body']).toEqual('[knex] ER_TRUNCATED_WRONG_VALUE_FOR_FIELD');
 
-    await databaseHelper.deleteModel(def);
+    var m = await apiHelper.getModel(def);
+    await databaseHelper.deleteModel(m);
 
     model['charEncoding'] = 'utf8mb4';
     await apiHelper.uploadModel(model);
 
     res = await webclient.post(url, snippet);
-    var id = res['data']['id'];
+    var id = res['id'];
 
     res = await apiHelper.getData(url + "/" + id);
     delete res['id'];
