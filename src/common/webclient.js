@@ -16,10 +16,16 @@ class WebClient {
         res['status'] = response.status;
         res['statusText'] = response.statusText;
         res['url'] = response.url;
+        res['headers'] = response.headers;
         res['redirected'] = response.redirected;
         res['type'] = response.type;
-        //res['headers'] = response.headers;
-        res['body'] = await response.text();
+        if (response.ok) {
+            if (response.headers.get('content-type')?.includes('application/json'))
+                res['body'] = await response.json();
+            else
+                res['body'] = await response.text();
+        } else
+            res['body'] = await response.text();
         return Promise.resolve(res);
     }
 
@@ -50,16 +56,16 @@ class WebClient {
                 if (!options)
                     options = {};
                 options['method'] = method;
+                if (!options['headers'])
+                    options['headers'] = {
+                        'Content-Type': 'application/json'
+                    };
                 if (data) {
                     if (typeof data === 'string' || data instanceof String)
                         options['body'] = data;
                     else
                         options['body'] = JSON.stringify(data);
                 }
-                if (!options['headers'])
-                    options['headers'] = {
-                        'Content-Type': 'application/json'
-                    };
                 response = await fetch(url, options);
                 break;
             default:
@@ -127,13 +133,11 @@ class WebClient {
     async download(url, file) {
         log('DOWNLOAD: ' + url);
         var res;
-        var fpath;
         var name;
         var index = file.lastIndexOf(path.sep);
-        if (index >= 0) {
-            fpath = file.substr(0, index);
+        if (index >= 0)
             name = file.substr(index + 1);
-        } else
+        else
             name = file;
 
         const response = await fetch(url);

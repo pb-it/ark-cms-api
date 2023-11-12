@@ -21,17 +21,6 @@ const WebClientController = require('./webclient-controller');
 
 const Shelf = require('../model/shelf');
 
-function createDateTimeString() {
-    const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
-    const seconds = `${date.getSeconds()}`.padStart(2, '0');
-    const minutes = `${date.getMinutes()}`.padStart(2, '0');
-    const hours = `${date.getHours()}`.padStart(2, '0');
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${hours}-${minutes}-${seconds}_${day}-${month}-${year}`;
-}
-
 class Controller {
 
     _info;

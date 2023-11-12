@@ -22,6 +22,17 @@ const { AuthError } = require('./auth-controller');
 const { ExtensionError } = require('./extension-controller');
 const AppVersion = require('../common/app-version');
 
+function createDateTimeString() {
+    const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
+    const seconds = `${date.getSeconds()}`.padStart(2, '0');
+    const minutes = `${date.getMinutes()}`.padStart(2, '0');
+    const hours = `${date.getHours()}`.padStart(2, '0');
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${hours}-${minutes}-${seconds}_${day}-${month}-${year}`;
+}
+
 const renderFile = (file, data) => {
     return new Promise((resolve, reject) => {
         ejs.renderFile(file, data, (err, result) => {
@@ -468,14 +479,15 @@ class WebServer {
     _addDatabaseRoutes(router) {
         var dbRouter = express.Router();
         dbRouter.get('/backup', async function (req, res) {
-            if (process.platform === 'linux' && this._databaseSettings['client'].startsWith('mysql')) {
+            const settings = this._controller.getDatabaseSettings();
+            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
                 try {
                     var password;
                     if (req.query['password'])
                         password = req.query['password'];
                     else
-                        password = this._databaseSettings['connection']['password'];
-                    var file = controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
+                        password = settings['connection']['password'];
+                    var file = this._controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
                     var cmd = `mysqldump --verbose -u root -p${password} \
             --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
             --databases cms > ${file}`;
