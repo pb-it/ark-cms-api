@@ -488,9 +488,15 @@ class WebServer {
                     else
                         password = settings['connection']['password'];
                     var file = this._controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
-                    var cmd = `mysqldump --verbose -u root -p${password} \
-            --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
-            --databases cms > ${file}`;
+                    var cmd;
+                    if (password)
+                        cmd = `mysqldump --verbose -u root -p${password} \
+--add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
+--databases cms > ${file}`;
+                    else
+                        cmd = `mysqldump --verbose -u root \
+--add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
+--databases cms > ${file}`;
                     Logger.info("[App] Creating database dump to '" + file + "'");
                     await common.exec(cmd);
                 } catch (error) {

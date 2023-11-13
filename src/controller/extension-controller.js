@@ -143,31 +143,33 @@ class ExtensionController {
         var bLoaded = false;
         var ext;
         var name = meta['name'];
+        var version;
         var module;
         try {
-            var p = path.join(this._dir, name);
-            var bExist = fs.existsSync(p);
+            const p = path.join(this._dir, name);
+            const bExist = fs.existsSync(p);
             if (!bExist || bOverride) {
-                var tmpDir = this._controller.getTmpDir();
-                var folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(meta['archive']), tmpDir);
-                var source = path.join(tmpDir, folderName);
+                const tmpDir = this._controller.getTmpDir();
+                const folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(meta['archive']), tmpDir);
+                const source = path.join(tmpDir, folderName);
                 if (bExist)
                     fs.rmSync(p, { recursive: true, force: true });
                 //fs.renameSync(source, p); // fs.rename fails if two separate partitions are involved
                 fs.cpSync(source, p, { recursive: true, force: true });
                 fs.rmSync(source, { recursive: true, force: true });
             }
-            var stat = fs.statSync(p);
+            const stat = fs.statSync(p);
             if (stat.isDirectory()) {
-                var manifest = path.join(p, 'manifest.json');
+                const manifest = path.join(p, 'manifest.json');
                 if (fs.existsSync(manifest)) {
-                    var str = fs.readFileSync(manifest, 'utf8');
+                    const str = fs.readFileSync(manifest, 'utf8');
                     if (str.length > 0) {
-                        var json = JSON.parse(str);
+                        const json = JSON.parse(str);
                         this._checkVersionCompatibility(json);
-                        var extDependencies = json['ext_dependencies'];
+                        version = json['version'];
+                        const extDependencies = json['ext_dependencies'];
                         if (extDependencies && Object.keys(extDependencies).length > 0) {
-                            var data = await this._model.readAll();
+                            const data = await this._model.readAll();
                             var depMeta;
                             for (let [key, value] of Object.entries(extDependencies)) {
                                 depMeta = data.filter(function (x) { return x['name'] === key });
@@ -178,7 +180,7 @@ class ExtensionController {
                                     throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which cannot be found!');
                             }
                         }
-                        var npmDependencies = json['npm_dependencies'];
+                        const npmDependencies = json['npm_dependencies'];
                         if (npmDependencies && Object.keys(npmDependencies).length > 0) {
                             var arr = [];
                             for (let [key, value] of Object.entries(npmDependencies)) {
@@ -196,9 +198,9 @@ class ExtensionController {
                     if (fs.existsSync(client))
                         meta['client-extension'] = fs.readFileSync(client, 'utf8');
                 }*/
-                var index = path.join(p, 'index.js');
+                const index = path.join(p, 'index.js');
                 if (fs.existsSync(index)) {
-                    var resolved = require.resolve(index);
+                    const resolved = require.resolve(index);
                     if (resolved)
                         delete require.cache[resolved];
                     try {
@@ -235,6 +237,13 @@ class ExtensionController {
                 ext['module'] = module;
             this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
             this._extensions.push(ext);
+            const extInformation = {
+                'version': version
+            }
+            const info = this._controller.getInfo();
+            if (!info['extensions'])
+                info['extensions'] = {};
+            info['extensions'][name] = extInformation;
             Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
         } else
             Logger.error("[ExtensionController] ✘ Loading extension '" + name + "' failed");
