@@ -1,7 +1,5 @@
 if (!global.controller)
     global.controller = require('../src/controller/controller.js');
-const WebClient = require('../src/common/webclient.js');
-const controller = require('../src/controller/controller.js');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper.js');
@@ -23,7 +21,7 @@ beforeAll(async () => {
         shelf = controller.getShelf();
     }
 
-    webclient = new WebClient();
+    webclient = controller.getWebClientController().getWebClient();
 
     apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api/data/v1"
     apiHelper = new ApiHelper(apiUrl, webclient);

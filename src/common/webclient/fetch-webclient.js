@@ -5,11 +5,12 @@ const { writeFile } = require('fs').promises;
 //const fetch = require('node-fetch');
 const fetch = require('cross-fetch');
 
-const Logger = require(path.join(__dirname, './logger/logger.js'));
-const HttpError = require(path.join(__dirname, './http-error.js'));
-const base64 = require(path.join(__dirname, './base64.js'));
+const WebClient = require(path.join(__dirname, './webclient.js'));
+const Logger = require(path.join(__dirname, '../logger/logger.js'));
+const HttpError = require(path.join(__dirname, '../http-error.js'));
+const base64 = require(path.join(__dirname, '../base64.js'));
 
-class WebClient {
+class FetchWebClient extends WebClient {
 
     static async _parseResponse(response) {
         var res = {};
@@ -73,20 +74,21 @@ class WebClient {
         }
         if (response) {
             if (bMeta)
-                res = await WebClient._parseResponse(response);
+                res = await FetchWebClient._parseResponse(response);
             else if (response.ok) {
                 if (response.headers.get('content-type')?.includes('application/json'))
                     res = await response.json();
                 else
                     res = await response.text();
             } else
-                throw new HttpError(null, await WebClient._parseResponse(response));
+                throw new HttpError(null, await FetchWebClient._parseResponse(response));
         } else
             throw new Error('An unexpected error has occurred');
         return Promise.resolve(res);
     }
 
     constructor() {
+        super('fetch');
     }
 
     async get(url, options) {
@@ -106,16 +108,16 @@ class WebClient {
     }
 
     async request(url, method, data, options) {
-        return WebClient._fetch(url, method, data, options);
+        return FetchWebClient._fetch(url, method, data, options);
     }
 
-    /*async getBuffer(url) {
+    async getBuffer(url) {
         return fetch(url).then(r => r.buffer());
     }
-    
+
     async getBlob(url) {
         return fetch(url).then(r => r.blob());
-    }*/
+    }
 
     async getBase64(url) {
         log('BASE64: ' + url);
@@ -126,7 +128,7 @@ class WebClient {
             const buffer = await response.buffer();
             res = base64.getStringFromBuffer(contentType, buffer);
         } else
-            throw new HttpError(null, await WebClient._parseResponse(response));
+            throw new HttpError(null, await FetchWebClient._parseResponse(response));
         return Promise.resolve(res);
     }
 
@@ -146,9 +148,9 @@ class WebClient {
             await writeFile(file, buffer);
             res = name;
         } else
-            throw new HttpError(null, await WebClient._parseResponse(response));
+            throw new HttpError(null, await FetchWebClient._parseResponse(response));
         return Promise.resolve(res);
     }
 }
 
-module.exports = WebClient;
+module.exports = FetchWebClient;

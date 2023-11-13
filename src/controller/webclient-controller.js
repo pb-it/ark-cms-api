@@ -1,4 +1,4 @@
-const WebClient = require('../common/webclient');
+const FetchWebClient = require('../common/webclient/fetch-webclient');
 
 class WebClientController {
 
@@ -9,10 +9,14 @@ class WebClientController {
     constructor(controller) {
         this._controller = controller;
 
-        this._defaultWebClient = new WebClient();
-        this._clients = {
-            'fetch': this._defaultWebClient
-        };
+        this._clients = {};
+
+        const client = new FetchWebClient();
+        const name = client.getName();
+        if (name) {
+            this._clients[name] = client;
+            this._defaultWebClient = client;
+        }
     }
 
     getAvailableWebClients() {
@@ -28,14 +32,22 @@ class WebClientController {
         return client;
     }
 
-    addWebClient(name, client, bDefault) {
-        this._clients[name] = client;
-        if (bDefault)
-            this._defaultWebClient = client;
+    addWebClient(client, bDefault) {
+        const name = client.getName();
+        if (name) {
+            this._clients[name] = client;
+            if (bDefault)
+                this._defaultWebClient = client;
+        } else
+            throw new Error('Client did not provide a name!');
     }
 
     setDefaultWebClient(name) {
-        this._defaultWebClient = this._clients[name];
+        const client = this._clients[name];
+        if (client)
+            this._defaultWebClient = client;
+        else
+            throw new Error('No client with name \'' + name + '\' found!');
     }
 }
 

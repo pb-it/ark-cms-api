@@ -3,8 +3,8 @@ const fs = require('fs');
 
 if (!global.controller)
     global.controller = require('../src/controller/controller');
-const WebClient = require('../src/common/webclient.js');
-const base64 = require('../src/common/base64');
+
+//const base64 = require('../src/common/base64');
 
 const ApiHelper = require('./helper/api-helper.js');
 const DatabaseHelper = require('./helper/database-helper');
@@ -33,7 +33,7 @@ beforeAll(async () => {
     if (cdns.length == 1)
         cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
 
-    webclient = new WebClient();
+    webclient = controller.getWebClientController().getWebClient();
 
     apiUrl = "http://localhost:" + controller.getServerConfig()['port'] + "/api/data/v1"
     apiHelper = new ApiHelper(apiUrl, webclient);
