@@ -10,7 +10,7 @@ module.exports.getStringFromBlob = async function (blob) {
     return Promise.resolve(getStringFromBuffer(blob.type, buffer));
 }
 
-module.exports.getExtension = function (data) {
+module.exports.getFileExtension = function (data) {
     var ext;
     if (data.startsWith("data:")) {
         var start = data.indexOf("/");

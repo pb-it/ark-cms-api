@@ -141,7 +141,6 @@ class ExtensionController {
 
     async _loadExtension(meta, bSetup, bOverride) {
         var bLoaded = false;
-        var ext;
         var name = meta['name'];
         var version;
         var module;
@@ -171,13 +170,20 @@ class ExtensionController {
                         if (extDependencies && Object.keys(extDependencies).length > 0) {
                             const data = await this._model.readAll();
                             var depMeta;
+                            var ext;
+                            var bOk;
                             for (let [key, value] of Object.entries(extDependencies)) {
                                 depMeta = data.filter(function (x) { return x['name'] === key });
                                 if (depMeta && depMeta.length == 1) {
-                                    if (!this.getExtension(key))
-                                        await this._loadExtension(depMeta[0]);
+                                    ext = this.getExtension(key);
+                                    if (ext)
+                                        bOk = ext['bOk'];
+                                    else
+                                        bOk = await this._loadExtension(depMeta[0]);
+                                    if (!bOk)
+                                        throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which was not loaded successfully');
                                 } else
-                                    throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which cannot be found!');
+                                    throw new ExtensionError('Extension \'' + name + '\' depends on \'' + key + '\' which cannot be found');
                             }
                         }
                         const npmDependencies = json['npm_dependencies'];
@@ -226,24 +232,26 @@ class ExtensionController {
             }
         } catch (error) {
             if (error instanceof ExtensionError) {
-                Logger.info("[ExtensionController] ✘ " + error.message);
+                Logger.error("[ExtensionController] ✘ " + error.message);
             } else {
                 Logger.parseError(error);
             }
         }
+        var ext = {
+            'name': name,
+            'bOk': bLoaded
+        };
+        if (module)
+            ext['module'] = module;
+        this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
+        this._extensions.push(ext);
         if (bLoaded) {
-            ext = { 'name': name };
-            if (module)
-                ext['module'] = module;
-            this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
-            this._extensions.push(ext);
-            const extInformation = {
-                'version': version
-            }
             const info = this._controller.getInfo();
             if (!info['extensions'])
                 info['extensions'] = {};
-            info['extensions'][name] = extInformation;
+            info['extensions'][name] = {
+                'version': version
+            };
             Logger.info("[ExtensionController] ✔ Loaded extension '" + name + "'");
         } else
             Logger.error("[ExtensionController] ✘ Loading extension '" + name + "' failed");

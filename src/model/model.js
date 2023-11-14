@@ -753,7 +753,7 @@ class Model {
                                                     if (fs.existsSync(tmpFilePath))
                                                         throw new Error("File already exists!");
                                                 } else {
-                                                    var ext = base64.getExtension(data[str]['base64']);
+                                                    var ext = base64.getFileExtension(data[str]['base64']);
                                                     do {
                                                         fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
                                                         tmpFilePath = path.join(tmpDir, fileName);
