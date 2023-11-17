@@ -35,7 +35,8 @@ beforeAll(async () => {
 
         webclient = controller.getWebClientController().getWebClient();
 
-        rootUrl = "http://localhost:" + controller.getServerConfig()['port'];
+        const sc = controller.getServerConfig();
+        rootUrl = ( sc['ssl'] ? "https" : "http" ) + "://localhost:" + sc['port'];
         apiUrl = rootUrl + "/api/data/v1";
         apiHelper = new ApiHelper(apiUrl, webclient);
         databaseHelper = new DatabaseHelper(shelf);

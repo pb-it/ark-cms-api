@@ -49,7 +49,6 @@ class FetchWebClient extends WebClient {
         var response;
         switch (method) {
             case 'GET':
-            case 'DELETE':
                 response = await fetch(url, options);
                 break;
             case 'POST':
@@ -67,6 +66,12 @@ class FetchWebClient extends WebClient {
                     else
                         options['body'] = JSON.stringify(data);
                 }
+                response = await fetch(url, options);
+                break;
+            case 'DELETE':
+                if (!options)
+                    options = {};
+                options['method'] = method;
                 response = await fetch(url, options);
                 break;
             default:

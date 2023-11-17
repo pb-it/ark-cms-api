@@ -155,6 +155,8 @@ class ExtensionController {
                     fs.rmSync(p, { recursive: true, force: true });
                 //fs.renameSync(source, p); // fs.rename fails if two separate partitions are involved
                 fs.cpSync(source, p, { recursive: true, force: true });
+                if (process.platform === 'win32')
+                    await new Promise(resolve => setTimeout(resolve, 100)); //FIX
                 fs.rmSync(source, { recursive: true, force: true });
             }
             const stat = fs.statSync(p);
@@ -177,7 +179,7 @@ class ExtensionController {
                                 if (depMeta && depMeta.length == 1) {
                                     ext = this.getExtension(key);
                                     if (ext)
-                                        bOk = ext['bOk'];
+                                        bOk = ext['bLoaded'];
                                     else
                                         bOk = await this._loadExtension(depMeta[0]);
                                     if (!bOk)
@@ -239,8 +241,11 @@ class ExtensionController {
         }
         var ext = {
             'name': name,
-            'bOk': bLoaded
+            'version': version,
+            'bLoaded': bLoaded
         };
+        if (meta['id'])
+            ext['id'] = meta['id'];
         if (module)
             ext['module'] = module;
         this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
@@ -283,7 +288,7 @@ class ExtensionController {
         }
         if (req.files && req.files['extension']) {// req.fields
             var file = req.files['extension'];
-            if (file['type'] == 'application/zip' && file['path'])
+            if ((file['type'] === 'application/zip' || file['type'] === 'application/x-zip-compressed') && file['path'])
                 meta = await this._addExtension(file['path'], id);
             else
                 throw new ExtensionError('Extensions need to be uploaded as ZIP');
@@ -306,7 +311,7 @@ class ExtensionController {
                 }
             }
 
-            var exist = this.getExtension(extName);
+            const exist = this.getExtension(extName);
             if (exist) {
                 if (id) {
                     var module = exist['module'];
@@ -316,50 +321,66 @@ class ExtensionController {
                     throw new ExtensionError("Skipped loading extension '" + extName + "', because no ID was provided and name already in use!");
             }
 
-            var target = path.join(this._dir, extName);
+            const target = path.join(this._dir, extName);
             if (fs.existsSync(target)) {
                 if (!id)
                     Logger.warning("[ExtensionController] ⚠ Extension '" + extName + "' will overwrite existing folder '" + target + "'");
                 fs.rmSync(target, { recursive: true, force: true });
             }
             //fs.renameSync(source, target); // fs.rename fails if two separate partitions are involved
-            fs.cpSync(source, target, { recursive: true });
+            fs.cpSync(source, target, { recursive: true, force: true });
+            if (process.platform === 'win32')
+                await new Promise(resolve => setTimeout(resolve, 100)); //FIX
             fs.rmSync(source, { recursive: true, force: true });
             meta = {};
             meta['name'] = extName;
             meta['archive'] = { 'blob': fs.readFileSync(file) };
-            var bLoaded = await this._loadExtension(meta, true);
+            const bLoaded = await this._loadExtension(meta, true);
             if (bLoaded) {
                 if (id) {
                     delete meta['name'];
                     meta = await this._model.update(id, meta);
                 } else
                     meta = await this._model.create(meta);
-            } else
+            } else {
+                await this._deleteExtension(extName);
                 meta = null;
+            }
         }
         return Promise.resolve(meta);
     }
 
     async deleteExtension(id) {
         var name;
-        var data = await this._model.delete(id);
-        if (data) {
-            name = data['name'];
-            if (name) {
-                var extension = this.getExtension(name);
+        const data = await this._model.delete(id);
+        if (data)
+            await this._deleteExtension(data['name']);
+        return Promise.resolve(name);
+    }
+
+    async _deleteExtension(name) {
+        if (name) {
+            try {
+                const extension = this.getExtension(name);
                 if (extension) {
                     var module = extension['module'];
-                    if (module && module.teardown)
-                        await module.teardown();
+                    if (module && module.teardown) {
+                        try {
+                            await module.teardown();
+                        } catch (error) {
+                            Logger.parseError(error);
+                        }
+                    }
                 }
-                var p = path.join(this._dir, name);
+                const p = path.join(this._dir, name);
                 if (fs.existsSync(p))
                     fs.rmSync(p, { recursive: true, force: true });
-                this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
+            } catch (error) {
+                Logger.parseError(error);
             }
+            this._extensions = this._extensions.filter(function (x) { return x['name'] != name });
         }
-        return Promise.resolve(name);
+        return Promise.resolve();
     }
 
     getExtension(name) {
