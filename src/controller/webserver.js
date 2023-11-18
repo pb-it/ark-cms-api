@@ -481,42 +481,81 @@ class WebServer {
         dbRouter.get('/backup', async function (req, res) {
             const settings = this._controller.getDatabaseSettings();
             if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
+                var file;
                 try {
                     var password;
                     if (req.query['password'])
                         password = req.query['password'];
                     else
                         password = settings['connection']['password'];
-                    var file = this._controller.getTmpDir() + "/cms_" + createDateTimeString() + ".sql";
-                    var cmd;
+                    file = this._controller.getTmpDir() + "/" + settings['connection']['database'] + "_" + createDateTimeString() + ".sql";
+                    var cmd = 'mysqldump --verbose -u root';
                     if (password)
-                        cmd = `mysqldump --verbose -u root -p${password} \
---add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
---databases cms > ${file}`;
-                    else
-                        cmd = `mysqldump --verbose -u root \
---add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
+                        cmd += ' -p' + password;
+                    cmd += `--add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
 --databases cms > ${file}`;
                     Logger.info("[App] Creating database dump to '" + file + "'");
                     await common.exec(cmd);
                 } catch (error) {
-                    console.log(error);
+                    Logger.parseError(error);
+                    res.status(500);
                     file = null;
                 }
                 if (file)
                     res.download(file);
                 else
-                    res.send("Something went wrong!");
+                    res.send('Something went wrong!');
             } else
-                res.send("By now backup API is only supported with mysql on local linux systems!");
+                res.send('By now backup/restore API is only supported with mysql on local linux systems!');
             return Promise.resolve();
         }.bind(this));
         dbRouter.get('/restore', function (req, res) {
-            res.send("Not Implemented Yet"); //TODO:
-        });
-        dbRouter.post('/restore', function (req, res) {
-            res.send("Not Implemented Yet"); //TODO:
-        });
+            const settings = this._controller.getDatabaseSettings();
+            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
+                const form = '<form action="/sys/tools/db/restore" enctype="multipart/form-data" method="post">' +
+                    'File:<br><input type="file" name="file" accept="application/sql"/><br>' + // accept="application/zip"
+                    '<input type="submit" value="Restore"></form>';
+                res.send(form);
+            } else
+                res.send('By now backup/restore API is only supported with mysql on local linux systems!');
+        }.bind(this));
+        dbRouter.post('/restore', async function (req, res) {
+            var response;
+            const settings = this._controller.getDatabaseSettings();
+            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
+                var file;
+                if (req.files)
+                    file = req.files['file'];
+                if (file) {
+                    Logger.info("[App] Restoring Database");
+                    try {
+                        var password;
+                        if (req.query['password'])
+                            password = req.query['password'];
+                        else
+                            password = settings['connection']['password'];
+                        if (file['type'] === 'application/sql' && file['path']) { // application/octet-stream
+                            var cmd = 'mysql --verbose -u root';
+                            if (password)
+                                cmd += ' -p' + password;
+                            cmd += '< ' + file['path'];
+                            await common.exec(cmd);
+                            fs.unlinkSync(file['path']);
+                            response = 'Restored';
+                        } else
+                            response = 'Unprocessable File';
+                    } catch (error) {
+                        Logger.parseError(error);
+                        res.status(500);
+                        response = error.toString();
+                    }
+                } else
+                    response = 'Missing File';
+            } else
+                response = 'By now backup/restore API is only supported with mysql on local linux systems!';
+            res.send(response);
+            return Promise.resolve();
+        }.bind(this));
         router.use('/db', dbRouter);
     }
 
@@ -927,6 +966,8 @@ module.exports = test;` +
                     await WebServer._unzipFile(file['path'], this._controller.getAppRoot());
                     response = 'Patched';
                 } catch (error) {
+                    Logger.parseError(error);
+                    res.status(500);
                     response = error.toString();
                 }
             } else
