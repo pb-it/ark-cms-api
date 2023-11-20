@@ -280,14 +280,14 @@ class ExtensionController {
         var meta;
         var id;
         if (req.method === "PUT") {
-            var parts = req.path.split('/'); // req.originalUrl = '/api/data/v1/_extension/x'
+            const parts = req.path.split('/'); // req.originalUrl = '/api/data/v1/_extension/x'
             if (parts.length == 3)
                 id = parseInt(parts[2]);
             else
                 throw new ExtensionError('Invalid extension ID');
         }
         if (req.files && req.files['extension']) {// req.fields
-            var file = req.files['extension'];
+            const file = req.files['extension'];
             if ((file['type'] === 'application/zip' || file['type'] === 'application/x-zip-compressed') && file['path'])
                 meta = await this._addExtension(file['path'], id);
             else

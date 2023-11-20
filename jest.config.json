@@ -1,3 +1,4 @@
 {
-    "testTimeout": 60000
+    "testTimeout": 60000,
+    "bail": true
 }

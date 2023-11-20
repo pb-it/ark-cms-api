@@ -99,8 +99,11 @@ class Controller {
                 await this._knex.raw('select 1+1 as result');
                 Logger.info("[knex] ✔ Successfully connected to " + this._databaseSettings['client'] + " on " + this._databaseSettings['connection']['host']);
             } catch (error) {
-                Logger.parseError(error, "[knex]");
-                process.exit(1);
+                if (process.env.NODE_ENV !== 'test') {
+                    Logger.parseError(error, "[knex] ER_ACCESS_DENIED_ERROR");
+                    process.exit(1);
+                } else
+                    throw error;
             }
 
             this._logger = new Logger(this._knex);

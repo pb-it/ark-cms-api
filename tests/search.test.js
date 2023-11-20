@@ -14,26 +14,30 @@ const bCleanupBeforeTests = false;
 const bCleanupAfterTests = true;
 
 beforeAll(async () => {
-    if (!controller.isRunning()) {
-        const server = require('./config/server-config');
-        const database = require('./config/database-config');
-        await controller.setup(server, database);
-        shelf = controller.getShelf();
+    try {
+        if (!controller.isRunning()) {
+            const server = require('./config/server-config');
+            const database = require('./config/database-config');
+            await controller.setup(server, database);
+            shelf = controller.getShelf();
+        }
+
+        webclient = controller.getWebClientController().getWebClient();
+
+        const sc = controller.getServerConfig();
+        apiUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'] + "/api/data/v1";
+        apiHelper = new ApiHelper(apiUrl, webclient);
+        databaseHelper = new DatabaseHelper(shelf);
+
+        if (bCleanupBeforeTests)
+            ; //TODO:
+
+        await TestHelper.setupModels(apiHelper);
+        await TestHelper.setupData(apiHelper);
+    } catch (error) {
+        console.error(error);
+        fail('EROOR');
     }
-
-    webclient = controller.getWebClientController().getWebClient();
-
-    const sc = controller.getServerConfig();
-    apiUrl = ( sc['ssl'] ? "https" : "http" ) + "://localhost:" + sc['port'] + "/api/data/v1";
-    apiHelper = new ApiHelper(apiUrl, webclient);
-    databaseHelper = new DatabaseHelper(shelf);
-
-    if (bCleanupBeforeTests)
-        ; //TODO:
-
-    await TestHelper.setupModels(apiHelper);
-    await TestHelper.setupData(apiHelper);
-
     return Promise.resolve();
 });
 

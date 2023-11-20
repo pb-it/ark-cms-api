@@ -479,81 +479,134 @@ class WebServer {
     _addDatabaseRoutes(router) {
         var dbRouter = express.Router();
         dbRouter.get('/backup', async function (req, res) {
-            const settings = this._controller.getDatabaseSettings();
-            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
-                var file;
-                try {
+            var bSent;
+            try {
+                const settings = this._controller.getDatabaseSettings();
+                if (settings && settings['client'].startsWith('mysql')) {
+                    var file;
+                    file = this._controller.getTmpDir() + "/" + settings['connection']['database'] + "_" + createDateTimeString() + ".sql";
+                    var cmd;
+                    if (process.platform === 'linux')
+                        cmd = 'mysqldump';
+                    else if (process.platform === 'win32')
+                        cmd = 'mysqldump.exe';
+                    else
+                        throw new Error(`Unsupported Platform: '${process.platform}'`);
+                    var bRemote;
+                    if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
+                        bRemote = true;
+                        cmd += ' --host=' + settings['connection']['host'];
+                    }
+                    if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
+                        cmd += ' --port=' + settings['connection']['port'];
+                    if (bRemote)
+                        cmd += ' --protocol=tcp';
+                    cmd += ' --verbose --user=' + settings['connection']['user'];
                     var password;
                     if (req.query['password'])
                         password = req.query['password'];
                     else
                         password = settings['connection']['password'];
-                    file = this._controller.getTmpDir() + "/" + settings['connection']['database'] + "_" + createDateTimeString() + ".sql";
-                    var cmd = 'mysqldump --verbose -u root';
                     if (password)
-                        cmd += ' -p' + password;
-                    cmd += `--add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 \
---databases cms > ${file}`;
+                        cmd += ' --password=' + password;
+                    cmd += ` --single-transaction=TRUE --skip-lock-tables --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 --databases cms > ${file}`;
+                    // --column-statistics=0 --skip-triggers
                     Logger.info("[App] Creating database dump to '" + file + "'");
                     await common.exec(cmd);
-                } catch (error) {
-                    Logger.parseError(error);
+                    if (file) {
+                        res.download(file);
+                        bSent = true;
+                    } else
+                        throw new Error('An unexpected error has occurred');
+                } else
+                    throw new Error('By now backup/restore API is only supports MySQL databases!');
+            } catch (error) {
+                Logger.parseError(error);
+                if (error) {
                     res.status(500);
-                    file = null;
+                    if (error['message'])
+                        res.send(error['message']);
+                    else
+                        res.send(error.toString());
                 }
-                if (file)
-                    res.download(file);
-                else
-                    res.send('Something went wrong!');
-            } else
-                res.send('By now backup/restore API is only supported with mysql on local linux systems!');
+            }
+            if (!bSent && !res.headersSent) {
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
+            }
             return Promise.resolve();
         }.bind(this));
         dbRouter.get('/restore', function (req, res) {
             const settings = this._controller.getDatabaseSettings();
-            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
+            if ((process.platform === 'linux' || process.platform === 'win32') && settings && settings['client'].startsWith('mysql')) {
                 const form = '<form action="/sys/tools/db/restore" enctype="multipart/form-data" method="post">' +
                     'File:<br><input type="file" name="file" accept="application/sql"/><br>' + // accept="application/zip"
                     '<input type="submit" value="Restore"></form>';
                 res.send(form);
             } else
-                res.send('By now backup/restore API is only supported with mysql on local linux systems!');
+                res.send('By now backup/restore API is only supports MySQL databases!');
         }.bind(this));
         dbRouter.post('/restore', async function (req, res) {
-            var response;
-            const settings = this._controller.getDatabaseSettings();
-            if (process.platform === 'linux' && settings && settings['client'].startsWith('mysql')) {
-                var file;
-                if (req.files)
-                    file = req.files['file'];
-                if (file) {
-                    Logger.info("[App] Restoring Database");
-                    try {
-                        var password;
-                        if (req.query['password'])
-                            password = req.query['password'];
-                        else
-                            password = settings['connection']['password'];
-                        if (file['type'] === 'application/sql' && file['path']) { // application/octet-stream
-                            var cmd = 'mysql --verbose -u root';
+            try {
+                var response;
+                const settings = this._controller.getDatabaseSettings();
+                if (settings && settings['client'].startsWith('mysql')) {
+                    var file;
+                    if (req.files)
+                        file = req.files['file'];
+                    if (file && file['path']) {
+                        if (file['type'] === 'application/sql' || file['type'] === 'application/octet-stream') {
+                            var cmd;
+                            if (process.platform === 'linux')
+                                cmd = 'mysql';
+                            else if (process.platform === 'win32')
+                                cmd = 'mysql.exe';
+                            else
+                                throw new Error(`Unsupported Platform: '${process.platform}'`);
+                            var bRemote;
+                            if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
+                                bRemote = true;
+                                cmd += ' --host=' + settings['connection']['host'];
+                            }
+                            if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
+                                cmd += ' --port=' + settings['connection']['port'];
+                            if (bRemote)
+                                cmd += ' --protocol=tcp';
+                            cmd += ' --verbose --user=' + settings['connection']['user'];
+                            var password;
+                            if (req.query['password'])
+                                password = req.query['password'];
+                            else
+                                password = settings['connection']['password'];
                             if (password)
-                                cmd += ' -p' + password;
+                                cmd += ' --password=' + password;
                             cmd += '< ' + file['path'];
+                            // --comments
+                            Logger.info("[App] Restoring Database");
                             await common.exec(cmd);
                             fs.unlinkSync(file['path']);
                             response = 'Restored';
                         } else
-                            response = 'Unprocessable File';
-                    } catch (error) {
-                        Logger.parseError(error);
-                        res.status(500);
-                        response = error.toString();
-                    }
+                            throw new Error(`Unprocessable File Type: '${file['type']}'`);
+                    } else
+                        throw new Error('Missing File');
                 } else
-                    response = 'Missing File';
-            } else
-                response = 'By now backup/restore API is only supported with mysql on local linux systems!';
-            res.send(response);
+                    throw new Error('By now backup/restore API is only supports MySQL databases!');
+                res.send(response);
+            } catch (error) {
+                Logger.parseError(error);
+                if (error) {
+                    res.status(500);
+                    if (error['message'])
+                        res.send(error['message']);
+                    else
+                        res.send(error.toString());
+                }
+            }
+            if (!res.headersSent) {
+                res.status(500); // Internal Server Error
+                res.send('An unexpected error has occurred');
+            }
             return Promise.resolve();
         }.bind(this));
         router.use('/db', dbRouter);

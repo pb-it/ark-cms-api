@@ -1,6 +1,5 @@
 const path = require('path');
 const fs = require('fs');
-const controller = require('../../controller/controller');
 
 const common = require(path.join(__dirname, '../common.js'));
 const SeverityEnum = require(path.join(__dirname, './severity-enum.js'));
@@ -65,7 +64,7 @@ class Logger {
                 msg = err.name + ": " + err.message;
             else
                 msg = "undefined";
-            console.log(err);
+            console.error(err);
         }
         Logger.error(msg, err);
         return msg;
