@@ -36,7 +36,7 @@ beforeAll(async () => {
         await TestHelper.setupData(apiHelper);
     } catch (error) {
         console.error(error);
-        fail('EROOR');
+        throw error;
     }
     return Promise.resolve();
 });
