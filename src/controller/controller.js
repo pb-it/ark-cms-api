@@ -348,6 +348,7 @@ class Controller {
 
     async restart() {
         Logger.info("[App] Restarting..");
+        this._info['state'] = 'restarting';
         if (!this._serverConfig['processManager']) {
             process.on("exit", function () {
                 require("child_process").spawn(process.argv.shift(), process.argv, {
@@ -361,7 +362,10 @@ class Controller {
             await this.shutdown();
         } catch (err) {
             console.log(err);
-            Logger.error("[App] ✘ An error occurred while shutting down");
+            if (err)
+                Logger.parse(err);
+            else
+                Logger.error("[App] ✘ An error occurred while shutting down");
         }
         process.exit();
     }

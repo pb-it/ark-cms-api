@@ -271,6 +271,7 @@ class WebServer {
 
     _addInfoRoute(router) {
         router.get('/info', function (req, res) {
+            this._info['time'] = new Date().toISOString();
             res.json(this._info);
         }.bind(this._controller));
     }
@@ -1136,6 +1137,9 @@ module.exports = test;` +
                     else
                         resolve();
                 });
+                setTimeout(function () {
+                    throw new Error('[Express] ✘ Could not close connections in time, forcefully shutting down');
+                }, 10000);
             } else
                 resolve();
         }.bind(this));
