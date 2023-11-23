@@ -109,9 +109,6 @@ class Controller {
             this._logger = new Logger(this._knex);
             await this._logger.initLogger();
 
-            this._webserver = new WebServer(this);
-            await this._webserver.initServer();
-
             this._shelf = new Shelf(this._knex);
             await this._shelf.initShelf();
 
@@ -128,16 +125,21 @@ class Controller {
 
             this._dataTypeController = new DataTypeController(this);
 
-            this._extensionController = new ExtensionController(this);
-            await this._extensionController.initExtensionController();
-
             this._migrationsController = new MigrationController(this);
             var res = await this._migrationsController.migrateDatabase();
             if (res)
                 await this._shelf.initAllModels();
 
-            this._authController = new AuthController(this);
-            await this._authController.initAuthController();
+            if (this._serverConfig['auth'] == undefined || this._serverConfig['auth'] == true) {
+                this._authController = new AuthController(this);
+                await this._authController.initAuthController();
+            }
+
+            this._webserver = new WebServer(this);
+            await this._webserver.initServer();
+
+            this._extensionController = new ExtensionController(this);
+            await this._extensionController.initExtensionController();
 
             if (this._info['state'] === 'openRestartRequest')
                 ;// this.restart(); // restart request direct after starting possible? how to prevent boot loop
@@ -321,7 +323,7 @@ class Controller {
 
     async reload(bForceMigration) {
         var bDone = false;
-        this._webserver.deleteAllCustomRoutes();
+        this._webserver.deleteAllCustomDataRoutes();
         this._webserver.deleteAllExtensionRoutes();
         await this._extensionController.loadAllExtensions(true);
         Logger.info("[App] Reloading models");
@@ -506,7 +508,7 @@ class Controller {
                             case "GET":
                                 data = { 'timestamp': new Date() };
                                 if (id)
-                                    data['data'] = await model.read(id);
+                                    data['data'] = await model.read(id, req.query);
                                 else
                                     data['data'] = await model.readAll(req.query);
                                 break;
@@ -599,7 +601,9 @@ class Controller {
                     var model = await this._shelf.upsertModel(undefined, definition);
                     await model.initModel();
                     id = model.getId();
-                    var user = req.session.user;
+                    var user;
+                    if (this._authController && req.session)
+                        user = req.session.user;
                     var uid;
                     if (user)
                         uid = user['id'];

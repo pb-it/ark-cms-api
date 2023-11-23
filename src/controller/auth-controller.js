@@ -27,15 +27,12 @@ class AuthController {
         return hash;
     }
 
-    static greeting(req, res) {
-        res.send('Hello, ' + req.session.user.username + '!' +
-            ' <a href="/sys/auth/logout">Logout</a>');
-    }
-
     _controller;
     _userModel;
     _roleModel;
     _permissionModel;
+
+    _userRole;
 
     constructor(controller) {
         this._controller = controller;
@@ -227,50 +224,55 @@ class AuthController {
         else
             adminUser = await this._userModel.create({ 'username': 'admin', 'password': 'admin', 'email': 'admin@cms.local' });
 
-        var userRole;
         res = await this._roleModel.readAll({ 'role': 'administrator' });
         if (res && res.length == 0)
             await this._roleModel.create({ 'role': 'administrator', 'users': [adminUser['id']] });
         res = await this._roleModel.readAll({ 'role': 'user' });
         if (res && res.length == 1)
-            userRole = res[0];
+            this._userRole = res[0];
         else
-            userRole = await this._roleModel.create({ 'role': 'user' });
+            this._userRole = await this._roleModel.create({ 'role': 'user' });
 
         if (bCreatePermissions) {
-            if (!userRole) {
-                var res = await this._roleModel.readAll({ 'role': 'user' });
-                if (res && res.length == 1)
-                    userRole = res[0];
+            const permission = {
+                'role': this._userRole['id'],
+                'read': true,
+                'write': false
+            };
+
+            permission['model'] = shelf.getModel('_model').getId();
+            await this._permissionModel.create(permission);
+
+            permission['model'] = shelf.getModel('_registry').getId();
+            await this._permissionModel.create(permission);
+
+            permission['model'] = shelf.getModel('_change').getId();
+            await this._permissionModel.create(permission);
+
+            permission['model'] = shelf.getModel('_user').getId();
+            await this._permissionModel.create(permission);
+
+            permission['model'] = shelf.getModel('_role').getId();
+            await this._permissionModel.create(permission);
+
+            const model = shelf.getModel('_extensions');
+            if (model) {
+                permission['model'] = model.getId();
+                await this._permissionModel.create(permission);
             }
-            if (userRole) {
-                var permission = {
-                    'role': userRole['id'],
-                    'read': true,
-                    'write': false
-                };
-
-                permission['model'] = shelf.getModel('_model').getId();
-                await this._permissionModel.create(permission);
-
-                permission['model'] = shelf.getModel('_registry').getId();
-                await this._permissionModel.create(permission);
-
-                permission['model'] = shelf.getModel('_change').getId();
-                await this._permissionModel.create(permission);
-
-                permission['model'] = shelf.getModel('_user').getId();
-                await this._permissionModel.create(permission);
-
-                permission['model'] = shelf.getModel('_role').getId();
-                await this._permissionModel.create(permission);
-
-                permission['model'] = shelf.getModel('_extension').getId();
-                await this._permissionModel.create(permission);
-            } else
-                throw new Error("Admin role missing");
         }
 
+        return Promise.resolve();
+    }
+
+    async addDefaultPermission(model) {
+        const permission = {
+            'model': model.getId(),
+            'role': this._userRole['id'],
+            'read': true,
+            'write': false
+        };
+        await this._permissionModel.create(permission);
         return Promise.resolve();
     }
 
@@ -302,69 +304,29 @@ class AuthController {
         return Promise.resolve(user);
     }
 
-    async checkAuthorization(req, res, next) {
-        try {
-            if (req.originalUrl == "/") {
-                if (req.session.user)
-                    next();
-                else
-                    res.redirect('/sys/auth/login');
-            } else if (req.originalUrl == "/sys/auth/login" || req.originalUrl == "/sys/auth/logout")
-                next();
-            else {
-                if (req.session.user) {
-                    var bAllow = false;
-                    if (req.session.user.roles.includes('administrator'))
-                        bAllow = true;
-                    else if (req.path == '/sys/info' || req.path == '/sys/session')
-                        bAllow = true;
-                    else if (req.originalUrl.startsWith('/api/data/')) {
-                        var model;
-                        var arr = req.path.split('/');
-                        if (arr.length >= 5) {
-                            var modelName = arr[4];
-                            model = controller.getShelf().getModel(modelName);
-                        }
-                        if (model) {
-                            var permissions;
-                            if (req.method === 'GET')
-                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
-                            else
-                                permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
-                            if (permissions && permissions.length > 0) {
-                                for (var permission of permissions) {
-                                    if (permission['user']) {
-                                        if (req.session.user.username == permission['user']['username']) {
-                                            bAllow = true;
-                                            break;
-                                        }
-                                    } else if (permission['role']) {
-                                        if (req.session.user.roles.includes(permission['role']['role'])) {
-                                            bAllow = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            ; // custom routes?
-                        }
-                    } else if (req.originalUrl.startsWith('/api/ext/')) {
-                        //var route = await this._controller.getWebServer().getMatchingCustomRoute(req);
-                        //if (route) // TODO: fix buggy route matching; autorization-concept for custom routes?
-                        bAllow = true;
+    async hasPermission(user, model, action) {
+        var bPermission = false;
+        var permissions;
+        if (action === 1)
+            permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'read': true });
+        else
+            permissions = await this._permissionModel.readAll({ 'model': model.getId(), 'write': true });
+        if (permissions && permissions.length > 0) {
+            for (var permission of permissions) {
+                if (permission['user']) {
+                    if (user['username'] == permission['user']['username']) {
+                        bPermission = true;
+                        break;
                     }
-                    if (bAllow)
-                        next();
-                    else
-                        res.sendStatus(403); //Forbidden //TODO:
-                } else
-                    res.sendStatus(401); //Unauthorized
+                } else if (permission['role']) {
+                    if (user['roles'].includes(permission['role']['role'])) {
+                        bPermission = true;
+                        break;
+                    }
+                }
             }
-        } catch (error) {
-            Logger.parseError(error);
         }
-        return Promise.resolve();
+        return Promise.resolve(bPermission);
     }
 
     async changePassword(user, current_password, new_password) {

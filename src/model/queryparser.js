@@ -67,7 +67,9 @@ class QueryParser {
             if (query.hasOwnProperty('_sort')) {
                 var parts = query['_sort'].split(':');
                 if (parts.length == 2)
-                    this._book = this._book.query('orderBy', parts[0], parts[1]);
+                    this._book = this._book.query(function (qb) {
+                        this.orderBy(parts[0], parts[1]);
+                    });
             }
             if (query.hasOwnProperty('_limit')) {
                 if (query['_limit'] != -1)

@@ -7,21 +7,21 @@ So you can define functions, classes, etc. which you can afterwards use in your 
 This is also the place where you can define new custom routes for your model/application.
 
 
-### Custom (server) routes
+### Custom data routes
 
 Example:
 
 ```js
-var route = {
+const route = {
     'regex': '^/test/(\\d+)$',
     'fn': async function (req, res) {
-        var data = {};
+        const data = {};
         data['message'] = "request for 'test' with id:" + req.locals['match'][1] + " overwritten!";
         res.json(data); // response with your own data
         return Promise.resolve();
     }
 };
-controller.getWebServer().addCustomRoute(route);
+controller.getWebServer().addCustomDataRoute(route);
 ```
 
 

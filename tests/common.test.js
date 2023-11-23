@@ -36,7 +36,7 @@ beforeAll(async () => {
     webclient = controller.getWebClientController().getWebClient();
 
     const sc = controller.getServerConfig();
-    apiUrl = ( sc['ssl'] ? "https" : "http" ) + "://localhost:" + sc['port'] + "/api/data/v1";
+    apiUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'] + "/api/data/v1";
     apiHelper = new ApiHelper(apiUrl, webclient);
     databaseHelper = new DatabaseHelper(shelf);
 
@@ -177,7 +177,7 @@ test('snippets', async function () {
     } catch (error) {
         err = error;
     }
-    expect(err['message']).toEqual('500: Internal Server Error - http://localhost:3003/api/data/v1/snippets');
+    expect(err['message']).toEqual('500: Internal Server Error - ' + url);
     expect(err['response']['body']).toEqual('[knex] ER_TRUNCATED_WRONG_VALUE_FOR_FIELD');
 
     var m = await apiHelper.getModel(def);

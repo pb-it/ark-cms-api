@@ -9,15 +9,16 @@ class DatabaseHelper {
     }
 
     async deleteModel(model) {
-        var id = model['id'];
-        var name = model['definition']['name'];
+        const id = model['id'];
+        const name = model['definition']['name'];
         if (!name.startsWith('_')) {
+            const table = model['definition']['tableName'] ? model['definition']['tableName'] : name;
             try {
                 await this._knex.raw('SET FOREIGN_KEY_CHECKS=0;');
                 if (id)
                     await this._shelf.deleteModel(id);
-                if (name)
-                    await this._knex.schema.dropTable(name);
+                if (table)
+                    await this._knex.schema.dropTable(table);
                 var junctions = model['definition']['attributes'].filter(function (attribute) {
                     return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
                 });

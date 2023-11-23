@@ -1,6 +1,6 @@
 {
     "name": "wing-cms-api",
-    "version": "0.5.5-beta",
+    "version": "0.5.6-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -29,13 +29,15 @@
         "debug:http": "export NODE_DEBUG=http,http2&& node --max_old_space_size=8192 index.js",
         "debug:app": "export DEBUG=app:*&& node --max_old_space_size=8192 index.js",
         "debug:knex": "export DEBUG=knex:query&& node --max_old_space_size=8192 index.js",
-        "test": "jest --runInBand ./tests/common.test.js ./tests/relations.test.js ./tests/search.test.js ./tests/delete.test.js ./tests/eval.test.js",
+        "test": "jest --runInBand ./tests/common.test.js ./tests/relations.test.js ./tests/read.test.js ./tests/search.test.js ./tests/delete.test.js ./tests/eval.test.js ./tests/misc.test.js",
         "test:common": "jest tests/common.test.js",
         "test:relations": "jest tests/relations.test.js",
         "test:extensions": "jest tests/extensions.test.js",
+        "test:read": "jest tests/read.test.js",
         "test:search": "jest tests/search.test.js",
         "test:delete": "jest tests/delete.test.js",
         "test:eval": "jest tests/eval.test.js",
+        "test:misc": "jest tests/misc.test.js",
         "lint": "eslint src/js"
     },
     "dependencies": {

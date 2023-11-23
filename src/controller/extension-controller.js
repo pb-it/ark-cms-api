@@ -87,6 +87,9 @@ class ExtensionController {
             }
             //var model = new Model(shelf, null, definition);
             this._model = await shelf.upsertModel(null, definition);
+            const ac = this._controller.getAuthController();
+            if (ac)
+                await ac.addDefaultPermission(this._model);
         }
         if (!this._model.initDone())
             await this._model.initModel();

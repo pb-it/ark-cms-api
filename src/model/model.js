@@ -558,14 +558,42 @@ class Model {
         return this._book;
     }
 
-    async read(id) {
+    async read(id, query) {
         var res;
         if (this._bInitDone && this._book) {
-            var obj = await this._book.where({ 'id': id }).fetch({
-                'withRelated': this._relationNames,
+            var field;
+            if (query) {
+                if (query.hasOwnProperty('$field')) {
+                    if (Array.isArray(query['$field']))
+                        field = query['$field'];
+                    else
+                        field = query['$field'].split(',');
+                    delete query['$field'];
+                }
+            }
+            const options = {
                 'require': true
-            });
-            res = obj.toJSON();
+            };
+            if (field) {
+                options['columns'] = [];
+                options['withRelated'] = [];
+                for (var name of field) {
+                    if (this._relationNames.includes(name))
+                        options['withRelated'].push(name);
+                    else
+                        options['columns'].push(name);
+                }
+            } else
+                options['withRelated'] = this._relationNames
+            var obj = await this._book.where({ 'id': id }).fetch(options);
+            if (field && field.length == 1) {
+                if (options['withRelated'].includes(field[0]))
+                    res = obj['relations'][field[0]].map(x => { return x['id'] });
+                else
+                    res = obj['attributes'][field[0]];
+            } else
+                res = obj.toJSON();
+
 
             if (this._postReadHook)
                 res = await this._postReadHook(res);
@@ -578,14 +606,37 @@ class Model {
         var res;
         if (this._bInitDone && this._book) {
             var book;
-            if (query)
+            var field;
+            if (query) {
+                if (query.hasOwnProperty('$field')) {
+                    if (Array.isArray(query['$field']))
+                        field = query['$field'];
+                    else
+                        field = query['$field'].split(',');
+                    delete query['$field'];
+                }
                 book = this.where(query);
-            else
+            } else
                 book = this._book;
-            var rs = await book.fetchAll({
-                'withRelated': this._relationNames
-            });
-            var arr = rs.toJSON();
+            var options;
+            if (field) {
+                options = {
+                    'columns': [],
+                    'withRelated': []
+                };
+                for (var name of field) {
+                    if (this._relationNames.includes(name))
+                        options['withRelated'].push(name);
+                    else
+                        options['columns'].push(name);
+                }
+            } else {
+                options = {
+                    'withRelated': this._relationNames
+                };
+            }
+            const rs = await book.fetchAll(options);
+            const arr = rs.toJSON();
             if (this._postReadHook && bHook) {
                 res = [];
                 for (var data of arr) {
