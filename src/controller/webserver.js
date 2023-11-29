@@ -488,7 +488,7 @@ class WebServer {
             else {
                 var bForceMigration = (req.query['forceMigration'] === 'true');
                 try {
-                    if (this._info['state'] === 'openRestartRequest') {
+                    if (this._controller.getInfo()['state'] === 'openRestartRequest') {
                         res.send("Restarting instead of reloading because of open request.");
                         this.restart();
                     } else {
@@ -496,7 +496,7 @@ class WebServer {
                         if (bDone) {
                             var msg = "Reload done.";
 
-                            if (this._info['state'] === 'openRestartRequest') {
+                            if (this._controller.getInfo()['state'] === 'openRestartRequest') {
                                 res.send(msg + " Restarting now.");
                                 this._controller.restart();
                             } else
