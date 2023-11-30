@@ -30,14 +30,12 @@ class QueryParser {
         if (keys.length > 0) {
             args = [];
             for (let key in obj) {
-                if (!key.startsWith('_')) {
-                    if (key === '$or')
-                        args.push({ 'operator': 'or', 'args': QueryParser._parseArgs(obj[key]) });
-                    else if (key === '$and')
-                        args.push({ 'operator': 'and', 'args': QueryParser._parseArgs(obj[key]) });
-                    else
-                        args.push({ 'operator': 'eq', 'field': key, 'value': obj[key] });
-                }
+                if (key === '$or')
+                    args.push({ 'operator': 'or', 'args': QueryParser._parseArgs(obj[key]) });
+                else if (key === '$and')
+                    args.push({ 'operator': 'and', 'args': QueryParser._parseArgs(obj[key]) });
+                else
+                    args.push({ 'operator': 'eq', 'field': key, 'value': obj[key] });
             }
         }
         return args;
@@ -62,9 +60,16 @@ class QueryParser {
 
     executeQuery(query) {
         if (Object.keys(query).length > 0) {
-            this._obj = QueryParser._parse(query);
-            if (Object.keys(this._obj).length > 0)
-                this.queryObj(this._obj);
+            var copy = {};
+            for (let [key, value] of Object.entries(query)) {
+                if (!key.startsWith('_') || key === '$field')
+                    copy[key] = value;
+            }
+            if (Object.keys(copy).length > 0) {
+                this._obj = QueryParser._parse(copy);
+                if (Object.keys(this._obj).length > 0)
+                    this.queryObj(this._obj);
+            }
             if (query.hasOwnProperty('_sort')) {
                 var parts = query['_sort'].split(':');
                 if (parts.length == 2)
