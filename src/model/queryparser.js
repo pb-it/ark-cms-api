@@ -1,6 +1,7 @@
 const inflection = require('inflection');
 
-const OPERATORS = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex', 'lt', 'gt', 'lte', 'gte'];
+const OPERATORS = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex'];
+const OPERATORS_NUMBER = ['lt', 'gt', 'lte', 'gte'];
 const OPERATORS_MULTI_REL = ['null', 'count', 'any', 'none', 'every'];
 
 class QueryParser {
@@ -165,16 +166,27 @@ class QueryParser {
         var fn;
         var index = prop.indexOf('.');
         if (index == -1) {
+            var tmp;
             var propName;
             var operator;
+            var operator2;
 
             index = prop.lastIndexOf('_');
             if (index == -1)
                 propName = prop;
             else {
+                var tmp = prop.substring(0, index);
                 var end = prop.substring(index + 1);
-                if (OPERATORS.includes(end) || OPERATORS_MULTI_REL.includes(end)) {
-                    propName = prop.substring(0, index);
+                if (OPERATORS_NUMBER.includes(end)) {
+                    index = tmp.lastIndexOf('_');
+                    if (index != -1) {
+                        operator2 = end;
+                        end = tmp.substring(index + 1);
+                        tmp = tmp.substring(0, index);
+                    }
+                }
+                if (OPERATORS.includes(end) || OPERATORS_NUMBER.includes(end) || OPERATORS_MULTI_REL.includes(end)) {
+                    propName = tmp;
                     operator = end;
                 } else
                     propName = prop;
@@ -214,12 +226,12 @@ class QueryParser {
                 if (!operator)
                     operator = 'any';
                 if (relAttr['via'])
-                    fn = this._queryViaRelation(relAttr, operator, val);
+                    fn = this._queryViaRelation(relAttr, operator, operator2, val);
                 else
-                    fn = this._queryRelation(relAttr, operator, val);
+                    fn = this._queryRelation(relAttr, operator, operator2, val);
             } else {
                 if (operator) {
-                    if (OPERATORS.includes(operator))
+                    if (OPERATORS.includes(operator) || OPERATORS_NUMBER.includes(operator))
                         fn = this._queryComparisonOperation(propName, operator, value);
                     else
                         throw new Error(`unkown operator: ${operator}`);
@@ -236,16 +248,16 @@ class QueryParser {
         return fn;
     }
 
-    _queryViaRelation(relAttr, operation, value) {
+    _queryViaRelation(relAttr, operation, operator2, value) {
         var fn;
-        var subType = relAttr['model'];
-        var relModel = this._model.getShelf().getModel(subType);
+        const subType = relAttr['model'];
+        const relModel = this._model.getShelf().getModel(subType);
         if (relModel) {
-            var tableName = this._model.getTableName();
-            var relModelTable = relModel.getTableName();
+            const tableName = this._model.getTableName();
+            const relModelTable = relModel.getTableName();
 
-            var id = tableName + '.id';
-            var fid = relModelTable + '.' + relAttr['via'];
+            const id = tableName + '.id';
+            const fid = relModelTable + '.' + relAttr['via'];
 
             fn = function (qb) {
                 switch (operation) {
@@ -258,12 +270,45 @@ class QueryParser {
                         break;
                     case 'count':
                         var count = parseInt(value);
-                        if (count == 0) {
+                        if (count == 0 && !operator2) {
                             qb.whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
-                        } else if (count > 0) {
-                            qb.join(relModelTable, id, fid);
-                            qb.groupBy(id)
-                                .havingRaw('COUNT(*) = ?', [count]);
+                        } else {
+                            var op;
+                            var bIncludeZero;
+                            if (operator2) {
+                                bIncludeZero = operator2 === 'lt' || operator2 === 'lte' || (operator2 === 'gte' && count == 0);
+                                switch (operator2) {
+                                    case 'lt':
+                                        op = '<';
+                                        break;
+                                    case 'gt':
+                                        op = '>';
+                                        break;
+                                    case 'lte':
+                                        op = '<=';
+                                        break;
+                                    case 'gte':
+                                        op = '>=';
+                                        break;
+                                    default:
+                                        throw new Error('Operator \'' + operator2 + '\' not supported');
+                                }
+                            } else
+                                op = '=';
+                            if (bIncludeZero) {
+                                qb.whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
+                                qb.union(function (qb) {
+                                    qb.select(tableName + '.*')
+                                        .from(tableName)
+                                        .join(relModelTable, id, fid)
+                                        .groupBy(id)
+                                        .havingRaw('COUNT(*) ' + op + ' ?', [count])
+                                }, true);
+                            } else {
+                                qb.join(relModelTable, id, fid)
+                                    .groupBy(id)
+                                    .havingRaw('COUNT(*) ' + op + ' ?', [count])
+                            }
                         }
                         break;
                     case 'any': // containsAny / includesSome
@@ -297,7 +342,7 @@ class QueryParser {
         return fn;
     }
 
-    _queryRelation(relAttr, operation, value) {
+    _queryRelation(relAttr, operation, operator2, value) {
         var fn;
         var subType = relAttr['model'];
         var relModel = this._model.getShelf().getModel(subType);
@@ -305,14 +350,12 @@ class QueryParser {
             var tableName = this._model.getTableName();
             var relModelTable = relModel.getTableName();
             var junctionTable = this._model.getJunctionTableName(relAttr);
-            var id = inflection.singularize(tableName) + "_id";
+            var id = tableName + ".id";
+            var jid = inflection.singularize(tableName) + "_id";
             var fid = inflection.singularize(relModelTable) + "_id";
-            if (operation != 'count' || parseInt(value) == 0) {
+            if (operation != 'count') {
                 if (this._leftJoins.indexOf(junctionTable) == -1)
                     this._leftJoins.push(junctionTable);
-            } else {
-                if (this._joins.indexOf(junctionTable) == -1)
-                    this._joins.push(junctionTable);
             }
 
             fn = function (qb) {
@@ -325,11 +368,46 @@ class QueryParser {
                         break;
                     case 'count':
                         var count = parseInt(value);
-                        if (count == 0) {
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ')');
-                        } else if (count > 0) {
-                            qb.groupBy(id)
-                                .havingRaw('COUNT(*) = ?', [count]);
+                        if (count == 0 && !operator2) {
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
+                        } else {
+                            var op;
+                            var bIncludeZero;
+                            if (operator2) {
+                                bIncludeZero = operator2 === 'lt' || operator2 === 'lte' || (operator2 === 'gte' && count == 0);
+                                switch (operator2) {
+                                    case 'lt':
+                                        op = '<';
+                                        break;
+                                    case 'gt':
+                                        op = '>';
+                                        break;
+                                    case 'lte':
+                                        op = '<=';
+                                        break;
+                                    case 'gte':
+                                        op = '>=';
+                                        break;
+                                    default:
+                                        throw new Error('Operator \'' + operator2 + '\' not supported');
+                                }
+                            } else
+                                op = '=';
+
+                            if (bIncludeZero) {
+                                qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
+                                qb.union(function (qb) {
+                                    qb.select(tableName + '.*')
+                                        .from(tableName)
+                                        .join(junctionTable, id, jid)
+                                        .groupBy(id)
+                                        .havingRaw('COUNT(*) ' + op + ' ?', [count]);
+                                }, true);
+                            } else {
+                                qb.join(junctionTable, id, jid)
+                                    .groupBy(id)
+                                    .havingRaw('COUNT(*) ' + op + ' ?', [count]);
+                            }
                         }
                         break;
                     case 'any': // containsAny / includesSome
@@ -340,14 +418,14 @@ class QueryParser {
                         break;
                     case 'none':
                         if (Array.isArray(value))
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
                         else
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + id + ' FROM ' + junctionTable + ' WHERE ' + fid + ' = ' + value + ' )');
+                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ' WHERE ' + fid + ' = ' + value + ' )');
                         break;
                     case 'every': // containsAll / includesEvery
                         if (Array.isArray(value)) {
                             qb.whereIn(fid, value)
-                                .groupBy(junctionTable + '.' + id)
+                                .groupBy(junctionTable + '.' + jid)
                                 .havingRaw('COUNT(*) >= ?', value.length);
                         } else
                             qb.where(fid, value);

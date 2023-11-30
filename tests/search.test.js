@@ -130,6 +130,16 @@ test('#relations', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('3,4,5,6,7');
 
+    urlSearch = apiUrl + "/stars?movies_count_lte=1";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('3,4,5,6,7');
+
+    urlSearch = apiUrl + "/stars?movies_count_gt=1";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
     return Promise.resolve();
 });
 
@@ -164,6 +174,21 @@ test('#relation_via', async function () {
     expect(idArr.sort().join(',')).toEqual('');
 
     urlSearch = apiUrl + "/studios?movies_count=3";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1');
+
+    urlSearch = apiUrl + "/studios?movies_count_lt=2";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('2,3');
+
+    urlSearch = apiUrl + "/studios?movies_count_gte=0";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,3');
+
+    urlSearch = apiUrl + "/studios?movies_count_gte=2";
     data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1');
