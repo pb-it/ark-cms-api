@@ -58,7 +58,7 @@ class QueryParser {
         this._leftJoins = [];
     }
 
-    executeQuery(query) {
+    async executeQuery(query) {
         if (Object.keys(query).length > 0) {
             var copy = {};
             for (let [key, value] of Object.entries(query)) {
@@ -68,18 +68,18 @@ class QueryParser {
             if (Object.keys(copy).length > 0) {
                 this._obj = QueryParser._parse(copy);
                 if (Object.keys(this._obj).length > 0)
-                    this.queryObj(this._obj);
+                    await this.queryObj(this._obj);
             }
             if (query.hasOwnProperty('_sort')) {
                 var parts = query['_sort'].split(':');
                 if (parts.length == 2)
-                    this._book = this._book.query(function (qb) {
+                    this._book = await this._book.query(function (qb) {
                         this.orderBy(parts[0], parts[1]);
                     });
             }
             if (query.hasOwnProperty('_limit')) {
                 if (query['_limit'] != -1)
-                    this._book = this._book.query(function (qb) {
+                    this._book = await this._book.query(function (qb) {
                         this.limit(query['_limit']);
                     });
             }
@@ -87,18 +87,18 @@ class QueryParser {
         return this.finalizeQuery();
     }
 
-    queryObj(obj, bExec = true) {
+    async queryObj(obj, bExec = true) {
         var func;
         if (obj['operator'] === 'or' || obj['operator'] === 'and') {
             var arr = [];
             var fn;
             for (var q of obj['args']) {
-                fn = this.queryObj(q, obj['operator'] !== 'or' && obj['operator'] !== 'and');
+                fn = await this.queryObj(q, obj['operator'] !== 'or' && obj['operator'] !== 'and');
                 if (fn)
                     arr.push(fn);
             }
             if (arr.length > 0) {
-                this._book = this._book.query(function (qb) {
+                this._book = await this._book.query(function (qb) {
                     if (arr.length == 1) {
                         if (obj['operator'] === 'or') {
                             if (this._bFirst) { // knex may rearrange query - 'or' on first part have to be switched/delayed
@@ -109,21 +109,24 @@ class QueryParser {
                         } else
                             qb.where(arr[0]);
                     } else {
-                        var fn;
+                        let fn;
                         if (obj['operator'] === 'or')
                             fn = function (oqb) {
-                                for (var fn of arr)
-                                    oqb.orWhere(fn);
+                                for (var fx of arr)
+                                    oqb.orWhere(fx);
                             };
                         else
                             fn = function (oqb) {
-                                for (var fn of arr)
-                                    oqb.where(fn);
+                                for (var fx of arr) {
+                                    fx(oqb);
+                                    //console.log(oqb.toSQL());
+                                }
                             };
                         if (this._bOr)
                             qb.orWhere(fn);
                         else
                             qb.where(fn);
+                        //console.log(qb.toSQL());
                     }
                     this._bFirst = false;
                 }.bind(this));
@@ -132,7 +135,7 @@ class QueryParser {
             var fn = this._query(obj['field'], obj['value']);
             if (fn) {
                 if (bExec) {
-                    this._book = this._book.query(function (qb) {
+                    this._book = await this._book.query(function (qb) {
                         fn(qb);
                     }.bind(this));
                 } else
@@ -140,15 +143,15 @@ class QueryParser {
             } else
                 throw new Error(`Unsupported query: ${obj['field']}=${obj['value']}`);
         }
-        return func;
+        return Promise.resolve(func);
     }
 
-    finalizeQuery() {
+    async finalizeQuery() {
         if (this._joins.length > 0) {
             var tableName = this._model._tableName;
             var id = inflection.singularize(tableName) + "_id";
             for (let a of this._joins) {
-                this._book = this._book.query(function (qb) {
+                this._book = await this._book.query(function (qb) {
                     qb.join(a, tableName + '.id', a + '.' + id);
                     //console.log(qb.toSQL());
                 });
@@ -158,13 +161,13 @@ class QueryParser {
             var tableName = this._model._tableName;
             var id = inflection.singularize(tableName) + "_id";
             for (let a of this._leftJoins) {
-                this._book = this._book.query(function (qb) {
+                this._book = await this._book.query(function (qb) {
                     qb.leftJoin(a, tableName + '.id', a + '.' + id);
                     //console.log(qb.toSQL());
                 });
             }
         }
-        return this._book;
+        return Promise.resolve(this._book);
     }
 
     _query(prop, value) {
@@ -301,18 +304,26 @@ class QueryParser {
                             } else
                                 op = '=';
                             if (bIncludeZero) {
-                                qb.whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
-                                qb.union(function (qb) {
-                                    qb.select(tableName + '.*')
+                                qb.whereIn(id, function (qb) {
+                                    qb.select(id)
+                                        .from(tableName)
+                                        .whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
+                                    qb.union(function (qb) {
+                                        qb.select(id)
+                                            .from(tableName)
+                                            .join(relModelTable, id, fid)
+                                            .groupBy(id)
+                                            .havingRaw('COUNT(*) ' + op + ' ?', [count])
+                                    }, true);
+                                });
+                            } else {
+                                qb.whereIn(id, function (qb) {
+                                    qb.select(id)
                                         .from(tableName)
                                         .join(relModelTable, id, fid)
                                         .groupBy(id)
                                         .havingRaw('COUNT(*) ' + op + ' ?', [count])
-                                }, true);
-                            } else {
-                                qb.join(relModelTable, id, fid)
-                                    .groupBy(id)
-                                    .havingRaw('COUNT(*) ' + op + ' ?', [count])
+                                });
                             }
                         }
                         break;
@@ -400,20 +411,29 @@ class QueryParser {
                                 op = '=';
 
                             if (bIncludeZero) {
-                                qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
-                                qb.union(function (qb) {
-                                    qb.select(tableName + '.*')
+                                qb.whereIn(id, function (qb) {
+                                    qb.select(id)
+                                        .from(tableName)
+                                        .whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
+                                    qb.union(function (qb) {
+                                        qb.select(id)
+                                            .from(tableName)
+                                            .join(junctionTable, id, jid)
+                                            .groupBy(id)
+                                            .havingRaw('COUNT(*) ' + op + ' ?', [count]);
+                                    }, true);
+                                });
+                            } else {
+                                qb.whereIn(id, function (qb) {
+                                    qb.select(id)
                                         .from(tableName)
                                         .join(junctionTable, id, jid)
                                         .groupBy(id)
                                         .havingRaw('COUNT(*) ' + op + ' ?', [count]);
-                                }, true);
-                            } else {
-                                qb.join(junctionTable, id, jid)
-                                    .groupBy(id)
-                                    .havingRaw('COUNT(*) ' + op + ' ?', [count]);
+                                });
                             }
                         }
+                        //console.log(qb.toSQL());
                         break;
                     case 'any': // containsAny / includesSome
                         if (Array.isArray(value))

@@ -140,6 +140,26 @@ test('#relations', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2');
 
+    urlSearch = apiUrl + "/stars?movies_count_gt=1&_limit=-1";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
+    urlSearch = apiUrl + "/stars?movies_count_gt=1&gender=male";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
+    urlSearch = apiUrl + "/stars?gender=male&movies_count_gt=1";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2');
+
+    urlSearch = apiUrl + "/stars?movies_count_lt=2&gender=male";
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('3,4,5');
+
     return Promise.resolve();
 });
 

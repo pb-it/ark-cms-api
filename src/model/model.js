@@ -615,7 +615,7 @@ class Model {
                         field = query['$field'].split(',');
                     delete query['$field'];
                 }
-                book = this.where(query);
+                book = await this.where(query);
             } else
                 book = this._book;
             var options;
@@ -649,7 +649,7 @@ class Model {
         return Promise.resolve(res);
     }
 
-    where(query) {
+    async where(query) {
         var qp = new QueryParser(this);
         return qp.executeQuery(query);
     }
