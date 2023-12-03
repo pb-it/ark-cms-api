@@ -88,6 +88,11 @@ test('#basic', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2,3');
 
+    urlSearch = apiUrl + "/stars?created_at_lt=" + new Date().toISOString();
+    data = await apiHelper.getData(urlSearch);
+    idArr = data.map(function (x) { return x['id'] });
+    expect(idArr.sort().join(',')).toEqual('1,2,3,4,5,6,7');
+
     return Promise.resolve();
 });
 

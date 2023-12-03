@@ -186,14 +186,18 @@ class QueryParser {
                 var tmp = prop.substring(0, index);
                 var end = prop.substring(index + 1);
                 if (OPERATORS_NUMBER.includes(end)) {
+                    propName = tmp;
+                    operator = end;
                     index = tmp.lastIndexOf('_');
                     if (index != -1) {
-                        operator2 = end;
                         end = tmp.substring(index + 1);
-                        tmp = tmp.substring(0, index);
+                        if (end === 'count') {
+                            operator2 = operator;
+                            operator = end;
+                            propName = tmp.substring(0, index);
+                        }
                     }
-                }
-                if (OPERATORS.includes(end) || OPERATORS_NUMBER.includes(end) || OPERATORS_MULTI_REL.includes(end)) {
+                } else if (OPERATORS.includes(end) || OPERATORS_MULTI_REL.includes(end)) {
                     propName = tmp;
                     operator = end;
                 } else
@@ -466,14 +470,21 @@ class QueryParser {
 
     _queryComparisonOperation(propName, operator, value) {
         var prop = this._model.getTableName() + '.' + propName;
-        for (var attribute of this._model.getDefinition().attributes) {
+        const def = this._model.getDefinition();
+        var dataType;
+        if ((propName === 'created_at' || propName === 'updated_at') && def.options.timestamps)
+            dataType = 'timestamp';
+        for (var attribute of def.attributes) {
             if (attribute['name'] == propName) {
-                if (attribute['dataType'] == "timestamp")
-                    if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
-                        value = value.substring(0, value.length - 1) + '+00:00';
+                dataType = attribute['dataType'];
                 break;
             }
         }
+        if (dataType === 'timestamp') {
+            if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
+                value = value.substring(0, value.length - 1) + '+00:00';
+        }
+
         return function (qb) {
             switch (operator) {
                 case 'null':
