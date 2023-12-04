@@ -649,6 +649,30 @@ class Model {
         return Promise.resolve(res);
     }
 
+    async count(query) {
+        var res;
+        if (this._bInitDone && this._book) {
+            var book;
+            var field;
+            if (query) {
+                if (query.hasOwnProperty('$field')) {
+                    if (Array.isArray(query['$field']))
+                        field = query['$field'];
+                    else
+                        field = query['$field'].split(',');
+                    delete query['$field'];
+                }
+                book = await this.where(query);
+            } else
+                book = this._book;
+
+            if (this._definition.options.increments)
+                res = await book.count('id');
+        } else
+            throw new Error('Faulty model \'' + this._name + '\'');
+        return Promise.resolve(res);
+    }
+
     async where(query) {
         var qp = new QueryParser(this);
         return qp.executeQuery(query);

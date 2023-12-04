@@ -1,5 +1,4 @@
 const Logger = require('../common/logger/logger');
-const controller = require('../controller/controller');
 const Model = require('./model');
 
 class Shelf {
@@ -92,11 +91,6 @@ class Shelf {
                     {
                         "name": "data",
                         "dataType": "json"
-                    },
-                    {
-                        "name": "user",
-                        "dataType": "relation",
-                        "model": "_user"
                     },
                     {
                         "name": "title",

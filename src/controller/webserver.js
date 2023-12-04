@@ -223,7 +223,7 @@ class WebServer {
 
     _addRootRoute() {
         this._app.get('/', function (req, res) {
-            if (this._controller.getServerConfig()['ssl']) {
+            if (this._controller.getAuthController()) {
                 if (req.session.user) {
                     res.send('Hello, ' + req.session.user.username + '!' +
                         ' <a href="/sys/auth/logout">Logout</a>');

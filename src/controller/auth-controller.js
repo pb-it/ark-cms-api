@@ -262,6 +262,25 @@ class AuthController {
             }
         }
 
+        var mChange = shelf.getModel('_change');
+        var definition = mChange.getDefinition();
+        var bFound;
+        for (var attr of definition['attributes']) {
+            if (attr['name'] === 'user') {
+                bFound = true;
+                break;
+            }
+        }
+        if (!bFound) {
+            definition['attributes'].push({
+                "name": "user",
+                "dataType": "relation",
+                "model": "_user"
+            });
+            mChange = await shelf.upsertModel(mChange.getId(), definition);
+            await mChange.initModel();
+        }
+
         return Promise.resolve();
     }
 

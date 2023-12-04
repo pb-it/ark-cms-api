@@ -486,15 +486,20 @@ class Controller {
                 } else {
                     var model = this._shelf.getModel(name);
                     if (model && model.initDone()) {
+                        var operation;
                         str = arr.shift();
                         if (str) {
-                            try {
-                                id = parseInt(str);
-                            } catch (error) {
-                                Logger.parseError(error);
+                            if (str === 'count')
+                                operation = str;
+                            else {
+                                try {
+                                    id = parseInt(str);
+                                } catch (error) {
+                                    Logger.parseError(error);
+                                }
+                                if (!id)
+                                    throw new ValidationError("Invalid path");
                             }
-                            if (!id)
-                                throw new ValidationError("Invalid path");
                         }
                         var data;
                         var timestamp; // new Date(); req.headers["Date"]; this._knex.fn.now(DEFAULT_TIMESTAMP_PRECISION);
@@ -509,6 +514,8 @@ class Controller {
                                 data = { 'timestamp': new Date() };
                                 if (id)
                                     data['data'] = await model.read(id, req.query);
+                                else if (operation === 'count')
+                                    data['data'] = await model.count(req.query);
                                 else
                                     data['data'] = await model.readAll(req.query);
                                 break;
@@ -719,7 +726,7 @@ class Controller {
                 } else
                     timestamp = null;
             }
-            if (!uid && req && req.session) {
+            if (this._authController && !uid && req && req.session) {
                 var user = req.session.user;
                 if (user)
                     uid = user['id'];
@@ -730,9 +737,10 @@ class Controller {
                 'method': method,
                 'model': model,
                 'record_id': id,
-                'data': JSON.stringify(data),
-                'user': uid
+                'data': JSON.stringify(data)
             };
+            if (this._authController)
+                change['user'] = uid;
             if (timestamp)
                 change['timestamp'] = timestamp;
             await this._shelf.getModel('_change').create(change);
