@@ -1,5 +1,6 @@
 const inflection = require('inflection');
 
+const OPERATOR_IDENT = '$';
 const OPERATORS = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex'];
 const OPERATORS_NUMBER = ['lt', 'gt', 'lte', 'gte'];
 const OPERATORS_MULTI_REL = ['null', 'count', 'any', 'none', 'every'];
@@ -8,15 +9,15 @@ class QueryParser {
 
     static _parse(query) {
         var obj = {};
-        var keys = Object.keys(query);
+        const keys = Object.keys(query);
         if (keys.length > 0) {
             if (keys.length == 1) {
-                var prop = keys[0];
-                if (prop === '$or')
-                    obj = { 'operator': 'or', 'args': QueryParser._parseArgs(query[prop]) };
-                else if (prop === '$and')
-                    obj = { 'operator': 'and', 'args': QueryParser._parseArgs(query[prop]) };
-                else if (!prop.startsWith('_'))
+                const prop = keys[0];
+                if (prop.startsWith(OPERATOR_IDENT)) {
+                    const op = prop.substring(1);
+                    if (op === 'or' || op === 'and')
+                        obj = { 'operator': op, 'args': QueryParser._parseArgs(query[prop]) };
+                } else if (!prop.startsWith('_'))
                     obj = { 'operator': 'eq', 'field': prop, 'value': query[prop] }
             } else
                 obj = { 'operator': 'and', 'args': QueryParser._parseArgs(query) };
@@ -26,15 +27,16 @@ class QueryParser {
 
     static _parseArgs(obj) {
         var args;
-        var keys = Object.keys(obj);
+        const keys = Object.keys(obj);
         if (keys.length > 0) {
             args = [];
+            var op;
             for (let key in obj) {
-                if (key === '$or')
-                    args.push({ 'operator': 'or', 'args': QueryParser._parseArgs(obj[key]) });
-                else if (key === '$and')
-                    args.push({ 'operator': 'and', 'args': QueryParser._parseArgs(obj[key]) });
-                else
+                if (key.startsWith(OPERATOR_IDENT)) {
+                    op = key.substring(1);
+                    if (op === 'or' || op === 'and')
+                        args.push({ 'operator': op, 'args': QueryParser._parseArgs(obj[key]) });
+                } else
                     args.push({ 'operator': 'eq', 'field': key, 'value': obj[key] });
             }
         }
@@ -60,9 +62,14 @@ class QueryParser {
 
     async executeQuery(query) {
         if (Object.keys(query).length > 0) {
-            var copy = {};
+            const copy = {};
+            var op;
             for (let [key, value] of Object.entries(query)) {
-                if (!key.startsWith('_') || key === '$field')
+                if (key.startsWith(OPERATOR_IDENT)) {
+                    op = key.substring(1);
+                    if (op === 'or' || op === 'and')
+                        copy[key] = value;
+                } else if (!key.startsWith('_'))
                     copy[key] = value;
             }
             if (Object.keys(copy).length > 0) {
@@ -70,18 +77,27 @@ class QueryParser {
                 if (Object.keys(this._obj).length > 0)
                     await this.queryObj(this._obj);
             }
-            if (query.hasOwnProperty('_sort')) {
-                var parts = query['_sort'].split(':');
+            var sort;
+            if (query.hasOwnProperty(OPERATOR_IDENT + 'sort'))
+                sort = query[OPERATOR_IDENT + 'sort'];
+            else if (query.hasOwnProperty('_sort'))
+                sort = query['_sort'];
+            if (sort) {
+                const parts = sort.split(':');
                 if (parts.length == 2)
                     this._book = await this._book.query(function (qb) {
                         this.orderBy(parts[0], parts[1]);
                     });
             }
-            if (query.hasOwnProperty('_limit')) {
-                if (query['_limit'] != -1)
-                    this._book = await this._book.query(function (qb) {
-                        this.limit(query['_limit']);
-                    });
+            var limit;
+            if (query.hasOwnProperty(OPERATOR_IDENT + 'limit'))
+                limit = query[OPERATOR_IDENT + 'limit'];
+            else if (query.hasOwnProperty('_limit'))
+                limit = query['_limit'];
+            if (limit && limit != -1) {
+                this._book = await this._book.query(function (qb) {
+                    this.limit(limit);
+                });
             }
         }
         return this.finalizeQuery();

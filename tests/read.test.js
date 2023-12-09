@@ -75,6 +75,10 @@ test('#read', async function () {
     data = await apiHelper.getData(urlRead);
     expect(data).toEqual(7);
 
+    urlRead = apiUrl + "/stars/count?movies=3";
+    data = await apiHelper.getData(urlRead);
+    expect(data).toEqual(2);
+
     urlRead = apiUrl + "/stars?_sort=name:asc";
     data = await apiHelper.getData(urlRead);
     idArr = data.map(function (x) { return x['id'] });

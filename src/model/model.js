@@ -667,7 +667,7 @@ class Model {
                 book = this._book;
 
             if (this._definition.options.increments)
-                res = await book.count('id');
+                res = await book.count(this.getTableName() + '.id');
         } else
             throw new Error('Faulty model \'' + this._name + '\'');
         return Promise.resolve(res);
