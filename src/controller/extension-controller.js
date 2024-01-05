@@ -217,13 +217,13 @@ class ExtensionController {
                     try {
                         module = require(index);
                         if (module) {
-                            if (module.init)
-                                await module.init();
                             if (module.setup && bSetup) {
                                 var data = await module.setup();
                                 if (data && data['client-extension'])
                                     meta['client-extension'] = data['client-extension'];
                             }
+                            if (module.init)
+                                await module.init();
                         }
                         bLoaded = true;
                     } catch (error) {
