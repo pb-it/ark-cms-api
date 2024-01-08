@@ -356,8 +356,10 @@ class ExtensionController {
     async deleteExtension(id) {
         var name;
         const data = await this._model.delete(id);
-        if (data)
-            await this._deleteExtension(data['name']);
+        if (data) {
+            name = data['name'];
+            await this._deleteExtension(name);
+        }
         return Promise.resolve(name);
     }
 

@@ -16,7 +16,7 @@ class DependencyController {
     _foundDir;
 
     _locationAddDep;
-    _bAddFoundDir = false;
+    _bAddFoundDir = true;
 
     constructor(controller) {
         this._controller = controller;
@@ -118,7 +118,12 @@ class DependencyController {
 
             if (this._bAddFoundDir && addFoundDir.length > 0) {
                 var names = addFoundDir.map(function (x) { return x['ident'] });
-                await this._addDependencies(names);
+                try {
+                    await this._addDependencies(names);
+                } catch (error) {
+                    Logger.parseError(error);
+                    missing = missing.concat(addFoundDir);
+                }
             }
 
             if (missing.length > 0) {
