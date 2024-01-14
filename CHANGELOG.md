@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## [0.5.7-beta](https://github.com/pb-it/wing-cms-api/releases/tag/0.5.7-beta) (2023-01-05)
+## [0.6.0-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.6.0-beta) (2024-01-14)
+
+### BREAKING CHANGES
+
+* Added Build Step
+
+
+## [0.5.7-beta](https://github.com/pb-it/wing-cms-api/releases/tag/0.5.7-beta) (2024-01-05)
 
 Minor changes
 

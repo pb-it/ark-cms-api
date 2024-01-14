@@ -392,7 +392,7 @@ class WebServer {
                             if (version) {
                                 var v;
                                 if (version === 'latest') {
-                                    var url = 'https://raw.githubusercontent.com/pb-it/wing-cms-api/main/package.json';
+                                    var url = 'https://raw.githubusercontent.com/pb-it/ark-cms-api/main/package.json';
                                     var response = await this._controller.getWebClientController().getWebClient().get(url);
                                     v = response['version'];
                                 } else

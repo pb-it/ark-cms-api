@@ -1,12 +1,11 @@
-# wing-cms-api
+# ark-cms-api
 
 ```bash
-git clone https://github.com/pb-it/wing-cms-api
-#git clone https://github.com/pb-it/wing-cms-api -b 0.4.0-beta --depth 1
+git clone https://github.com/pb-it/ark-cms-api
+#git clone https://github.com/pb-it/ark-cms-api -b 0.4.0-beta --depth 1
 
 npm install --legacy-peer-deps
-
-//npm update
+#npm update
 
 npm run start
 ```
@@ -24,13 +23,13 @@ npm run start
 # Docker
 
 ```bash
-docker build . -t /<image name/>
+docker build . -t <image name>
 
-docker run -p 3002:3002 -d /<image name/>
+docker run -p 3002:3002 -d <image name>
 
 or with interactive bash
 
-docker run -p 3002:3002 -it /<image name/> /bin/bash
+docker run -p 3002:3002 -it <image name> /bin/bash
 ```
 
 
@@ -38,7 +37,7 @@ docker run -p 3002:3002 -it /<image name/> /bin/bash
 
 > Create `tests/config/server-config.js` and `tests/config/database-config.js`
 
-&nbps;
+&nbsp;
 
 > **INFO**: By now the automatic tests suffer from the lack of ability to verfiy security features!
 
@@ -50,5 +49,5 @@ docker run -p 3002:3002 -it /<image name/> /bin/bash
 
 ```bash
 npm run test
-//npm run test:relations
+#npm run test:relations
 ```
