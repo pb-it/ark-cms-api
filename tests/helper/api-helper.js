@@ -9,7 +9,8 @@ class ApiHelper {
         this._api = api;
         this._webclient = webclient;
         this._modelsUrl = this._api + "/_model";
-        this._modelsUrlPut = this._modelsUrl + "?v=0.5.0-beta";
+        const appVersion = controller.getVersionController().getPkgVersion();
+        this._modelsUrlPut = this._modelsUrl + "?v=" + appVersion;
     }
 
     getUrl() {
