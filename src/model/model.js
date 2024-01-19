@@ -791,6 +791,7 @@ class Model {
 
     async _createForge(data, old) {
         var forge = {};
+        var tmp;
         var attr;
         for (var str in data) {
             if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
@@ -827,6 +828,9 @@ class Model {
                                                     tmpFilePath = path.join(tmpDir, fileName);
                                                     if (fs.existsSync(tmpFilePath))
                                                         throw new Error("File already exists!");
+                                                } else if (attr['funcFileName']) {
+                                                    fileName = await attr['funcFileName'](data);
+                                                    tmpFilePath = path.join(tmpDir, fileName);
                                                 } else {
                                                     var ext = base64.getFileExtension(data[str]['base64']);
                                                     do {
@@ -842,15 +846,17 @@ class Model {
                                                 if (data[str]['force'] || !attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
                                                     if (fileName)
                                                         tmpFilePath = path.join(tmpDir, fileName);
-                                                    else {
+                                                    else if (attr['funcFileName']) {
+                                                        fileName = await attr['funcFileName'](data);
+                                                        tmpFilePath = path.join(tmpDir, path.basename(fileName));
+                                                    } else {
+                                                        var uid;
                                                         var ext = common.getFileExtensionFromUrl(data[str]['url']);
                                                         if (ext) {
                                                             ext = ext.toLowerCase();
                                                             if (ext === "jpg!d")
                                                                 ext = "jpg";
-                                                            fileName = `${uid}.${ext}`;
                                                         }
-                                                        var uid;
                                                         do {
                                                             uid = crypto.randomBytes(16).toString("hex");
                                                             if (ext)
@@ -858,10 +864,10 @@ class Model {
                                                             else
                                                                 fileName = uid;
                                                             tmpFilePath = path.join(tmpDir, fileName);
-                                                        } while (fs.existsSync(tmpFilePath));
+                                                        } while (!tmpFilePath || fs.existsSync(tmpFilePath));
                                                     }
-                                                    fileName = await controller.getWebClientController().getWebClient().download(data[str]['url'], tmpFilePath);
-                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                    tmp = await controller.getWebClientController().getWebClient().download(data[str]['url'], tmpFilePath);
+                                                    tmpFilePath = path.join(tmpDir, tmp);
                                                 }
                                             } else
                                                 throw new Error("Invalid URL!");
@@ -873,11 +879,15 @@ class Model {
                                                 if (fs.existsSync(oldFile))
                                                     fs.unlinkSync(oldFile);
                                             }
+                                            const target = path.join(localPath, fileName);
+                                            const dir = path.dirname(target);
+                                            if (dir && !(fs.existsSync(dir) && fs.statSync(dir).isDirectory()))
+                                                fs.mkdirSync(dir, { recursive: true });
                                             // fs.rename fails if two separate partitions are involved
                                             if (data[str]['force'])
-                                                fs.copyFileSync(tmpFilePath, path.join(localPath, fileName));
+                                                fs.copyFileSync(tmpFilePath, target);
                                             else
-                                                fs.copyFileSync(tmpFilePath, path.join(localPath, fileName), fs.constants.COPYFILE_EXCL);
+                                                fs.copyFileSync(tmpFilePath, target, fs.constants.COPYFILE_EXCL);
                                             fs.unlinkSync(tmpFilePath);
                                         } else {
                                             if (fileName) {
