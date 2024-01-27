@@ -1,13 +1,11 @@
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 const _eval = require('eval');
 
 const inflection = require('inflection');
 
 const QueryParser = require(path.join(__dirname, './queryparser'));
 const Logger = require(path.join(__dirname, '../common/logger/logger'));
-const common = require(path.join(__dirname, '../common/common'));
 const base64 = require(path.join(__dirname, '../common/base64'));
 
 global.DEFAULT_TIMESTAMP_PRECISION = 3;
@@ -380,7 +378,7 @@ class Model {
                 break;
             default:
                 const dtc = controller.getDataTypeController();
-                var dt = dtc.getDataType(attribute['dataType']);
+                const dt = dtc.getDataType(attribute['dataType']);
                 if (dt && dt.add)
                     dt.add(this, table, attribute);
                 else
@@ -790,12 +788,14 @@ class Model {
     }
 
     async _createForge(data, old) {
-        var forge = {};
+        const forge = {};
+        const dtc = controller.getDataTypeController();
+        var dt;
         var tmp;
         var attr;
         for (var str in data) {
             if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
-                attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
                 if (attr) {
                     if (!attr.hasOwnProperty("persistent") || attr.persistent == true) {
                         if (attr['dataType'] === 'timestamp' || attr['dataType'] === 'datetime') {
@@ -807,13 +807,15 @@ class Model {
                         } else if (attr['dataType'] === 'file') {
                             if (data[str]) {
                                 if (attr['storage'] == 'base64') {
-                                    if (data[str]['url'] && data[str]['url'].startsWith("http"))
-                                        forge[str] = await controller.getWebClientController().getWebClient().getBase64(data[str]['url']);
-                                    else if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
+                                    if (data[str]['base64'] && data[str]['base64'].startsWith("data:"))
                                         forge[str] = data[str]['base64'];
+                                    else if (data[str]['url'] && data[str]['url'].startsWith("http"))
+                                        forge[str] = await controller.getWebClientController().getWebClient().getBase64(data[str]['url']);
                                 } else if (attr['storage'] == 'blob') {
                                     if (data[str]['blob'])
                                         forge[str] = data[str]['blob'];
+                                    else if (data[str]['url'] && data[str]['url'].startsWith("http"))
+                                        throw new Error('NotImplementedException'); //TODO:
                                 } else if (attr['storage'] == 'filesystem') {
                                     var localPath = controller.getPathForFile(attr);
                                     if (localPath) {
@@ -825,19 +827,11 @@ class Model {
                                         if (data[str]['base64']) {
                                             if (data[str]['base64'].startsWith("data:")) {
                                                 if (fileName) {
-                                                    tmpFilePath = path.join(tmpDir, fileName);
+                                                    tmpFilePath = path.join(tmpDir, path.basename(fileName));
                                                     if (fs.existsSync(tmpFilePath))
                                                         throw new Error("File already exists!");
-                                                } else if (attr['funcFileName']) {
-                                                    fileName = await attr['funcFileName'](data);
-                                                    tmpFilePath = path.join(tmpDir, fileName);
-                                                } else {
-                                                    var ext = base64.getFileExtension(data[str]['base64']);
-                                                    do {
-                                                        fileName = crypto.randomBytes(16).toString("hex") + '.' + ext;
-                                                        tmpFilePath = path.join(tmpDir, fileName);
-                                                    } while (fs.existsSync(tmpFilePath));
-                                                }
+                                                } else
+                                                    throw new Error("Missing file name!");
                                                 base64.createFile(tmpFilePath, data[str]['base64']);
                                             } else
                                                 throw new Error("Invalid base64 data!");
@@ -845,27 +839,9 @@ class Model {
                                             if (data[str]['url'].startsWith("http")) {
                                                 if (data[str]['force'] || !attr['url_prop'] || !old || !old[attr['url_prop']] || old[attr['url_prop']] != data[str]['url']) {
                                                     if (fileName)
-                                                        tmpFilePath = path.join(tmpDir, fileName);
-                                                    else if (attr['funcFileName']) {
-                                                        fileName = await attr['funcFileName'](data);
                                                         tmpFilePath = path.join(tmpDir, path.basename(fileName));
-                                                    } else {
-                                                        var uid;
-                                                        var ext = common.getFileExtensionFromUrl(data[str]['url']);
-                                                        if (ext) {
-                                                            ext = ext.toLowerCase();
-                                                            if (ext === "jpg!d")
-                                                                ext = "jpg";
-                                                        }
-                                                        do {
-                                                            uid = crypto.randomBytes(16).toString("hex");
-                                                            if (ext)
-                                                                fileName = `${uid}.${ext}`;
-                                                            else
-                                                                fileName = uid;
-                                                            tmpFilePath = path.join(tmpDir, fileName);
-                                                        } while (!tmpFilePath || fs.existsSync(tmpFilePath));
-                                                    }
+                                                    else
+                                                        throw new Error("Missing file name!");
                                                     tmp = await controller.getWebClientController().getWebClient().download(data[str]['url'], tmpFilePath);
                                                     tmpFilePath = path.join(tmpDir, tmp);
                                                 }
@@ -911,7 +887,7 @@ class Model {
                                         else
                                             forge[str] = null;
                                     } else
-                                        throw new Error("Invalid CDN path!");
+                                        throw new Error("Invalid file storage path!");
                                 }
                                 if (attr['filename_prop'] && data[str]['filename'])
                                     forge[attr['filename_prop']] = data[str]['filename'];
@@ -932,8 +908,13 @@ class Model {
                                     forge[attr['url_prop']] = null;
                                 }
                             }
-                        } else
-                            forge[str] = data[str];
+                        } else {
+                            dt = dtc.getDataType(attr['dataType']);
+                            if (dt && dt.createForge)
+                                await dt.createForge(attr, data, old, forge);
+                            else
+                                forge[str] = data[str];
+                        }
                     }
                 } else if (str === 'id' && this._definition.options.increments) {
                     forge[str] = data[str];

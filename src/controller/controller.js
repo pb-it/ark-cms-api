@@ -30,7 +30,6 @@ class Controller {
     _serverConfig;
     _databaseConfig;
     _databaseSettings;
-    _cdnConfig;
 
     _bIsRunning;
 
@@ -70,11 +69,8 @@ class Controller {
         if (this._vcs)
             this._info['vcs'] = this._vcs;
 
-        var file = path.join(this._appRoot, './config/cdn-config.js');
-        if (fs.existsSync(file)) {
-            this._cdnConfig = require(file);
-            this._info['cdn'] = this._cdnConfig.map(function (x) { return { 'url': x['url'] } });
-        }
+        if (this._serverConfig['fileStorage'])
+            this._info['cdn'] = this._serverConfig['fileStorage'].map(function (x) { return { 'url': x['url'] } });
 
         try {
             var defaultConnection = this._databaseConfig['defaultConnection'];
@@ -208,8 +204,14 @@ class Controller {
         return this._databaseSettings;
     }
 
-    getCdnConfig() {
-        return this._cdnConfig;
+    getFileStorage(name) {
+        var res;
+        if (name) {
+            if (this._serverConfig['fileStorage'])
+                res = this._serverConfig['fileStorage'].filter(function (x) { return x['name'] === name });
+        } else
+            res = this._serverConfig['fileStorage'];
+        return res;
     }
 
     getKnex() {
@@ -268,9 +270,9 @@ class Controller {
 
     getPathForFile(attr) {
         var localPath;
-        if (this._cdnConfig) {
+        if (this._serverConfig['fileStorage']) {
             var p;
-            for (var c of this._cdnConfig) {
+            for (var c of this._serverConfig['fileStorage']) {
                 if (c['url'] === attr['cdn']) {
                     p = c['path'];
                     break;
@@ -278,7 +280,7 @@ class Controller {
             }
             if (p) {
                 if (p.startsWith('.'))
-                    localPath = path.join(controller.getAppRoot(), p);
+                    localPath = path.join(this._appRoot, p);
                 else {
                     if (process.platform === 'linux') {
                         if (p.startsWith('/'))

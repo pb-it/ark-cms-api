@@ -45,7 +45,7 @@ docker run -p 3002:3002 -it <image name> /bin/bash
 
 > Disable authentication while testing!
 
-> Extensions test needs a existing `cdn` folder which has to be specified in `tests/config/cdn-config.js`
+> Extensions test needs an existing `cdn` folder which has to be specified in `tests/config/server-config.js`
 
 ```bash
 npm run test

@@ -17,7 +17,6 @@ const Logger = require('../common/logger/logger');
 const SeverityEnum = require('../common/logger/severity-enum');
 const ValidationError = require('../common/validation-error');
 const VcsEnum = require('../common/vcs-enum');
-const { AuthController } = require('./auth-controller');
 const { AuthError } = require('./auth-controller');
 const { ExtensionError } = require('./extension-controller');
 const AppVersion = require('../common/app-version');
@@ -216,9 +215,35 @@ class WebServer {
     }
 
     _addRoutes() {
+        this._addCdnRoutes();
         this._addRootRoute();
         this._addSystemRoutes();
         this._addApiRoutes();
+    }
+
+    _addCdnRoutes() {
+        if (this._config['fileStorage']) {
+            for (var storage of this._config['fileStorage']) {
+                if (storage['url'] && storage['path']) {
+                    this._app.get(storage['url'] + '/*', function (req, res, next) {
+                        var status;
+                        if (this._controller.getAuthController()) {
+                            if (!req.session.user)
+                                status = 401; //Unauthorized
+                        }
+                        if (status)
+                            res.sendStatus(status);
+                        else {
+                            var filePath = path.join(this._controller.getAppRoot(), storage['path'], req.path.substring(storage['url'].length));
+                            if (fs.existsSync(filePath))
+                                res.sendFile(filePath);
+                            else
+                                next();
+                        }
+                    }.bind(this));
+                }
+            }
+        }
     }
 
     _addRootRoute() {
