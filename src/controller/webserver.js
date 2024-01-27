@@ -223,24 +223,35 @@ class WebServer {
 
     _addCdnRoutes() {
         if (this._config['fileStorage']) {
+            var root;
+            var filePath;
             for (var storage of this._config['fileStorage']) {
                 if (storage['url'] && storage['path']) {
-                    this._app.get(storage['url'] + '/*', function (req, res, next) {
-                        var status;
-                        if (this._controller.getAuthController()) {
-                            if (!req.session.user)
-                                status = 401; //Unauthorized
-                        }
-                        if (status)
-                            res.sendStatus(status);
-                        else {
-                            var filePath = path.join(this._controller.getAppRoot(), storage['path'], req.path.substring(storage['url'].length));
-                            if (fs.existsSync(filePath))
-                                res.sendFile(filePath);
-                            else
-                                next();
-                        }
-                    }.bind(this));
+                    root = null;
+                    filePath = null;
+                    if (storage['path'].startsWith('/'))
+                        root = storage['path'];
+                    else if (storage['path'].startsWith('.'))
+                        root = path.join(this._controller.getAppRoot(), storage['path']);
+                    if (root && fs.existsSync(root)) {
+                        this._app.get(storage['url'] + '/*', function (req, res, next) {
+                            var status;
+                            if (this._controller.getAuthController()) {
+                                if (!req.session.user)
+                                    status = 401; //Unauthorized
+                            }
+                            if (status)
+                                res.sendStatus(status);
+                            else {
+                                filePath = path.join(root, req.path.substring(storage['url'].length));
+                                if (fs.existsSync(filePath))
+                                    res.sendFile(filePath);
+                                else
+                                    next();
+                            }
+                        }.bind(this));
+                    } else
+                        Logger.error("[App] ✘ File Storage '" + storage['path'] + "' not found");
                 }
             }
         }
