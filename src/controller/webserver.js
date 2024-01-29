@@ -236,7 +236,7 @@ class WebServer {
                     if (root && fs.existsSync(root)) {
                         this._app.get(storage['url'] + '/*', function (req, res, next) {
                             var status;
-                            if (this._controller.getAuthController()) {
+                            if (!storage['public'] && this._controller.getAuthController()) {
                                 if (!req.session.user)
                                     status = 401; //Unauthorized
                             }

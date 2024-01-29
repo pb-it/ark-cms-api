@@ -4,7 +4,8 @@ var server = {
     fileStorage: [{
         name: "localhost",
         url: "/cdn",
-        path: "../cdn/"
+        path: "../cdn/",
+        public: false
     }],
     processManager: null
 };
