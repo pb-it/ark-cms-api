@@ -862,8 +862,12 @@ class Model {
                                             // fs.rename fails if two separate partitions are involved
                                             if (data[str]['force'])
                                                 fs.copyFileSync(tmpFilePath, target);
-                                            else
+                                            else if (!fs.existsSync(target))
                                                 fs.copyFileSync(tmpFilePath, target, fs.constants.COPYFILE_EXCL);
+                                            else {
+                                                fs.unlinkSync(tmpFilePath);
+                                                throw new Error("File '" + target + "' already exists");
+                                            }
                                             fs.unlinkSync(tmpFilePath);
                                         } else {
                                             if (fileName) {

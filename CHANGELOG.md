@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.6.2-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.6.2-beta) (2024-01-31)
+
+### BREAKING CHANGES
+
+* Refactored Custom Data Types
+
+
 ## [0.6.1-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.6.1-beta) (2024-01-27)
 
 ### BREAKING CHANGES
