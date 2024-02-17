@@ -112,8 +112,50 @@ class WebServer {
                 res.send("Server is not fully started yet. Please retry.");
             }
         });
-        if (this._controller.getAuthController())
+        if (this._controller.getAuthController()) {
             app.use(session(sessOptions));
+            app.use(async function (req, res, next) {
+                try {
+                    if (!req.session.user && req.headers.authorization) {
+                        var user;
+                        const b64auth = req.headers.authorization.split(' ')[1] || '';
+                        if (b64auth) {
+                            const strauth = Buffer.from(b64auth, 'base64').toString();
+                            const splitIndex = strauth.indexOf(':');
+                            if (splitIndex != -1) {
+                                const username = strauth.substring(0, splitIndex);
+                                const password = strauth.substring(splitIndex + 1);
+                                if (username && password)
+                                    user = await this._controller.getAuthController().checkAuthentication(username, password);
+                            }
+                        }
+                        if (user) {
+                            await new Promise(function (resolve, reject) {
+                                req.session.regenerate(function (err) {
+                                    if (err)
+                                        reject(err);
+                                    else {
+                                        req.session.user = user;
+                                        req.session.save(function (err) {
+                                            if (err)
+                                                reject(err);
+                                            else
+                                                resolve();
+                                        });
+                                    }
+                                });
+                            });
+                        }
+                    }
+                } catch (error) {
+                    Logger.parseError(error);
+                    res.status(500); // Internal Server Error
+                    res.send('An unexpected error has occurred');
+                    return Promise.resolve();
+                }
+                return next();
+            }.bind(this));
+        }
 
         app.use(express.urlencoded({ limit: '100mb', extended: true }));
         app.use(express.json({ limit: '100mb' }));
@@ -1329,9 +1371,13 @@ module.exports = test;` +
                         }
                     }
 
-                    if (status)
-                        res.sendStatus(status);
-                    else {
+                    if (status) {
+                        if (status === 401) { // && challenge
+                            res.set('WWW-Authenticate', 'Basic realm="data"');
+                            res.status(401).send('Unauthorized'); // Authentication required
+                        } else
+                            res.sendStatus(status);
+                    } else {
                         var timeout;
                         if (this._config && this._config['api'])
                             timeout = this._config['api']['timeout'];

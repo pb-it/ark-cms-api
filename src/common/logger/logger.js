@@ -43,7 +43,9 @@ class Logger {
                 msg += " ";
             else
                 msg = "";
-            if (err instanceof HttpError) {
+            if (typeof err === 'string' || err instanceof String) {
+                msg += err;
+            } else if (err instanceof HttpError) {
                 msg = "[http] ";
                 if (err.message)
                     msg += err.message;
