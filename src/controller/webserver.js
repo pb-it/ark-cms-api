@@ -1372,7 +1372,13 @@ module.exports = test;` +
                     }
 
                     if (status) {
-                        if (status === 401) { // && challenge
+                        var bChallenge;
+                        if (status === 401) {
+                            const ba = this._config['basicAuth'];
+                            if (ba)
+                                bChallenge = ba['challenge'];
+                        }
+                        if (bChallenge) {
                             res.set('WWW-Authenticate', 'Basic realm="data"');
                             res.status(401).send('Unauthorized'); // Authentication required
                         } else

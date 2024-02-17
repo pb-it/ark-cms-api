@@ -1,60 +1,22 @@
 const fs = require('fs');
 
-if (!global.controller)
-    global.controller = require('../src/controller/controller');
-
-const ApiHelper = require('./helper/api-helper.js');
-const DatabaseHelper = require('./helper/database-helper');
 const TestHelper = require('./helper/test-helper');
 
-var apiUrl;
-var apiHelper;
-var databaseHelper;
-var shelf;
-var webclient;
-const bCleanupBeforeTests = false;
-const bCleanupAfterTests = true;
-
 beforeAll(async () => {
-    if (!controller.isRunning()) {
-        const server = require('./config/server-config');
-        const database = require('./config/database-config');
-        await controller.setup(server, database);
-        shelf = controller.getShelf();
-    }
-
-    webclient = controller.getWebClientController().getWebClient();
-
-    const sc = controller.getServerConfig();
-    apiUrl = ( sc['ssl'] ? "https" : "http" ) + "://localhost:" + sc['port'] + "/api/data/v1";
-    apiHelper = new ApiHelper(apiUrl, webclient);
-    databaseHelper = new DatabaseHelper(shelf);
-
-    if (bCleanupBeforeTests)
-        ; //TODO:
-
-    return Promise.resolve();
+    if (!global.testHelper)
+        global.testHelper = new TestHelper();
+    return testHelper.setup();
 });
 
 afterAll(async () => {
-    if (bCleanupAfterTests) {
-        try {
-            var models = await apiHelper.getModel();
-            for (var model of models)
-                await databaseHelper.deleteModel(model);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    try {
-        await controller.shutdown();
-    } catch (error) {
-        console.log(error);
-    }
-    return Promise.resolve();
+    return testHelper.teardown();
 });
 
 test('movie_db', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
     await TestHelper.setupModels(apiHelper);
 
     //insert testdata

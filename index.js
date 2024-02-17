@@ -1,6 +1,8 @@
 const path = require('path');
 const fs = require('fs');
 
+const Controller = require('./src/controller/controller');
+
 async function main() {
     const serverConfigPath = path.join(__dirname, './config/server-config.js');
     const serverConfigtemplatePath = path.join(__dirname, './config/server-config-template.js');
@@ -10,7 +12,7 @@ async function main() {
         fs.copyFileSync(serverConfigtemplatePath, serverConfigPath);
     if (!fs.existsSync(databaseConfigPath) && fs.existsSync(databaseConfigtemplatePath))
         fs.copyFileSync(databaseConfigtemplatePath, databaseConfigPath);
-    global.controller = require('./src/controller/controller');
+    global.controller = new Controller();
     return controller.setup(require(serverConfigPath), require(databaseConfigPath));
 }
 

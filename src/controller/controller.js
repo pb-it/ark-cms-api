@@ -129,7 +129,8 @@ class Controller {
             if (this._serverConfig['auth'] == undefined || this._serverConfig['auth'] == true) {
                 this._authController = new AuthController(this);
                 await this._authController.initAuthController();
-            }
+            } else
+                this._authController = null;
 
             this._webserver = new WebServer(this);
             await this._webserver.initServer();
@@ -751,4 +752,4 @@ class Controller {
     }
 }
 
-module.exports = new Controller();
+module.exports = Controller;

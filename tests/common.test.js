@@ -1,75 +1,25 @@
-const path = require('path');
 const fs = require('fs');
 
-if (!global.controller)
-    global.controller = require('../src/controller/controller');
-
-//const base64 = require('../src/common/base64');
-
-const ApiHelper = require('./helper/api-helper.js');
-const DatabaseHelper = require('./helper/database-helper');
-
-var cdn;
-var apiUrl;
-var apiHelper;
-var databaseHelper;
-var shelf;
-var webclient;
-const bCleanupBeforeTests = false;
-const bCleanupAfterTests = true;
+const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    if (!controller.isRunning()) {
-        const server = require('./config/server-config');
-        const database = require('./config/database-config');
-        await controller.setup(server, database);
-        shelf = controller.getShelf();
-    }
-
-    const cdnConfig = controller.getFileStorage();
-    if (cdnConfig) {
-        var cdns = cdnConfig.filter(function (x) {
-            return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
-        });
-        if (cdns.length == 1)
-            cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
-    }
-
-    webclient = controller.getWebClientController().getWebClient();
-
-    const sc = controller.getServerConfig();
-    apiUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'] + "/api/data/v1";
-    apiHelper = new ApiHelper(apiUrl, webclient);
-    databaseHelper = new DatabaseHelper(shelf);
-
-    if (bCleanupBeforeTests)
-        ; //TODO:
-
-    return Promise.resolve();
+    if (!global.testHelper)
+        global.testHelper = new TestHelper();
+    return testHelper.setup();
 });
 
 afterAll(async () => {
-    if (bCleanupAfterTests) {
-        try {
-            var models = await apiHelper.getModel();
-            for (var model of models)
-                await databaseHelper.deleteModel(model);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    try {
-        await controller.shutdown();
-    } catch (error) {
-        console.log(error);
-    }
-    return Promise.resolve();
+    return testHelper.teardown();
 });
 
 /**
  * url & base64
  */
 test('media', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
     var model = JSON.parse(fs.readFileSync('./tests/data/models/media.json', 'utf8'));
 
     await apiHelper.uploadModel(model);
@@ -105,6 +55,10 @@ test('media', async function () {
 });
 
 test('files', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
     var model = JSON.parse(fs.readFileSync('./tests/data/models/files.json', 'utf8'));
 
     await apiHelper.uploadModel(model);
@@ -126,7 +80,7 @@ test('files', async function () {
 
     var file = data[0]['file'];
     //expect(res).toEqual(media);
-    var fPath = cdn + "/" + file;
+    var fPath = testHelper.getCdn() + "/" + file;
     expect(fs.existsSync(fPath)).toEqual(true);
 
     fs.unlinkSync(fPath);
@@ -138,6 +92,10 @@ test('files', async function () {
  * mostly tests for testing visual representation of data after test run
  */
 test('snippets', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
     var model = JSON.parse(fs.readFileSync('./tests/data/models/snippets.json', 'utf8'));
 
     var def = await apiHelper.uploadModel(model);
@@ -183,7 +141,7 @@ test('snippets', async function () {
     expect(err['response']['body']).toEqual('[knex] ER_TRUNCATED_WRONG_VALUE_FOR_FIELD');
 
     var m = await apiHelper.getModel(def);
-    await databaseHelper.deleteModel(m);
+    await testHelper.getDatabaseHelper().deleteModel(m);
 
     model['charEncoding'] = 'utf8mb4';
     await apiHelper.uploadModel(model);

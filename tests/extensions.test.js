@@ -1,90 +1,49 @@
 const path = require('path');
 const fs = require('fs');
 
-if (!global.controller)
-    global.controller = require('../src/controller/controller');
-
-const ApiHelper = require('./helper/api-helper.js');
-const DatabaseHelper = require('./helper/database-helper');
-
-var cdn;
-var rootUrl;
-var apiUrl;
-var apiHelper;
-var databaseHelper;
-var shelf;
-var webclient;
-const bCleanupBeforeTests = false;
-const bCleanupAfterTests = true;
+const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    try {
-        if (!controller.isRunning()) {
-            const server = require('./config/server-config');
-            const database = require('./config/database-config');
-            await controller.setup(server, database);
-            shelf = controller.getShelf();
-        }
-
-        const cdnConfig = controller.getFileStorage();
-        if (cdnConfig) {
-            var cdns = cdnConfig.filter(function (x) {
-                return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
-            });
-            if (cdns.length == 1)
-                cdn = path.join(controller.getAppRoot(), cdns[0]['path']);
-        }
-
-        webclient = controller.getWebClientController().getWebClient();
-
-        const sc = controller.getServerConfig();
-        rootUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'];
-        apiUrl = rootUrl + "/api/data/v1";
-        apiHelper = new ApiHelper(apiUrl, webclient);
-        databaseHelper = new DatabaseHelper(shelf);
-
-        if (bCleanupBeforeTests)
-            ; //TODO:
-
-    } catch (error) {
-        console.log(error);
-    }
-
-    return Promise.resolve();
-}, 30000);
+    if (!global.testHelper)
+        global.testHelper = new TestHelper();
+    return testHelper.setup();
+});
 
 afterAll(async () => {
-    if (bCleanupAfterTests) {
-        try {
-            var models = await apiHelper.getModel();
-            for (var model of models)
-                await databaseHelper.deleteModel(model);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    try {
-        await controller.shutdown();
-    } catch (error) {
-        console.log(error);
-    }
-    return Promise.resolve();
+    return testHelper.teardown();
 });
 
 test('youtube', async function () {
     //jest.setTimeout(30000);
+    const controller = testHelper.getController();
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
 
     var model = JSON.parse(fs.readFileSync('./tests/data/models/youtube.json', 'utf8'));
 
     await apiHelper.uploadModel(model);
 
+    const sc = controller.getServerConfig();
+    const rootUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'];
     var urlInfo = rootUrl + "/sys/info";
     var data = await webclient.get(urlInfo);
     if (data['state'] === 'openRestartRequest') {
-        var urlRestart = rootUrl + "/sys/restart";
-        data = await webclient.get(urlRestart); //TODO: find server restart procedure without terminating test
+        const urlRestart = rootUrl + "/sys/restart";
+        data = await webclient.get(urlRestart); //TODO: find server restart procedure without terminating test through process.exit()
         await new Promise(r => setTimeout(r, 5000));
     }
+
+    /*var p = 'ytdl-core';
+    var resolved = require.resolve(p);
+    if (resolved)
+        delete require.cache[p];
+
+    const serverConfig = controller.getServerConfig();
+    const databaseConfig = controller.getDatabaseConfig();
+    await controller.shutdown();
+    await controller.setup(serverConfig, databaseConfig);
+    await testHelper.init(controller);*/
 
     var video = JSON.parse(fs.readFileSync('./tests/data/crud/youtube_1.json', 'utf8'));
 
@@ -92,7 +51,7 @@ test('youtube', async function () {
     var res = await webclient.post(url, video);
     var file = 'dQw4w9WgXcQ.mp4';
     expect(res['video']).toEqual(file);
-    var fPath = cdn + "/" + file;
+    var fPath = testHelper.getCdn() + "/" + file;
     expect(fs.existsSync(fPath)).toEqual(true);
 
     var idUrl = url + '/' + res['id'];

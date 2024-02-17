@@ -1,61 +1,19 @@
-if (!global.controller)
-    global.controller = require('../src/controller/controller.js');
-
-const ApiHelper = require('./helper/api-helper.js');
-const DatabaseHelper = require('./helper/database-helper.js');
-const TestHelper = require('./helper/test-helper.js');
-
-var apiUrl;
-var apiHelper;
-var databaseHelper;
-var shelf;
-var webclient;
-const bCleanupBeforeTests = false;
-const bCleanupAfterTests = true;
+const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    if (!controller.isRunning()) {
-        const server = require('./config/server-config.js');
-        const database = require('./config/database-config.js');
-        await controller.setup(server, database);
-        shelf = controller.getShelf();
-    }
-
-    webclient = controller.getWebClientController().getWebClient();
-
-    const sc = controller.getServerConfig();
-    apiUrl = ( sc['ssl'] ? "https" : "http" ) + "://localhost:" + sc['port'] + "/api/data/v1";
-    apiHelper = new ApiHelper(apiUrl, webclient);
-    databaseHelper = new DatabaseHelper(shelf);
-
-    if (bCleanupBeforeTests)
-        ; //TODO:
-
-    await TestHelper.setupModels(apiHelper);
-    await TestHelper.setupData(apiHelper);
-
-    return Promise.resolve();
+    if (!global.testHelper)
+        global.testHelper = new TestHelper();
+    return testHelper.setup();
 });
 
 afterAll(async () => {
-    if (bCleanupAfterTests) {
-        try {
-            var models = await apiHelper.getModel();
-            for (var model of models)
-                await databaseHelper.deleteModel(model);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    try {
-        await controller.shutdown();
-    } catch (error) {
-        console.log(error);
-    }
-    return Promise.resolve();
+    return testHelper.teardown();
 });
 
 test('#eval', async function () {
+    const controller = testHelper.getController();
+    const webclient = testHelper.getWebclient();
+
     var snippet = `async function eval() {
     const model = controller.getShelf().getModel('studios');
     var tmp = await model.readAll({ 'movies_any': 4 });
