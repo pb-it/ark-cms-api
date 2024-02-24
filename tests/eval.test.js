@@ -11,7 +11,6 @@ afterAll(async () => {
 });
 
 test('#eval', async function () {
-    const controller = testHelper.getController();
     const webclient = testHelper.getWebclient();
 
     var snippet = `async function eval() {
@@ -20,7 +19,7 @@ test('#eval', async function () {
     return Promise.resolve(tmp);
 };
 module.exports = eval;`;
-    var url = "http://localhost:" + controller.getServerConfig()['port'] + "/sys/tools/dev/eval?_format=text";
+    var url = testHelper.getHost() + "/sys/tools/dev/eval?_format=text";
     var response = await webclient.post(url, { 'cmd': snippet });
     /*try {
         var res = await webclient.post(url, { 'cmd': snippet });

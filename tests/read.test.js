@@ -13,13 +13,8 @@ afterAll(async () => {
 test('#read', async function () {
     const apiUrl = testHelper.getApiUrl();
     const apiHelper = testHelper.getApiHelper();
-    const databaseHelper = testHelper.getDatabaseHelper();
 
-    const models = await apiHelper.getModel();
-    for (var model of models)
-        await databaseHelper.deleteModel(model);
-    await TestHelper.setupModels(apiHelper);
-    await TestHelper.setupData(apiHelper);
+    await TestHelper.setupScenario(1);
 
     var urlRead;
     var idArr;

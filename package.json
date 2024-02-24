@@ -29,7 +29,8 @@
         "debug:http": "export NODE_DEBUG=http,http2&& node --max_old_space_size=8192 index.js",
         "debug:app": "export DEBUG=app:*&& node --max_old_space_size=8192 index.js",
         "debug:knex": "export DEBUG=knex:query&& node --max_old_space_size=8192 index.js",
-        "test": "jest ./tests/root.test.js",
+        "test": "jest --config ./tests/config/jest.config.js -i ./root.test.js",
+        "test2": "jest --setupFiles ./tests/config/setup-env2.js -i ./tests/root.test.js --forceExit",
         "test:common": "jest tests/common.test.js",
         "test:relations": "jest tests/relations.test.js",
         "test:extensions": "jest tests/extensions.test.js",
@@ -56,6 +57,7 @@
         "unzipper": "^0.10.14"
     },
     "devDependencies": {
+        "dotenv": "^16.4.5",
         "eslint": "^8.56.0",
         "jest": "^29.7.0"
     }

@@ -3,15 +3,6 @@ const TestHelper = require('./helper/test-helper.js');
 beforeAll(async () => {
     if (!global.testHelper)
         global.testHelper = new TestHelper();
-
-    /*controller = testHelper.getController();
-    cdn = testHelper.getCdn();
-    apiUrl = testHelper.getApiUrl();
-    apiHelper = testHelper.getApiHelper();
-    databaseHelper = testHelper.getDatabaseHelper();
-
-    shelf = controller.getShelf();
-    webclient = controller.getWebClientController().getWebClient();*/
     return testHelper.setup();
 });
 
@@ -27,6 +18,6 @@ describe("Root Suite", function () {
     require('./delete.test.js');
     require('./eval.test.js');
     require('./misc.test.js');
-    //require('./extensions.test.js');
+    require('./extensions.test.js');
     require('./auth.test.js');
 });

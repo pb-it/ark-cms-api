@@ -5,11 +5,10 @@ class ApiHelper {
     _modelsUrl;
     _modelsUrlPut;
 
-    constructor(api, webclient) {
+    constructor(api, appVersion, webclient) {
         this._api = api;
         this._webclient = webclient;
         this._modelsUrl = this._api + "/_model";
-        const appVersion = controller.getVersionController().getPkgVersion();
         this._modelsUrlPut = this._modelsUrl + "?v=" + appVersion;
     }
 
@@ -40,6 +39,27 @@ class ApiHelper {
         var id;
         try {
             id = await this._webclient.put(this._modelsUrlPut, model);
+        } catch (error) {
+            console.log(error);
+            var msg;
+            if (error['message']) {
+                msg = error['message'];
+                if (error['response'] && error['response']['data'])
+                    msg += ": " + error['response']['data'];
+            }
+
+            if (msg)
+                throw new Error(msg);
+            else
+                throw error;
+        }
+        return Promise.resolve(id);
+    }
+
+    async deleteModel(id) {
+        var id;
+        try {
+            id = await this._webclient.delete(this._modelsUrl + '/' + id + '?delete_data=true');
         } catch (error) {
             console.log(error);
             var msg;

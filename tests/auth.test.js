@@ -1,4 +1,5 @@
 const fetch = require('cross-fetch');
+const itif = (condition) => condition ? it : it.skip;
 
 const TestHelper = require('./helper/test-helper.js');
 
@@ -12,7 +13,7 @@ afterAll(async () => {
     return testHelper.teardown();
 });
 
-test('basic auth', async function () {
+itif(process.env.REMOTE !== 'true')('basic auth', async function () {
     const controller = testHelper.getController();
     const apiUrl = testHelper.getApiUrl();
 

@@ -1,3 +1,5 @@
+const itif = (condition) => condition ? it : it.skip;
+const sleep = require('util').promisify(setTimeout);
 const path = require('path');
 const fs = require('fs');
 
@@ -13,7 +15,7 @@ afterAll(async () => {
     return testHelper.teardown();
 });
 
-test('youtube', async function () {
+itif(process.env.REMOTE === 'true')('youtube', async function () {
     //jest.setTimeout(30000);
     const controller = testHelper.getController();
     const webclient = testHelper.getWebclient();
@@ -24,15 +26,26 @@ test('youtube', async function () {
 
     await apiHelper.uploadModel(model);
 
-    const sc = controller.getServerConfig();
-    const rootUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'];
+    const rootUrl = testHelper.getHost();
     var urlInfo = rootUrl + "/sys/info";
     var data = await webclient.get(urlInfo);
     if (data['state'] === 'openRestartRequest') {
         const urlRestart = rootUrl + "/sys/restart";
-        data = await webclient.get(urlRestart); //TODO: find server restart procedure without terminating test through process.exit()
-        await new Promise(r => setTimeout(r, 5000));
+        data = await webclient.get(urlRestart);
+        await sleep(10000);
+        data = null;
+        try {
+            data = await webclient.get(urlInfo);
+        } catch (error) {
+            if (!error['code'] === 'ECONNREFUSED')
+                throw error;
+        }
+        if (!data || data['state'] !== 'running') {
+            await sleep(5000);
+            data = await webclient.get(urlInfo);
+        }
     }
+    expect(data['state']).toEqual('running');
 
     /*var p = 'ytdl-core';
     var resolved = require.resolve(p);

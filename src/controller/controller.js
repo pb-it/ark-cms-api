@@ -422,7 +422,7 @@ class Controller {
                         if (id) {
                             var foo;
                             try {
-                                foo = await this._shelf.deleteModel(id);
+                                foo = await this._shelf.deleteModel(id, req.query['delete_data']);
                             } catch (error) {
                                 Logger.parseError(error);
                                 throw new ValidationError("Deletion of model failed");

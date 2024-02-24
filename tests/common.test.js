@@ -1,4 +1,5 @@
 const fs = require('fs');
+const sleep = require('util').promisify(setTimeout);
 
 const TestHelper = require('./helper/test-helper');
 
@@ -92,13 +93,15 @@ test('files', async function () {
  * mostly tests for testing visual representation of data after test run
  */
 test('snippets', async function () {
+    //jest.setTimeout(30000);
+
     const webclient = testHelper.getWebclient();
     const apiUrl = testHelper.getApiUrl();
     const apiHelper = testHelper.getApiHelper();
 
     var model = JSON.parse(fs.readFileSync('./tests/data/models/snippets.json', 'utf8'));
 
-    var def = await apiHelper.uploadModel(model);
+    var id = await apiHelper.uploadModel(model);
 
     var data = await apiHelper.getModel();
     var res = data.filter(function (x) {
@@ -140,11 +143,12 @@ test('snippets', async function () {
     expect(err['message']).toEqual('500: Internal Server Error - ' + url);
     expect(err['response']['body']).toEqual('[knex] ER_TRUNCATED_WRONG_VALUE_FOR_FIELD');
 
-    var m = await apiHelper.getModel(def);
-    await testHelper.getDatabaseHelper().deleteModel(m);
+    await apiHelper.deleteModel(id);
 
     model['charEncoding'] = 'utf8mb4';
     await apiHelper.uploadModel(model);
+
+    //await sleep(1000);
 
     res = await webclient.post(url, snippet);
     var id = res['id'];

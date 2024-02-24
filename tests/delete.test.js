@@ -14,13 +14,9 @@ test('#movie_db', async function () {
     const webclient = testHelper.getWebclient();
     const apiUrl = testHelper.getApiUrl();
     const apiHelper = testHelper.getApiHelper();
-    const databaseHelper = testHelper.getDatabaseHelper();
 
-    const models = await apiHelper.getModel();
-    for (var model of models)
-        await databaseHelper.deleteModel(model);
-    await TestHelper.setupModels(apiHelper);
-    await TestHelper.setupData(apiHelper);
+    await TestHelper.setupScenario(1);
+
     var urlStudios = apiUrl + "/studios";
 
     data = await apiHelper.getData(urlStudios);

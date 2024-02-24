@@ -2,13 +2,29 @@ const path = require('path');
 const fs = require('fs');
 
 const Controller = require('../../src/controller/controller');
+const FetchWebClient = require('../../src/common/webclient/fetch-webclient');
 
 const ApiHelper = require('./api-helper.js');
-const DatabaseHelper = require('./database-helper');
 
 class TestHelper {
 
     static _instance;
+
+    static async setupScenario(scenario) {
+        const apiHelper = testHelper.getApiHelper();
+        switch (scenario) {
+            case 1:
+                const models = await apiHelper.getModel();
+                for (var model of models) {
+                    if (!model['definition']['name'].startsWith('_'))
+                        await apiHelper.deleteModel(model['id']);
+                }
+                await TestHelper.setupModels(apiHelper);
+                await TestHelper.setupData(apiHelper);
+                break;
+        }
+        return Promise.resolve();
+    }
 
     static async setupModels(apiHelper) {
         var modelMovies = JSON.parse(fs.readFileSync('./tests/data/models/movies.json', 'utf8'));
@@ -19,10 +35,6 @@ class TestHelper {
 
         var modelStars = JSON.parse(fs.readFileSync('./tests/data/models/stars.json', 'utf8'));
         await apiHelper.uploadModel(modelStars);
-
-        const shelf = controller.getShelf();
-        await shelf.loadAllModels();
-        await shelf.initAllModels();
 
         var data = await apiHelper.getModel();
 
@@ -81,13 +93,14 @@ class TestHelper {
         return Promise.resolve();
     }
 
+    _config;
+    _bRemote;
     _depth;
     _controller;
     _webclient;
     _cdn;
     _apiUrl;
     _apiHelper;
-    _databaseHelper;
 
     _bCleanupBeforeTests = false;
     _bCleanupAfterTests = true;
@@ -96,14 +109,28 @@ class TestHelper {
         if (TestHelper._instance)
             return TestHelper._instance;
         TestHelper._instance = this;
+        this._config = require('../config/test-config');
+        this._bRemote = process.env.REMOTE === 'true';
         this._depth = 0;
     }
 
     async setup() {
         if (this._depth == 0) {
-            if (!global.controller)
-                global.controller = new Controller();
-            await this.init(controller);
+            if (this._bRemote) {
+                const remoteConfig = this._config['remote'];
+                if (remoteConfig) {
+                    this._webclient = new FetchWebClient();
+                    this._cdn = remoteConfig['cdn'];
+                    this._host = remoteConfig['host'];
+                    this._apiUrl = this._host + '/api/data/v1';
+                    this._apiHelper = new ApiHelper(this._apiUrl, remoteConfig['appVersion'], this._webclient);
+                } else
+                    throw new Error('Missing configuration for remote target');
+            } else {
+                if (!global.controller)
+                    global.controller = new Controller();
+                await this.init(controller);
+            }
 
             if (this._bCleanupBeforeTests)
                 ; //TODO:
@@ -131,12 +158,10 @@ class TestHelper {
         }
 
         const sc = this._controller.getServerConfig();
-        this._apiUrl = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'] + "/api/data/v1";
-        const webclient = this._controller.getWebClientController().getWebClient();
-        this._apiHelper = new ApiHelper(this._apiUrl, webclient);
+        this._host = (sc['ssl'] ? "https" : "http") + "://localhost:" + sc['port'];
+        this._apiUrl = this._host + "/api/data/v1";
+        this._apiHelper = new ApiHelper(this._apiUrl, this._controller.getVersionController().getPkgVersion(), this._webclient);
 
-        const shelf = this._controller.getShelf();
-        this._databaseHelper = new DatabaseHelper(shelf);
         return Promise.resolve();
     }
 
@@ -145,16 +170,21 @@ class TestHelper {
             if (this._bCleanupAfterTests) {
                 try {
                     const models = await this._apiHelper.getModel();
-                    for (var model of models)
-                        await this._databaseHelper.deleteModel(model);
+                    for (var model of models) {
+                        if (!model['definition']['name'].startsWith('_'))
+                            await this._apiHelper.deleteModel(model['id']);
+                    }
                 } catch (error) {
                     console.log(error);
                 }
             }
-            try {
-                await this._controller.shutdown();
-            } catch (error) {
-                console.log(error);
+
+            if (!this._bRemote) {
+                try {
+                    await this._controller.shutdown();
+                } catch (error) {
+                    console.log(error);
+                }
             }
         }
         this._depth--;
@@ -173,16 +203,16 @@ class TestHelper {
         return this._cdn;
     }
 
+    getHost() {
+        return this._host;
+    }
+
     getApiUrl() {
         return this._apiUrl;
     }
 
     getApiHelper() {
         return this._apiHelper;
-    }
-
-    getDatabaseHelper() {
-        return this._databaseHelper;
     }
 }
 

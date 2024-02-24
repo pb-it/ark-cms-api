@@ -8,6 +8,6 @@ config/database-config.js
 
 tests/config/server-config.js
 tests/config/database-config.js
-
+tests/config/test-config.js
 
 _*

@@ -186,7 +186,7 @@ class Shelf {
             if (res.length == 1)  //var count = res[0]['count(*)'];
                 res = await this._knex('_model').where('id', id).update({ 'definition': JSON.stringify(definition) });
             else
-                throw new Error();
+                throw new Error('Shelf information does not match current database state');
         } else {
             res = await this._knex('_model').insert({ 'definition': JSON.stringify(definition) });
             id = res[0];
@@ -207,18 +207,63 @@ class Shelf {
         return Promise.resolve(model);
     }
 
-    async deleteModel(id) {
+    async deleteModel(id, bDeleteData) {
+        var model;
         var name;
-        await this._knex('_model').where('id', id).delete();
-        var models = [];
-        for (var model of this._models) {
-            if (model.getId() == id)
-                name = model.getName();
-            else
-                models.push(model);
+        if (this._models) {
+            for (var m of this._models) {
+                if (m.getId() == id) {
+                    model = m;
+                    break;
+                }
+            }
         }
-        this._models = models;
+        if (model) {
+            name = model.getName();
+            if (bDeleteData) {
+                const def = model.getDefinition();
+                const junctions = def['attributes'].filter(function (attribute) {
+                    return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+                });
+                for (var j of junctions) {
+                    await this._deleteJunctionTable(def, j);
+                }
+                const table = def['tableName'] ? def['tableName'] : name;
+                if (table)
+                    await this._knex.schema.dropTable(table);
+            }
+
+            await this._knex('_model').where('id', id).delete();
+
+            var models = [];
+            for (var model of this._models) {
+                if (model.getId() != id)
+                    models.push(model);
+            }
+            this._models = models;
+        } else
+            throw new Error('ID not found');
         return Promise.resolve(name);
+    }
+
+    async _deleteJunctionTable(definition, attribute) {
+        const model = this.getModel(attribute['model']);
+        if (model) {
+            var tableName;
+            if (definition['tableName'])
+                tableName = definition['tableName'];
+            else
+                tableName = definition['name'];
+            const modelTable = model.getTableName();
+            var relTable;
+            if (tableName.localeCompare(modelTable) == -1)
+                relTable = tableName + "_" + modelTable;
+            else
+                relTable = modelTable + "_" + tableName;
+            if (await this._knex.schema.hasTable(relTable))
+                await this._knex.schema.dropTable(relTable);
+        }
+        return Promise.resolve();
     }
 
     getModel(name) {
