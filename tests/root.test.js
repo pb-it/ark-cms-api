@@ -12,6 +12,7 @@ afterAll(async () => {
 
 describe("Root Suite", function () {
     require('./common.test.js');
+    require('./datatypes.test.js');
     require('./relations.test.js');
     require('./read.test.js');
     require('./search.test.js');

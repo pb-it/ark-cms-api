@@ -60,6 +60,10 @@ test('files', async function () {
     const apiUrl = testHelper.getApiUrl();
     const apiHelper = testHelper.getApiHelper();
 
+    var fPath = testHelper.getCdn() + '/Testbild.png';
+    if (fs.existsSync(fPath))
+        fs.unlinkSync(fPath);
+
     var model = JSON.parse(fs.readFileSync('./tests/data/models/files.json', 'utf8'));
 
     await apiHelper.uploadModel(model);
@@ -80,8 +84,7 @@ test('files', async function () {
     expect(data.length).toEqual(1);
 
     var file = data[0]['file'];
-    //expect(res).toEqual(media);
-    var fPath = testHelper.getCdn() + "/" + file;
+    fPath = testHelper.getCdn() + "/" + file;
     expect(fs.existsSync(fPath)).toEqual(true);
 
     fs.unlinkSync(fPath);

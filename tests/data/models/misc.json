@@ -1,0 +1,21 @@
+{
+    "name": "misc",
+    "options": {
+        "increments": true,
+        "timestamps": true
+    },
+    "attributes": [
+        {
+            "name": "string",
+            "dataType": "string"
+        },
+        {
+            "name": "url",
+            "dataType": "url"
+        },
+        {
+            "name": "json",
+            "dataType": "json"
+        }
+    ]
+}

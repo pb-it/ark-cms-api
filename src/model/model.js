@@ -798,7 +798,15 @@ class Model {
                 attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
                 if (attr) {
                     if (!attr.hasOwnProperty("persistent") || attr.persistent == true) {
-                        if (attr['dataType'] === 'timestamp' || attr['dataType'] === 'datetime') {
+                        if (attr['dataType'] === 'json') {
+                            var value = data[str];
+                            if (value) {
+                                if (typeof value === 'string' || value instanceof String)
+                                    forge[str] = value;
+                                else if (typeof value === 'object')
+                                    forge[str] = JSON.stringify(value);
+                            }
+                        } else if (attr['dataType'] === 'timestamp' || attr['dataType'] === 'datetime') {
                             var value = data[str];
                             if (value && (typeof value === 'string' || value instanceof String) && value.endsWith('Z'))
                                 forge[str] = value.substring(0, value.length - 1) + '+00:00';

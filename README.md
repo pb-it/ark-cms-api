@@ -35,7 +35,9 @@ docker run -p 3002:3002 -it <image name> /bin/bash
 
 # Test
 
-> Create `tests/config/server-config.js` and `tests/config/database-config.js`
+> Create `tests/config/test-config.js`
+
+> If test-config does not contain an 'remote' definition an local instance will be started with configuration from `tests/config/server-config.js` and `tests/config/database-config.js`
 
 &nbsp;
 
