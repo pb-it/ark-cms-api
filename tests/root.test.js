@@ -3,7 +3,13 @@ const TestHelper = require('./helper/test-helper.js');
 beforeAll(async () => {
     if (!global.testHelper)
         global.testHelper = new TestHelper();
-    return testHelper.setup();
+    try {
+        await testHelper.setup();
+    } catch (error) {
+        console.error(error);
+        process.exit(1);
+    }
+    return Promise.resolve();
 });
 
 afterAll(async () => {

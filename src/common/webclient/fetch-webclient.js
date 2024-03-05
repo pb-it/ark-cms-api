@@ -56,12 +56,18 @@ class FetchWebClient extends WebClient {
                 if (!options)
                     options = {};
                 options['method'] = method;
-                if (!options['headers'])
-                    options['headers'] = {
-                        'Content-Type': 'application/json'
-                    };
                 if (data) {
-                    if (typeof data === 'string' || data instanceof String)
+                    if (!options['headers']) {
+                        /*if (data instanceof FormData)
+                            options['headers'] = {
+                                'Content-Type': 'multipart/form-data'
+                            };*/
+                        if (!(data instanceof FormData) && typeof data === 'object')
+                            options['headers'] = {
+                                'Content-Type': 'application/json'
+                            };
+                    }
+                    if (typeof data === 'string' || data instanceof String || data instanceof FormData)
                         options['body'] = data;
                     else
                         options['body'] = JSON.stringify(data);
@@ -75,7 +81,7 @@ class FetchWebClient extends WebClient {
                 response = await fetch(url, options);
                 break;
             default:
-                throw new Error('Unsupported method');
+                throw new Error('Unsupported method \'' + method + '\'');
         }
         if (response) {
             if (bMeta)

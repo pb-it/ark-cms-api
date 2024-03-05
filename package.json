@@ -31,6 +31,7 @@
         "debug:knex": "export DEBUG=knex:query&& node --max_old_space_size=8192 index.js",
         "test": "jest --config ./tests/config/jest.config.js -i ./root.test.js",
         "test2": "jest --setupFiles ./tests/config/setup-env2.js -i ./tests/root.test.js --forceExit",
+        "test:setup": "jest tests/setup.test.js",
         "test:datatypes": "jest tests/datatypes.test.js",
         "test:common": "jest tests/common.test.js",
         "test:relations": "jest tests/relations.test.js",

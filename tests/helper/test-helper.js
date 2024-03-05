@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+//const fetch = require('cross-fetch');
 
 const Controller = require('../../src/controller/controller');
 const FetchWebClient = require('../../src/common/webclient/fetch-webclient');
@@ -90,6 +91,95 @@ class TestHelper {
         data = data = await apiHelper.getData(urlStars);
         expect(data.length).toEqual(stars.length);
 
+        return Promise.resolve();
+    }
+
+    static async restart() {
+        if (process.env.REMOTE === 'true') {
+            var res;
+            try {
+                const host = testHelper.getHost();
+                const url = host + '/sys/restart';
+                const webclient = testHelper.getWebclient();
+                res = await webclient.get(url);
+            } catch (error) {
+                console.log(error);
+            }
+            if (res !== 'OK')
+                throw new Error('Restarting API failed');
+        } else {
+            const controller = testHelper.getController();
+            if (controller) {
+                const serverConfig = controller.getServerConfig();
+                const databaseConfig = controller.getDatabaseConfig();
+                await controller.shutdown();
+                await controller.setup(serverConfig, databaseConfig);
+                await testHelper.init(controller);
+            }
+        }
+        return Promise.resolve();
+    }
+
+    static async clearDatabase(schema) {
+        var res;
+        try {
+            const data = {
+                'cmd': `const path = require('path');
+const appRoot = controller.getAppRoot();
+const Logger = require(path.join(appRoot, './src/common/logger/logger.js'));
+
+async function test() {
+   var res;
+   var schema = ${schema};
+   if (!schema)
+      schema = controller.getDatabaseSettings()['connection']['database'];
+   Logger.info("Clearing database '" + schema + "'");
+   const knex = controller.getKnex();
+   var rs = await knex.raw("DROP DATABASE " + schema + ";");
+   rs = await knex.raw("CREATE DATABASE " + schema + ";");
+   return Promise.resolve('OK');
+};
+module.exports = test;`};
+
+            const host = testHelper.getHost();
+            const url = host + '/sys/tools/dev/eval?_format=text';
+            const webclient = testHelper.getWebclient();
+            res = await webclient.post(url, data);
+        } catch (error) {
+            console.log(error);
+        }
+        if (res !== 'OK')
+            throw new Error('Clearing database failed');
+        return Promise.resolve();
+    }
+
+    static async backup(file) {
+        const host = testHelper.getHost();
+        const webclient = testHelper.getWebclient(); //testHelper.getApiHelper().getWebClient();
+        return webclient.download(host + '/sys/tools/db/backup', file);
+    }
+
+    static async restore(file) {
+        if (path.extname(file) === '.sql') {
+            const host = testHelper.getHost();
+            //const webclient = testHelper.getWebclient();
+            const formData = new FormData();
+            //formData.append('file', fs.createReadStream(file));
+            const blob = new Blob([fs.readFileSync(file)], { type: 'application/sql' });
+            formData.append('file', blob, path.basename(file));
+            /*formData.append('file', blob, {
+                contentType: 'application/sql',
+                name: 'file',
+                filename: path.basename(file),
+            });*/
+            //await webclient.post(host + '/sys/tools/db/restore', formData);
+            const response = await fetch(host + '/sys/tools/db/restore', { method: 'POST', body: formData });
+            if (response['status'] !== 200) {
+                console.error(await response.text());
+                throw new Error('Restoring database dump failed');
+            }
+        } else
+            throw new Error('File extension needs to be \'.sql\'');
         return Promise.resolve();
     }
 
