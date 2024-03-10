@@ -16,6 +16,14 @@
         {
             "name": "json",
             "dataType": "json"
+        },
+        {
+            "name": "timestamp",
+            "dataType": "timestamp"
+        },
+        {
+            "name": "datetime",
+            "dataType": "datetime"
         }
     ]
 }

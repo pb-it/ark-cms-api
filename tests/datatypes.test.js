@@ -3,8 +3,10 @@ const fs = require('fs');
 const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    if (!global.testHelper)
+    if (!global.testHelper) {
         global.testHelper = new TestHelper();
+        //testHelper._bCleanupAfterTests = false;
+    }
     return testHelper.setup();
 });
 
@@ -25,17 +27,20 @@ test('#json', async function () {
         'json': obj
     }
     const url = apiUrl + "/misc";
-    res = await webclient.post(url, data);
+    var orig = await webclient.post(url, data);
 
     var response = await apiHelper.getData(url);
     expect(response.length).toEqual(1);
-    expect(response[0]).toEqual(res);
+    var res = response[0];
+    expect(res).toEqual(orig);
 
     delete res['id'];
     delete res['created_at'];
     delete res['updated_at'];
     delete res['string'];
     delete res['url'];
+    delete res['timestamp'];
+    delete res['datetime'];
 
     expect(res).toEqual(data);
 
@@ -49,6 +54,8 @@ test('#json', async function () {
     delete res['updated_at'];
     delete res['string'];
     delete res['url'];
+    delete res['timestamp'];
+    delete res['datetime'];
 
     expect(res).toEqual(data);
 

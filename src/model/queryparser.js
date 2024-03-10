@@ -220,8 +220,9 @@ class QueryParser {
                     propName = prop;
             }
 
+            const def = this._model.getDefinition();
             var relAttr;
-            for (var attribute of this._model.getDefinition().attributes) {
+            for (var attribute of def['attributes']) {
                 if (attribute['name'] == propName) {
                     if (attribute['dataType'] == "relation")
                         relAttr = attribute;
@@ -258,18 +259,36 @@ class QueryParser {
                 else
                     fn = this._queryRelation(relAttr, operator, operator2, val);
             } else {
+                var dataType;
+                if ((propName === 'created_at' || propName === 'updated_at') && def['options']['timestamps'])
+                    dataType = 'timestamp';
+                for (var attribute of def['attributes']) {
+                    if (attribute['name'] == propName) {
+                        dataType = attribute['dataType'];
+                        break;
+                    }
+                }
+                if (dataType === 'timestamp' || dataType === 'datetime') {
+                    if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
+                        value = value.substring(0, value.length - 1) + '+00:00';
+                }
+
                 if (operator) {
                     if (OPERATORS.includes(operator) || OPERATORS_NUMBER.includes(operator))
-                        fn = this._queryComparisonOperation(propName, operator, value);
+                        fn = this._queryComparisonOperation(propName, operator, value, dataType);
                     else
                         throw new Error(`unkown operator: ${operator}`);
                 } else {
-                    fn = function (qb) {
-                        if (Array.isArray(value))
-                            qb.where(propName, 'in', value);
-                        else
-                            qb.where(propName, value);
-                    };
+                    if (dataType === 'timestamp' || dataType === 'datetime') {
+                        fn = this._queryComparisonOperation(propName, 'eq', value, dataType);
+                    } else {
+                        fn = function (qb) {
+                            if (Array.isArray(value))
+                                qb.where(propName, 'in', value);
+                            else
+                                qb.where(propName, value);
+                        };
+                    }
                 }
             }
         }
@@ -484,23 +503,8 @@ class QueryParser {
         return fn;
     }
 
-    _queryComparisonOperation(propName, operator, value) {
-        var prop = this._model.getTableName() + '.' + propName;
-        const def = this._model.getDefinition();
-        var dataType;
-        if ((propName === 'created_at' || propName === 'updated_at') && def.options.timestamps)
-            dataType = 'timestamp';
-        for (var attribute of def.attributes) {
-            if (attribute['name'] == propName) {
-                dataType = attribute['dataType'];
-                break;
-            }
-        }
-        if (dataType === 'timestamp') {
-            if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
-                value = value.substring(0, value.length - 1) + '+00:00';
-        }
-
+    _queryComparisonOperation(propName, operator, value, dataType) {
+        const prop = this._model.getTableName() + '.' + propName;
         return function (qb) {
             switch (operator) {
                 case 'null':
@@ -537,21 +541,32 @@ class QueryParser {
                     break;
                 case 'eq':
                     qb.where(prop, 'is not', null);
-                    if (Array.isArray(value)) {
-                        if (value.length > 0) {
-                            qb.where(function () {
-                                var bFirst = true;
-                                for (var val of value) {
-                                    if (bFirst) {
-                                        this.where(prop, 'like', val);
-                                        bFirst = false;
-                                    } else
-                                        this.orWhere(prop, 'like', val);
-                                }
-                            });
+                    if (dataType === 'timestamp' || dataType === 'datetime') {
+                        if (Array.isArray(value))
+                            throw new Error('NotImplementedException'); //TODO:
+                        else {
+                            if (value.indexOf('.') == -1)
+                                qb.whereRaw(`TIMESTAMPDIFF(SECOND, ${prop}, '${value}') = 0`);
+                            else
+                                qb.where(prop, '=', value);
                         }
-                    } else
-                        qb.where(prop, 'like', value);
+                    } else {
+                        if (Array.isArray(value)) {
+                            if (value.length > 0) {
+                                qb.where(function () {
+                                    var bFirst = true;
+                                    for (var val of value) {
+                                        if (bFirst) {
+                                            this.where(prop, 'like', val);
+                                            bFirst = false;
+                                        } else
+                                            this.orWhere(prop, 'like', val);
+                                    }
+                                });
+                            }
+                        } else
+                            qb.where(prop, 'like', value);
+                    }
                     break;
                 case 'neq':
                     qb.where(function () {

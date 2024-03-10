@@ -3,8 +3,10 @@ const path = require('path');
 const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    if (!global.testHelper)
+    if (!global.testHelper) {
         global.testHelper = new TestHelper();
+        testHelper._bCleanupAfterTests = false;
+    }
     return testHelper.setup();
 });
 

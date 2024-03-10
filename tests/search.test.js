@@ -1,8 +1,12 @@
+const fs = require('fs');
+
 const TestHelper = require('./helper/test-helper');
 
 beforeAll(async () => {
-    if (!global.testHelper)
+    if (!global.testHelper) {
         global.testHelper = new TestHelper();
+        testHelper._bCleanupAfterTests = false;
+    }
     return testHelper.setup();
 });
 
@@ -46,6 +50,64 @@ test('#basic', async function () {
     data = await apiHelper.getData(urlSearch);
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,2,3,4,5,6,7');
+
+    return Promise.resolve();
+});
+
+test('#timestamp/datetime', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
+    const model = JSON.parse(fs.readFileSync('./tests/data/models/misc.json', 'utf8'));
+    const id = await apiHelper.uploadModel(model);
+
+    const datetime = new Date().toISOString();
+    var tmp = {
+        'timestamp': datetime,
+        'datetime': datetime
+    }
+    const url = apiUrl + "/misc";
+    res = await webclient.post(url, tmp);
+    /*const resDatetime = res['datetime'];
+    console.log(datetime);
+    console.log(resDatetime);
+    console.log('Diff: ' + (new Date(datetime) - new Date(resDatetime)));*/
+    expect(res['timestamp']).toEqual(datetime);
+    expect(res['datetime']).toEqual(datetime);
+
+    var data = await apiHelper.getData(url);
+    expect(data[data.length - 1]).toEqual(res);
+
+    var urlSearch = apiUrl + "/misc?timestamp_eq=" + datetime;
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
+
+    urlSearch = apiUrl + "/misc?timestamp=" + datetime;
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
+
+    urlSearch = apiUrl + "/misc?timestamp=" + datetime.substring(0, datetime.indexOf('.')) + "Z";
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
+
+    urlSearch = apiUrl + "/misc?datetime_eq=" + datetime;
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
+
+    urlSearch = apiUrl + "/misc?datetime=" + datetime;
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
+
+    urlSearch = apiUrl + "/misc?datetime=" + datetime.substring(0, datetime.indexOf('.')) + "Z";
+    data = await apiHelper.getData(urlSearch);
+    expect(data.length).toEqual(1);
+    expect(data[0]).toEqual(res);
 
     return Promise.resolve();
 });
