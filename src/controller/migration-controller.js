@@ -247,8 +247,8 @@ class MigrationController {
                                         tableName = def['tableName'];
                                     else
                                         tableName = def['name'];
-                                    await knex.raw('ALTER TABLE ' + tableName + ' MODIFY created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
-                                    await knex.raw('ALTER TABLE ' + tableName + ' MODIFY updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)');
+                                    await knex.raw('ALTER TABLE ?? MODIFY created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)', tableName);
+                                    await knex.raw('ALTER TABLE ?? MODIFY updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)', tableName);
                                 }
                             }
                         }

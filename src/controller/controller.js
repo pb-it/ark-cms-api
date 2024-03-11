@@ -80,10 +80,17 @@ class Controller {
                 throw new Error('Faulty database configuration!');
             this._info['db'] = { 'client': this._databaseSettings['client'] };
 
-            this._knex = require('knex')({
-                client: this._databaseSettings['client'],
-                connection: this._databaseSettings['connection']
-            });
+            const connection = this._databaseSettings['connection'];
+            if (this._databaseSettings['client'].startsWith('mysql') && !connection['dateStrings'] && !connection['typeCast']) {
+                Logger.info("[knex] Appling type casting function for 'DATE'");
+                connection['typeCast'] = function (field, next) {
+                    if (field.type === 'DATE')
+                        return field.string();
+                    else
+                        return next();
+                }
+            }
+            this._knex = require('knex')(this._databaseSettings);
 
             if (this._serverConfig['debug'] && this._serverConfig['debug']['knex']) {
                 this._knex.on('query', function (queryData) {

@@ -18,6 +18,8 @@ test('#basic', async function () {
     const apiUrl = testHelper.getApiUrl();
     const apiHelper = testHelper.getApiHelper();
 
+    //await TestHelper.setupScenario(1);
+
     var urlSearch;
     var idArr;
 

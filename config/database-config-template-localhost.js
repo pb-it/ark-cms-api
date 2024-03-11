@@ -11,8 +11,9 @@ var database = {
                     password: '',
                     database: 'cms',
                     //timezone: 'Z',
+                    //dateStrings: true,
                     charset: 'utf8mb4'
-                },
+                }
             },
             options: {}
         }

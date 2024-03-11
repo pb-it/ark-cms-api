@@ -318,7 +318,7 @@ class QueryParser {
                     case 'count':
                         var count = parseInt(value);
                         if (count == 0 && !operator2) {
-                            qb.whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? IS NOT null)', [id, fid, relModelTable, fid]);
                         } else {
                             var op;
                             var bIncludeZero;
@@ -346,7 +346,7 @@ class QueryParser {
                                 qb.whereIn(id, function (qb) {
                                     qb.select(id)
                                         .from(tableName)
-                                        .whereRaw(id + ' NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + fid + ' IS NOT null)');
+                                        .whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? IS NOT null)', [id, fid, relModelTable, fid]);
                                     qb.union(function (qb) {
                                         qb.select(id)
                                             .from(tableName)
@@ -375,9 +375,9 @@ class QueryParser {
                         break;
                     case 'none':
                         if (Array.isArray(value))
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + relModelTable + '.id IN (' + value.join(', ') + ') )');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? IN (' + value.map(_ => '?').join(',') + ') )', [tableName + '.id', fid, relModelTable, relModelTable + '.id', ...value]);
                         else
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + fid + ' FROM ' + relModelTable + ' WHERE ' + relModelTable + '.id = ' + value + ' )');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? = ? )', [tableName + '.id', fid, relModelTable, relModelTable + '.id', value]);
                         break;
                     case 'every': // containsAll / includesEvery
                         qb.join(relModelTable, id, fid);
@@ -424,7 +424,7 @@ class QueryParser {
                     case 'count':
                         var count = parseInt(value);
                         if (count == 0 && !operator2) {
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ??)', [tableName + '.id', jid, junctionTable]);
                         } else {
                             var op;
                             var bIncludeZero;
@@ -453,7 +453,7 @@ class QueryParser {
                                 qb.whereIn(id, function (qb) {
                                     qb.select(id)
                                         .from(tableName)
-                                        .whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ')');
+                                        .whereRaw('?? NOT IN (SELECT ?? FROM ??)', [tableName + '.id', jid, junctionTable]);
                                     qb.union(function (qb) {
                                         qb.select(id)
                                             .from(tableName)
@@ -482,9 +482,9 @@ class QueryParser {
                         break;
                     case 'none':
                         if (Array.isArray(value))
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ' WHERE ' + fid + ' IN (' + value.join(', ') + ') )');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? IN (' + value.map(_ => '?').join(',') + ') )', [tableName + '.id', jid, junctionTable, fid, ...value]);
                         else
-                            qb.whereRaw(tableName + '.id NOT IN (SELECT ' + jid + ' FROM ' + junctionTable + ' WHERE ' + fid + ' = ' + value + ' )');
+                            qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? = ? )', [tableName + '.id', jid, junctionTable, fid, value]);
                         break;
                     case 'every': // containsAll / includesEvery
                         if (Array.isArray(value)) {
@@ -546,7 +546,7 @@ class QueryParser {
                             throw new Error('NotImplementedException'); //TODO:
                         else {
                             if (value.indexOf('.') == -1)
-                                qb.whereRaw(`TIMESTAMPDIFF(SECOND, ${prop}, '${value}') = 0`);
+                                qb.whereRaw('TIMESTAMPDIFF(SECOND, ??, ?) = 0', [prop, value]);
                             else
                                 qb.where(prop, '=', value);
                         }
@@ -577,10 +577,10 @@ class QueryParser {
                     });
                     break;
                 case 'regex':
-                    qb.whereRaw(`${prop} REGEXP '${value}'`);
+                    qb.whereRaw('?? REGEXP ?', [prop, value]);
                     break;
                 case 'nregex':
-                    qb.whereRaw(`${prop} NOT REGEXP '${value}'`);
+                    qb.whereRaw('?? NOT REGEXP ?', [prop, value]);
                     break;
                 case 'lt':
                     qb.where(prop, '<', value);
