@@ -155,6 +155,8 @@ class Controller {
             Logger.info("[App] ✔ Running");
         } catch (error) {
             Logger.parseError(error);
+            await this.shutdown();
+            throw new Error('Launch Failed');
         }
         return Promise.resolve();
     }
@@ -386,7 +388,7 @@ class Controller {
      * flag to process multiple request at once
      */
     setRestartRequest() {
-        Logger.info("[App] Received restart request");
+        Logger.info("[App] ⚠ Received restart request");
         this._info['state'] = 'openRestartRequest';
         //await controller.restart();
     }

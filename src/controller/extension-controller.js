@@ -44,6 +44,8 @@ class ExtensionController {
     _dir;
     _extensions;
 
+    _bSkipLoadingAfterRestartRequest = false;
+
     constructor(controller) {
         this._controller = controller;
         this._dir = path.join(this._controller.getAppRoot(), 'extensions');
@@ -102,16 +104,8 @@ class ExtensionController {
     async loadAllExtensions(bClean) {
         this._extensions = [];
 
-        var p;
-        var stat;
-        if (bClean) {
-            for (const item of fs.readdirSync(this._dir)) {
-                p = path.join(this._dir, item);
-                stat = fs.statSync(p);
-                if (stat.isDirectory())
-                    fs.rmSync(p, { recursive: true, force: true });
-            }
-        }
+        if (bClean)
+            await this.clearExtensionsDirectory();
 
         var data = await this._model.readAll();
         for (var meta of data) {
@@ -119,6 +113,8 @@ class ExtensionController {
                 await this._loadExtension(meta);
         }
 
+        var p;
+        var stat;
         for (const item of fs.readdirSync(this._dir)) {
             try {
                 p = path.join(this._dir, item);
@@ -138,6 +134,18 @@ class ExtensionController {
                     Logger.parseError(error);
                 }
             }
+        }
+        return Promise.resolve();
+    }
+
+    async clearExtensionsDirectory() {
+        var p;
+        var stat;
+        for (var item of fs.readdirSync(this._dir)) {
+            p = path.join(this._dir, item);
+            stat = fs.statSync(p);
+            if (stat.isDirectory())
+                fs.rmSync(p, { recursive: true, force: true });
         }
         return Promise.resolve();
     }
@@ -204,35 +212,32 @@ class ExtensionController {
                         }
                     }
                 }
-                /*if (bSetup) {
-                    var client = path.join(p, 'client.js');
-                    if (fs.existsSync(client))
-                        meta['client-extension'] = fs.readFileSync(client, 'utf8');
-                }*/
-                const index = path.join(p, 'index.js');
-                if (fs.existsSync(index)) {
-                    const resolved = require.resolve(index);
-                    if (resolved)
-                        delete require.cache[resolved];
-                    try {
-                        module = require(index);
-                        if (module) {
-                            if (module.setup && bSetup) {
-                                var data = await module.setup();
-                                if (data && data['client-extension'])
-                                    meta['client-extension'] = data['client-extension'];
+                const state = this._controller.getState();
+                if (!this._bSkipLoadingAfterRestartRequest || state == 'starting' || state == 'running') {
+                    const index = path.join(p, 'index.js');
+                    if (fs.existsSync(index)) {
+                        const resolved = require.resolve(index);
+                        if (resolved)
+                            delete require.cache[resolved];
+                        try {
+                            module = require(index);
+                            if (module) {
+                                if (module.setup && bSetup) {
+                                    var data = await module.setup();
+                                    if (data && data['client-extension'])
+                                        meta['client-extension'] = data['client-extension'];
+                                }
+                                if (module.init)
+                                    await module.init();
                             }
-                            if (module.init)
-                                await module.init();
+                            bLoaded = true;
+                        } catch (error) {
+                            Logger.parseError(error);
                         }
-                        bLoaded = true;
-                    } catch (error) {
-                        Logger.parseError(error);
-                        /*if (error['code'] == 'MODULE_NOT_FOUND') {
-                            console.log(this._controller.getState());
-                        } else
-                            throw error;*/
                     }
+                } else {
+                    Logger.info("[ExtensionController] Not loading Extension '" + name + "' because system state is '" + state + "'");
+                    bLoaded = true; //TODO: FIX otherwise extension will not be stored in database
                 }
             }
         } catch (error) {

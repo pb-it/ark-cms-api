@@ -202,8 +202,10 @@ class WebServer {
                     resolve(this);
                 });
                 server.once('error', (err) => {
-                    if (err)
+                    if (err) {
+                        server.close();
                         reject(err);
+                    }
                 });
             });
         }
