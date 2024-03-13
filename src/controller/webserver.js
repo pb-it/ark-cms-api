@@ -570,7 +570,7 @@ class WebServer {
                 try {
                     if (this._controller.getInfo()['state'] === 'openRestartRequest') {
                         res.send("Restarting instead of reloading because of open request.");
-                        this.restart();
+                        this._controller.restart();
                     } else {
                         var bDone = await this._controller.reload(bForceMigration);
                         if (bDone) {
@@ -586,8 +586,10 @@ class WebServer {
                     }
                 } catch (error) {
                     Logger.parseError(error);
-                    res.status(500);
-                    res.send("Reload failed");
+                    if (!res.headersSent) {
+                        res.status(500);
+                        res.send("Reload failed");
+                    }
                 }
             }
             return Promise.resolve();

@@ -756,16 +756,23 @@ class Model {
                 throw new Error("ID missing");
 
             var obj = await this._book.forge(forge).save();
+            var attr;
             for (var str of this._relationNames) {
-                if (data[str] && Array.isArray(data[str])) {
-                    var coll = obj[str]();
-                    if (coll.relatedData.type === 'hasMany') { //relation via
-                        var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
-                        if (attr)
-                            await this._updateHasManyRelation(attr, data[str], id);
-                    } else {
-                        await coll.detach();
-                        await coll.attach(data[str]);
+                if (data.hasOwnProperty(str)) {
+                    attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
+                    if (attr['multiple']) {
+                        if (!data[str])
+                            data[str] = [];
+                        if (Array.isArray(data[str])) {
+                            if (attr['via']) // coll.relatedData.type === 'hasMany'
+                                await this._updateHasManyRelation(attr, data[str], id);
+                            else {
+                                var coll = obj[str]();
+                                await coll.detach();
+                                await coll.attach(data[str]);
+                            }
+                        } else
+                            throw new Error("Invalid value for property '" + str + "'");
                     }
                 }
             }
@@ -794,10 +801,10 @@ class Model {
         var tmp;
         var attr;
         for (var str in data) {
-            if (!this._relationNames.includes(str) || !Array.isArray(data[str])) {
-                attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
-                if (attr) {
-                    if (!attr.hasOwnProperty("persistent") || attr.persistent == true) {
+            attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
+            if (attr) {
+                if (attr['dataType'] !== 'relation' || !attr['multiple']) {
+                    if (!attr.hasOwnProperty('persistent') || attr.persistent == true) {
                         if (attr['dataType'] === 'json') {
                             var value = data[str];
                             if (value) {
@@ -928,11 +935,11 @@ class Model {
                                 forge[str] = data[str];
                         }
                     }
-                } else if (str === 'id' && this._definition.options.increments) {
-                    forge[str] = data[str];
-                } else
-                    throw new Error("Undefined Attribute '" + str + "'");
-            }
+                }
+            } else if (str === 'id' && this._definition.options.increments) {
+                forge[str] = data[str];
+            } else
+                throw new Error("Undefined Attribute '" + str + "'");
         }
         return Promise.resolve(forge);
     }
