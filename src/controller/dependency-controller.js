@@ -182,7 +182,7 @@ class DependencyController {
                     bError = true;
                 }
                 if (bError)
-                    missing = missing.concat(addFoundDir);
+                    missing.push(...addFoundDir);
                 else {
                     try {
                         var ident;
