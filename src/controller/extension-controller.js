@@ -278,7 +278,7 @@ class ExtensionController {
                 var appVersion = this._controller.getVersionController().getPkgVersion();
                 var reqVersion = new AppVersion(version.substring(1));
                 if (appVersion.isLower(reqVersion))
-                    throw new ExtensionError('Application version does not meet the extension requirements! App: ' + appVersion.toString() + ', Extension: ' + version);
+                    throw new ExtensionError('Application version does not meet the extension requirements!\nApp: ' + appVersion.toString() + ', Extension: ' + version);
             }
         }
         return true;
@@ -323,8 +323,14 @@ class ExtensionController {
             if (exist) {
                 if (id) {
                     var module = exist['module'];
-                    if (module && module.teardown)
-                        await module.teardown();
+                    if (module && module.teardown) {
+                        try {
+                            await module.teardown();
+                        } catch (error) {
+                            Logger.parseError(error);
+                            Logger.warning("[ExtensionController] ⚠ Teardown of '" + extName + "' failed");
+                        }
+                    }
                 } else
                     throw new ExtensionError("Skipped loading extension '" + extName + "', because no ID was provided and name already in use!");
             }
@@ -379,6 +385,7 @@ class ExtensionController {
                             await module.teardown();
                         } catch (error) {
                             Logger.parseError(error);
+                            Logger.warning("[ExtensionController] ⚠ Teardown of '" + extName + "' failed");
                         }
                     }
                 }

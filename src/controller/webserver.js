@@ -249,9 +249,11 @@ class WebServer {
 
     deleteExtensionRoute(route) {
         if (route['regex']) {
-            this._extRoutes = this._extRoutes.filter(function (x) {
-                return (x['regex'] !== route['regex']);
+            const index = this._extRoutes.findIndex(function (x) {
+                return (x === route || x['regex'] === route['regex']);
             });
+            if (index != -1)
+                this._extRoutes.splice(index, 1);
         }
     }
 
@@ -376,7 +378,7 @@ class WebServer {
             if (status)
                 res.sendStatus(status);
             else {
-                if (req.query['clear'] === 'true') {
+                if (req.query.hasOwnProperty('_clear')) {
                     var response;
                     try {
                         Logger.clear();
@@ -391,12 +393,11 @@ class WebServer {
                         res.send("Something went wrong!");
                     }
                 } else {
-                    var severity = req.query['severity'];
-                    var format = req.query['_format'];
-                    var sort = req.query['_sort'];
-                    var entries;
+                    const severity = req.query['severity'];
+                    const format = req.query['_format'];
+                    const sort = req.query['_sort'];
                     try {
-                        entries = Logger.getAllEntries(sort);
+                        const entries = Logger.getAllEntries(sort);
                         if (severity) {
                             var s;
                             switch (severity) {
@@ -1359,20 +1360,21 @@ module.exports = test;` +
                     var model;
                     const arr = req.path.split('/');
                     if (arr.length >= 2)
-                        model = controller.getShelf().getModel(arr[1]);
-
-                    if (model) {
-                        if (!model.getDefinition()['public'] || !req.method === 'GET') {
-                            const ac = this._controller.getAuthController();
-                            if (ac) {
-                                if (req.session.user) {
+                        model = this._controller.getShelf().getModel(arr[1]);
+                    const ac = this._controller.getAuthController();
+                    if (ac) {
+                        const bPublic = (model && model.getDefinition()['public'] && req.method === 'GET');
+                        if (!bPublic) {
+                            if (req.session.user) {
+                                if (model) {
                                     if (!req.session.user.roles.includes('administrator')) {
                                         if (!await ac.hasPermission(req.session.user, model, (req.method === 'GET') ? 1 : 2))
                                             status = 403; //Forbidden
                                     }
                                 } else
-                                    status = 401; //Unauthorized
-                            }
+                                    status = 404; //Not Found
+                            } else if (!bPublic)
+                                status = 401; //Unauthorized
                         }
                     }
 

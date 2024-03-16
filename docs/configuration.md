@@ -25,7 +25,7 @@ Define when using an process manager which keeps your application running.
 Possible values:
 * null / undefined
 * true / false
-* 'pm2' # currently there is no distinction between any given names
+* 'pm2' / 'forever' / 'x' / ... # currently there is no distinction between any given names
 
 
 ## Database: /config/database-config.js

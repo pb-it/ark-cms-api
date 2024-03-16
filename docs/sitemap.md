@@ -12,6 +12,8 @@
 
 `/sys/log?severity=error&_sort=desc&_format=json`
 
+`/sys/log?_clear`
+
 
 #### Update
 

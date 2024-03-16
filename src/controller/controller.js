@@ -198,6 +198,31 @@ class Controller {
         return this._appRoot;
     }
 
+    /**
+     * Linux candidates may be '~/.cache', '~/.ark-cms', '~/.local/share', 'usr/share', ...
+     */
+    getAppDataDir() {
+        var appDataDir;
+        if (this._serverConfig['appDataDir']) {
+            if (this._serverConfig['appDataDir'].startsWith('.'))
+                appDataDir = path.join(this._appRoot, this._serverConfig['appDataDir']);
+            else {
+                if (process.platform === 'linux') {
+                    if (this._serverConfig['appDataDir'].startsWith('/'))
+                        appDataDir = this._serverConfig['appDataDir'];
+                    else if (this._serverConfig['appDataDir'].startsWith('~'))
+                        appDataDir = this._serverConfig['appDataDir'].replace('~', process.env.HOME);
+                } else
+                    appDataDir = this._serverConfig['appDataDir'];
+            }
+        }
+        if (!appDataDir)
+            appDataDir = this._appRoot; // process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + "/.local/share")
+        if (!fs.existsSync(appDataDir))
+            fs.mkdirSync(appDataDir, { recursive: true });
+        return appDataDir;
+    }
+
     getInfo() {
         return this._info;
     }
@@ -295,6 +320,8 @@ class Controller {
                     if (process.platform === 'linux') {
                         if (p.startsWith('/'))
                             localPath = p;
+                        else if (p.startsWith('~'))
+                            localPath = p.replace('~', process.env.HOME);
                     } else
                         localPath = p;
                 }
@@ -337,13 +364,13 @@ class Controller {
         var bDone = false;
         this._webserver.deleteAllCustomDataRoutes();
         this._webserver.deleteAllExtensionRoutes();
-        await this._extensionController.loadAllExtensions(true);
         Logger.info("[App] Reloading models");
         await this._shelf.loadAllModels();
         if (await this._migrationsController.migrateDatabase(bForceMigration)) {
             await this._shelf.initAllModels();
             bDone = true;
         }
+        await this._extensionController.loadAllExtensions(true);
         return Promise.resolve(bDone)
     }
 

@@ -1,6 +1,6 @@
 {
     "name": "ark-cms-api",
-    "version": "0.6.2-beta",
+    "version": "0.6.4-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -29,6 +29,7 @@
         "debug:http": "export NODE_DEBUG=http,http2&& node --max_old_space_size=8192 index.js",
         "debug:app": "export DEBUG=app:*&& node --max_old_space_size=8192 index.js",
         "debug:knex": "export DEBUG=knex:query&& node --max_old_space_size=8192 index.js",
+        "forever": "forever -o ./logs/common.log -e ./logs/common.log index.js && tail -f ./logs/common.log",
         "test": "jest --config ./tests/config/jest.config.js -i ./root.test.js",
         "test2": "jest --setupFiles ./tests/config/setup-env2.js -i ./tests/root.test.js --forceExit",
         "test:setup": "jest tests/setup.test.js",

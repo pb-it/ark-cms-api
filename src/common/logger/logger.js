@@ -11,25 +11,28 @@ const logFile = path.join(__dirname, "../../../logs/log.json");
 class Logger {
 
     static clear() {
-        fs.unlinkSync(logFile);
+        if (fs.existsSync(logFile))
+            fs.unlinkSync(logFile);
     }
 
     static getAllEntries(sort) {
         var entries = [];
         try {
-            var data = fs.readFileSync(logFile, 'utf8');
-            var arr = JSON.parse(data);
-            var entry;
-            for (var item of arr) {
-                entry = new LogEntry();
-                entry.parse(item);
-                entries.push(entry);
-            }
-            if (sort) {
-                if (sort === 'asc')
-                    entries.sort(function (a, b) { return new Date(a['date']) - new Date(b['date']); });
-                else if (sort === 'desc')
-                    entries.sort(function (a, b) { return new Date(b['date']) - new Date(a['date']); });
+            if (fs.existsSync(logFile)) {
+                const data = fs.readFileSync(logFile, 'utf8');
+                const arr = JSON.parse(data);
+                var entry;
+                for (var item of arr) {
+                    entry = new LogEntry();
+                    entry.parse(item);
+                    entries.push(entry);
+                }
+                if (sort) {
+                    if (sort === 'asc')
+                        entries.sort(function (a, b) { return new Date(a['date']) - new Date(b['date']); });
+                    else if (sort === 'desc')
+                        entries.sort(function (a, b) { return new Date(b['date']) - new Date(a['date']); });
+                }
             }
         } catch (error) {
             console.error(error);
