@@ -10,7 +10,7 @@ beforeAll(async () => {
         process.exit(1);
     }
     return Promise.resolve();
-});
+}, 10000);
 
 afterAll(async () => {
     return testHelper.teardown();

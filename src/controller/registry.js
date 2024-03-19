@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 class Registry {
 
     _knex;
@@ -37,6 +39,12 @@ class Registry {
         }
         if (!this._model.initDone())
             await this._model.initModel();
+
+        var dbIdent = await this.get('dbIdent');
+        if (!dbIdent) {
+            dbIdent = crypto.randomBytes(16).toString('hex');
+            await this.upsert('dbIdent', dbIdent);
+        }
 
         return Promise.resolve();
     }

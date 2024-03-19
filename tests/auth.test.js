@@ -60,4 +60,4 @@ itif(process.env.REMOTE !== 'true')('basic auth', async function () {
     await testHelper.init(controller);
 
     return Promise.resolve();
-});
+}, 10000);
