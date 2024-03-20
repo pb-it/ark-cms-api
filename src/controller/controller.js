@@ -630,10 +630,23 @@ class Controller {
                 var bForceMigration = (req.query['forceMigration'] === 'true');
                 if (version) {
                     var definition = req.body;
-                    var bNew = true;
-                    if (definition['id'])
-                        bNew = false;
                     name = definition['name'];
+                    var bNew;
+                    if (definition['id']) {
+                        id = definition['id'];
+                        delete definition['id'];
+                        if (definition['changes']) {
+                            var model = this._shelf.getModel(name);
+                            for (var change of definition['changes']) {
+                                if (change['delete'])
+                                    await model.deleteAttribute(change['delete']);
+                                else if (change['rename'])
+                                    await model.renameAttribute(change['rename']['from'], change['rename']['to']);
+                            }
+                            delete definition['changes'];
+                        }
+                    } else
+                        bNew = true;
                     var appVersion = this._versionController.getPkgVersion();
                     var sAppVersion = appVersion.toString();
                     if (version !== sAppVersion) {

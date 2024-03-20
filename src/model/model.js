@@ -19,6 +19,34 @@ class UnknownModelError extends Error {
 
 class Model {
 
+    /**
+     * @param {*} knex 
+     * @param {*} tableName 
+     * @param {*} columnName 
+     * @returns 
+     */
+    static dropColumn = (knex, tableName, columnName) => {
+        return knex.schema.hasColumn(tableName, columnName).then((hasColumn) => {
+            if (hasColumn) {
+                return knex.schema.alterTable(tableName, table => {
+                    table.dropColumn(columnName);
+                });
+            } else
+                return null;
+        });
+    }
+
+    static renameColumn = (knex, tableName, from, to) => {
+        return knex.schema.hasColumn(tableName, from).then((hasColumn) => {
+            if (hasColumn) {
+                return knex.schema.alterTable(tableName, table => {
+                    table.renameColumn(from, to);
+                });
+            } else
+                return null;
+        });
+    }
+
     _shelf;
     _id;
     _definition;
@@ -268,6 +296,9 @@ class Model {
                         column.notNullable();
                 }
                 break;
+            case "list":
+                var column = table.json(attribute.name);
+                break;
             case "text":
                 var column;
                 if (attribute.length) {
@@ -299,7 +330,7 @@ class Model {
                     column.notNullable();
                 break;
             case "json":
-                var column = table.json(attribute.name, attribute.enum);
+                var column = table.json(attribute.name);
                 if (attribute.defaultValue)
                     column.defaultTo(attribute.defaultValue);
                 if (attribute.required)
@@ -429,6 +460,20 @@ class Model {
             }
         } else
             throw new UnknownModelError("Model '" + attribute['model'] + "' is not defined");
+    }
+
+    async deleteAttribute(name) {
+        const attr = this.getAttribute(name);
+        if (attr['dataType'] !== 'relation')
+            await Model.dropColumn(this._shelf.getKnex(), this.getTableName(), name);
+        return Promise.resolve();
+    }
+
+    async renameAttribute(from, to) {
+        const attr = this.getAttribute(from);
+        if (attr['dataType'] !== 'relation')
+            await Model.renameColumn(this._shelf.getKnex(), this.getTableName(), from, to);
+        return Promise.resolve();
     }
 
     getAttribute(name) {
@@ -805,7 +850,7 @@ class Model {
             if (attr) {
                 if (attr['dataType'] !== 'relation' || !attr['multiple']) {
                     if (!attr.hasOwnProperty('persistent') || attr.persistent == true) {
-                        if (attr['dataType'] === 'json') {
+                        if (attr['dataType'] === 'json' || attr['dataType'] === 'list') {
                             var value = data[str];
                             if (value) {
                                 if (typeof value === 'string' || value instanceof String)

@@ -1,23 +1,6 @@
-const Logger = require('../common/logger/logger');
-const AppVersion = require('../common/app-version');
-
-/**
- * dbHelper.js
- * @param {*} knex 
- * @param {*} tableName 
- * @param {*} columnName 
- * @returns 
- */
-const dropColumn = (knex, tableName, columnName) => {
-    return knex.schema.hasColumn(tableName, columnName).then((hasColumn) => {
-        if (hasColumn) {
-            return knex.schema.alterTable(tableName, table => {
-                table.dropColumn(columnName);
-            });
-        } else
-            return null;
-    });
-}
+const Logger = require('../common/logger/logger.js');
+const AppVersion = require('../common/app-version.js');
+const Model = require('../model/model.js');
 
 class MigrationController {
 
@@ -117,7 +100,7 @@ class MigrationController {
                             await knex.schema.renameTable('_log', '_change');
                         }
                     case '0.2.1-beta':
-                        dropColumn(knex, '_model', 'name');
+                        Model.dropColumn(knex, '_model', 'name');
                     case '0.3.0-beta':
                         var mChange = this._shelf.getModel('_change');
                         if (mChange) {
