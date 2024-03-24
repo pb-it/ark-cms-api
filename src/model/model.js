@@ -82,9 +82,7 @@ class Model {
 
     async initModel() {
         Logger.info("Init model '" + this._name + "'");
-
         this._relationNames = [];
-
         if (this._definition['extensions']) {
             var extension = this._definition['extensions']['server'];
             if (extension) {
@@ -107,9 +105,15 @@ class Model {
                     this.setPostReadHook(this._extension.postReadHook);
             }
         }
+        await this.initTables();
+        this.createBook();
+        this._bInitDone = true;
+        return Promise.resolve();
+    }
 
-        var knex = this._shelf.getKnex();
-        var exist = await knex.schema.hasTable(this._tableName);
+    async initTables(bJunctions = true) {
+        const knex = this._shelf.getKnex();
+        const exist = await knex.schema.hasTable(this._tableName);
         if (!exist) {
             await knex.schema.createTable(this._tableName, async function (table) {
                 //table.engine('innodb');
@@ -147,7 +151,7 @@ class Model {
 
                 return Promise.resolve();
             }.bind(this));
-            Logger.info("Added table '" + this._tableName + "'");
+            Logger.info("Created table '" + this._tableName + "'");
         } else {
             var tableInfo = await knex.table(this._tableName).columnInfo();
             /*if (this._definition.options.timestamps) {
@@ -164,31 +168,31 @@ class Model {
             }
         }
 
-        if (this._definition.attributes) {
-            var junctions = this._definition.attributes.filter(function (attribute) {
-                return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
-            });
-            for (var junction of junctions) {
-                try {
-                    await this._addJunctionTable(junction);
-                } catch (error) {
-                    if (error instanceof UnknownModelError)
-                        Logger.warning("[model: '" + this._name + "', attribute: '" + junction['name'] + "'] " + error['message']);
-                    else
-                        Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + junction['name'] + "']");
+        if (bJunctions) {
+            if (this._definition.attributes) {
+                const junctions = this._definition.attributes.filter(function (attribute) {
+                    return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+                });
+                for (var junction of junctions) {
+                    try {
+                        await this._addJunctionTable(junction);
+                    } catch (error) {
+                        if (error instanceof UnknownModelError)
+                            Logger.warning("[model: '" + this._name + "', attribute: '" + junction['name'] + "'] " + error['message']);
+                        else
+                            Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + junction['name'] + "']");
+                    }
                 }
             }
         }
-
-        this.createBook();
-        this._bInitDone = true;
         return Promise.resolve();
     }
 
     _addColumns(table, tableInfo, attributes) {
         for (let attribute of attributes) {
             if (attribute['dataType'] === "relation") {
-                this._relationNames.push(attribute['name']);
+                if (this._relationNames)
+                    this._relationNames.push(attribute['name']);
                 if (!attribute.via) {
                     if (!attribute.multiple) {
                         if (!tableInfo || !tableInfo.hasOwnProperty(attribute['name']))
@@ -440,13 +444,21 @@ class Model {
             if (!await knex.schema.hasTable(relTable)) {
                 var id = inflection.singularize(this._tableName) + "_id";
                 var fid = inflection.singularize(modelTable) + "_id";
-                await knex.schema.createTable(relTable, function (table) {
-                    table.increments('id').primary();
+                try {
+                    await knex.schema.createTable(relTable, function (table) {
+                        table.increments('id').primary();
 
-                    table.integer(id).unsigned().notNullable().references('id').inTable(this._tableName);
-                    table.integer(fid).unsigned().notNullable().references('id').inTable(modelTable);
-                }.bind(this));
-                Logger.info("Added table '" + relTable + "'");
+                        table.integer(id).unsigned().notNullable().references('id').inTable(this._tableName);
+                        table.integer(fid).unsigned().notNullable().references('id').inTable(modelTable);
+                    }.bind(this));
+                } catch (error) {
+                    if (error['sqlMessage'] && error['code'] == 'ER_FK_CANNOT_OPEN_PARENT') {
+                        console.error(error);
+                        Logger.warning("[model: '" + this._name + "', attribute: '" + attribute['name'] + "'] ⚠ " + error['code'] + ": " + error['sqlMessage']);
+                    } else
+                        throw error;
+                }
+                Logger.info("Created table '" + relTable + "'");
 
                 //TODO: migrate old data
                 var table = knex.table(this._tableName);
@@ -1037,19 +1049,45 @@ class Model {
         else
             await this._shelf.getKnex()(this._tableName).where(id).del();
 
+        var value;
         var localPath;
-        var filename;
         var file;
-        for (var attribute of this._definition.attributes) {
-            if (attribute['dataType'] == 'file' && attribute['storage'] == 'filesystem') {
-                if (res[attribute['name']]) {
-                    filename = res[attribute['name']];
-                    localPath = controller.getPathForFile(attribute);
-                    if (localPath) {
-                        file = path.join(localPath, filename);
-                        if (fs.existsSync(file))
-                            fs.unlinkSync(file);
-                    }
+        var dt;
+        const dtc = controller.getDataTypeController();
+        for (var attribute of this._definition['attributes']) {
+            value = res[attribute['name']];
+            if (value) {
+                switch (attribute['dataType']) {
+                    case 'file':
+                        if (attribute['storage'] == 'filesystem') {
+                            localPath = controller.getPathForFile(attribute);
+                            if (localPath) {
+                                file = path.join(localPath, value);
+                                if (fs.existsSync(file))
+                                    fs.unlinkSync(file);
+                            }
+                        }
+                        break;
+                    case 'boolean':
+                    case 'integer':
+                    case 'decimal':
+                    case 'double':
+                    case 'string':
+                    case 'text':
+                    case 'url':
+                    case 'json':
+                    case 'date':
+                    case 'time':
+                    case 'datetime':
+                    case 'timestamp':
+                    case 'enumeration':
+                    case 'list':
+                    case 'relation':
+                        break;
+                    default:
+                        dt = dtc.getDataType(attribute['dataType']);
+                        if (dt && dt.destroy)
+                            await dt.destroy(attribute, res, value);
                 }
             }
         }
