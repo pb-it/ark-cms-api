@@ -150,7 +150,7 @@ class ExtensionController {
         return Promise.resolve();
     }
 
-    async _loadExtension(meta, bSetup, bOverride) {
+    async _loadExtension(meta, bSetup) {
         var bLoaded = false;
         var name = meta['name'];
         var version;
@@ -158,9 +158,14 @@ class ExtensionController {
         try {
             const p = path.join(this._dir, name);
             const bExist = fs.existsSync(p);
-            if (!bExist || bOverride) {
+            if (!bExist || bSetup) {
                 const tmpDir = this._controller.getTmpDir();
-                const folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(meta['archive']), tmpDir);
+                var buffer;
+                if (meta['archive']['blob'])
+                    buffer = meta['archive']['blob'];
+                else
+                    buffer = meta['archive'];
+                const folderName = await ExtensionController._unzipStream(ExtensionController._bufferToStream(buffer), tmpDir);
                 const source = path.join(tmpDir, folderName);
                 if (bExist)
                     fs.rmSync(p, { recursive: true, force: true });
