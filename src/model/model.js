@@ -179,8 +179,10 @@ class Model {
                     } catch (error) {
                         if (error instanceof UnknownModelError)
                             Logger.warning("[model: '" + this._name + "', attribute: '" + junction['name'] + "'] " + error['message']);
-                        else
-                            Logger.parseError(error, "[model: '" + this._name + "', attribute: '" + junction['name'] + "']");
+                        else {
+                            Logger.error("[model: '" + this._name + "', attribute: '" + junction['name'] + "'] Creating junktion table failed");
+                            throw error;
+                        }
                     }
                 }
             }
@@ -373,7 +375,11 @@ class Model {
                     column.notNullable();
                 break;
             case "relation":
-                table.integer(attribute.name);
+                var model = this._shelf.getModel(attribute['model']);
+                if (model)
+                    table.integer(attribute.name).unsigned().references('id').inTable(model.getTableName());
+                else
+                    table.integer(attribute.name);
                 break;
             case "file":
                 var column;
@@ -423,27 +429,37 @@ class Model {
     }
 
     getJunctionTableName(attribute) {
-        var relTable;
-        var model = this._shelf.getModel(attribute['model']);
-        if (model) {
-            var modelTable = model.getTableName();
-            if (this._tableName.localeCompare(modelTable) == -1)
-                relTable = this._tableName + "_" + modelTable;
-            else
-                relTable = modelTable + "_" + this._tableName;
+        var relTable = attribute.tableName;
+        if (!relTable) {
+            const model = this._shelf.getModel(attribute['model']);
+            if (model) {
+                if (attribute['model'] === this._name) {
+                    relTable = this._tableName + "_" + attribute['name'];
+                } else {
+                    const modelTable = model.getTableName();
+                    if (this._tableName.localeCompare(modelTable) == -1)
+                        relTable = this._tableName + "_" + modelTable;
+                    else
+                        relTable = modelTable + "_" + this._tableName;
+                }
+            }
         }
         return relTable;
     }
 
     async _addJunctionTable(attribute) {
-        var knex = this._shelf.getKnex();
-        var model = this._shelf.getModel(attribute['model']);
+        const knex = this._shelf.getKnex();
+        const model = this._shelf.getModel(attribute['model']);
         if (model) {
-            var modelTable = model.getTableName();
-            var relTable = this.getJunctionTableName(attribute);
+            const modelTable = model.getTableName();
+            const relTable = this.getJunctionTableName(attribute);
             if (!await knex.schema.hasTable(relTable)) {
-                var id = inflection.singularize(this._tableName) + "_id";
-                var fid = inflection.singularize(modelTable) + "_id";
+                const id = inflection.singularize(this._tableName) + "_id";
+                var fid;
+                if (attribute['model'] === this._name)
+                    fid = inflection.singularize(attribute['name']) + "_id";
+                else
+                    fid = inflection.singularize(modelTable) + "_id";
                 try {
                     await knex.schema.createTable(relTable, function (table) {
                         table.increments('id').primary();
@@ -467,11 +483,11 @@ class Model {
                     var resultset = await knex.select('id as ' + id, attribute['name'] + " as " + fid).from(this._tableName).where(attribute['name'], 'is not', null);
                     //console.log(resultset);
                     await knex(relTable).insert(resultset);
-                    return Promise.resolve();
                 }
             }
         } else
             throw new UnknownModelError("Model '" + attribute['model'] + "' is not defined");
+        return Promise.resolve();
     }
 
     async deleteAttribute(name) {
@@ -493,8 +509,8 @@ class Model {
     }
 
     createBook() {
-        var obj = {};
-        var shelf = this._shelf;
+        const obj = {};
+        const shelf = this._shelf;
 
         if (this._definition.attributes) {
             for (let attribute of this._definition.attributes) {
@@ -511,15 +527,30 @@ class Model {
                         };
                     } else {
                         if (attribute.multiple) {
-                            obj[attribute.name] = function () {
-                                var book;
-                                var model = shelf.getModel(attribute['model']);
-                                if (model && model.initDone())
-                                    book = model.getBook();
-                                else
-                                    throw new Error('Faulty model \'' + attribute['model'] + '\'');
-                                return this.belongsToMany(book);
-                            };
+                            if (attribute.model === this._name) {
+                                var tableName = this.getJunctionTableName(attribute);
+                                var id = inflection.singularize(this._tableName) + "_id";
+                                var fid = inflection.singularize(attribute['name']) + "_id";
+                                obj[attribute.name] = function () {
+                                    var book;
+                                    var model = shelf.getModel(attribute['model']);
+                                    if (model && model.initDone())
+                                        book = model.getBook();
+                                    else
+                                        throw new Error('Faulty model \'' + attribute['model'] + '\'');
+                                    return this.belongsToMany(book, tableName, id, fid);
+                                };
+                            } else {
+                                obj[attribute.name] = function () {
+                                    var book;
+                                    var model = shelf.getModel(attribute['model']);
+                                    if (model && model.initDone())
+                                        book = model.getBook();
+                                    else
+                                        throw new Error('Faulty model \'' + attribute['model'] + '\'');
+                                    return this.belongsToMany(book);
+                                };
+                            }
                         } else {
                             obj[attribute.name] = function () {
                                 var book;
@@ -1039,8 +1070,37 @@ class Model {
                     for (var x of related) {
                         await x.set(attribute['via'], null).save();
                     }
-                } else if (attribute['multiple']) {
-                    await obj[attribute['name']]().detach();
+                } else {
+                    if (attribute['multiple']) {
+                        if (attribute['model'] === this._name) {
+                            var tableName = this.getJunctionTableName(attribute);
+                            var fid = inflection.singularize(this.getTableName()) + "_id";
+                            await this._shelf.getKnex()(tableName).where(fid, id).del();
+                        } else
+                            await obj[attribute['name']]().detach();
+                    } else {
+                        if (attribute['model'] === this._name)
+                            await this._shelf.getKnex()(this._tableName).update(attribute['name'], null).where(attribute['name'], id);
+                    }
+                }
+            }
+        }
+        const models = this._shelf.getModel();
+        if (models) {
+            var def;
+            for (var model of models) {
+                if (model.getName() != this._name) {
+                    def = model.getDefinition();
+                    for (var attr of def['attributes']) {
+                        if (attr['dataType'] === 'relation' && attr['model'] === this._name && !attr['via']) {
+                            if (attr['multiple']) {
+                                var tableName = model.getJunctionTableName(attr);
+                                var fid = inflection.singularize(this.getTableName()) + "_id";
+                                await this._shelf.getKnex()(tableName).where(fid, id).del();
+                            } else
+                                await this._shelf.getKnex()(model.getTableName()).update(attr['name'], null).where(attr['name'], id);
+                        }
+                    }
                 }
             }
         }

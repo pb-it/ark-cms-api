@@ -407,7 +407,11 @@ class QueryParser {
             var junctionTable = this._model.getJunctionTableName(relAttr);
             var id = tableName + ".id";
             var jid = inflection.singularize(tableName) + "_id";
-            var fid = inflection.singularize(relModelTable) + "_id";
+            var fid;
+            if (subType === this._model.getName())
+                fid = inflection.singularize(relAttr['name']) + "_id";
+            else
+                fid = inflection.singularize(relModelTable) + "_id";
             if (operation != 'count') {
                 if (this._leftJoins.indexOf(junctionTable) == -1)
                     this._leftJoins.push(junctionTable);
