@@ -996,6 +996,9 @@ class Model {
                                     } else
                                         throw new Error("Invalid file storage path!");
                                 }
+
+                                if ((attr['storage'] === 'base64' || attr['storage'] === 'blob') && data[str]['delete'])
+                                    forge[str] = null;
                                 if (attr['filename_prop'] && data[str]['filename'])
                                     forge[attr['filename_prop']] = data[str]['filename'];
                                 if (attr['url_prop']) {
