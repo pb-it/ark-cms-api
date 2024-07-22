@@ -775,32 +775,54 @@ class Model {
         if (this._preCreateHook)
             data = await this._preCreateHook(data);
 
-        if (this._definition.options.increments) {
-            var forge = await this._createForge(data);
-
-            var obj = await this._book.forge(forge).save(null, { method: 'insert' });
-
-            var id = obj['id'];
-            for (var str of this._relationNames) {
-                if (data[str] && Array.isArray(data[str])) {
-                    var coll = obj[str]();
-                    if (coll.relatedData.type === 'hasMany') { //relation via
-                        var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
-                        if (attr)
-                            await this._updateHasManyRelation(attr, data[str], id);
-                    } else {
-                        await coll.attach(data[str]);
-                    }
-                }
-            }
-            obj = await obj.load(this._relationNames);
-            res = obj.toJSON();
-        } else
-            res = await this.upsert(data);
+        res = await this._create(data);
         return Promise.resolve(res);
     }
 
-    async update(id, data) {
+    _create(data) {
+        return this._shelf.getBookshelf().transaction(async (transaction) => {
+            return new Promise(async (resolve, reject) => {
+                var res;
+                if (this._definition.options.increments) {
+                    var forge = await this._createForge(data);
+                    this._book.forge(forge).save(null, { transacting: transaction, method: 'insert' }).then(async function (obj) {
+                        var res;
+                        var id = obj['id'];
+                        var attr;
+                        for (var str of this._relationNames) {
+                            if (data.hasOwnProperty(str)) {
+                                attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
+                                if (attr['multiple']) {
+                                    if (Array.isArray(data[str])) {
+                                        var coll = obj[str]();
+                                        if (coll.relatedData.type === 'hasMany') { //relation via
+                                            var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
+                                            if (attr)
+                                                await this._updateHasManyRelation(transaction, attr, data[str], id);
+                                        } else {
+                                            await coll.attach(data[str], { transacting: transaction });
+                                        }
+                                    } else
+                                        reject(new Error("Invalid value for property '" + str + "'")); // transaction.rollback();
+                                }
+                            }
+                        }
+                        obj = await obj.load(this._relationNames, { transacting: transaction });
+                        res = obj.toJSON();
+                        resolve(res); // transaction.commit();
+                    }.bind(this))
+                        .catch(error => {
+                            reject(error);
+                        });
+                } else {
+                    res = await this.upsert(data);
+                    resolve(res); // transaction.commit();
+                }
+            });
+        });
+    }
+
+    async update(id, data, transaction) {
         var res;
 
         var current;
@@ -829,46 +851,67 @@ class Model {
         if (this._preUpdateHook)
             data = await this._preUpdateHook(current, data);
 
-        if (this._definition.options.increments) {
-            var forge = await this._createForge(data, current);
-
-            if (id) {
-                if (!forge['id'])
-                    forge['id'] = id;
-                else if (forge['id'] !== id)
-                    throw new Error("Conflict in received IDs");
-            } else
-                id = forge['id'];
-
-            if (!id)
-                throw new Error("ID missing");
-
-            var obj = await this._book.forge(forge).save();
-            var attr;
-            for (var str of this._relationNames) {
-                if (data.hasOwnProperty(str)) {
-                    attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
-                    if (attr['multiple']) {
-                        if (!data[str])
-                            data[str] = [];
-                        if (Array.isArray(data[str])) {
-                            if (attr['via']) // coll.relatedData.type === 'hasMany'
-                                await this._updateHasManyRelation(attr, data[str], id);
-                            else {
-                                var coll = obj[str]();
-                                await coll.detach();
-                                await coll.attach(data[str]);
-                            }
-                        } else
-                            throw new Error("Invalid value for property '" + str + "'");
-                    }
-                }
-            }
-            obj = await obj.load(this._relationNames);
-            res = obj.toJSON()
-        } else
-            res = await this.upsert(data);
+        if (transaction)
+            res = await this._update(transaction, id, current, data);
+        else {
+            res = await this._shelf.getBookshelf().transaction(async (transaction) => {
+                return this._update(transaction, id, current, data);
+            });
+        }
         return Promise.resolve(res);
+    }
+
+    _update(transaction, id, current, data) {
+        return new Promise(async (resolve, reject) => {
+            var res;
+            if (this._definition.options.increments) {
+                var forge = await this._createForge(data, current);
+
+                if (id) {
+                    if (!forge['id'])
+                        forge['id'] = id;
+                    else if (forge['id'] !== id)
+                        throw new Error("Conflict in received IDs");
+                } else
+                    id = forge['id'];
+
+                if (!id)
+                    throw new Error("ID missing");
+
+                this._book.forge(forge).save(null, { transacting: transaction }).then(async function (obj) {
+                    var res;
+                    var attr;
+                    for (var str of this._relationNames) {
+                        if (data.hasOwnProperty(str)) {
+                            attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
+                            if (attr['multiple']) {
+                                if (!data[str])
+                                    data[str] = [];
+                                if (Array.isArray(data[str])) {
+                                    if (attr['via']) // coll.relatedData.type === 'hasMany'
+                                        await this._updateHasManyRelation(transaction, attr, data[str], id);
+                                    else {
+                                        var coll = obj[str]();
+                                        await coll.detach(null, { transacting: transaction });
+                                        await coll.attach(data[str], { transacting: transaction });
+                                    }
+                                } else
+                                    reject(new Error("Invalid value for property '" + str + "'")); // transaction.rollback();
+                            }
+                        }
+                    }
+                    obj = await obj.load(this._relationNames, { transacting: transaction });
+                    res = obj.toJSON();
+                    resolve(res); // transaction.commit();
+                }.bind(this))
+                    .catch(error => {
+                        reject(error);
+                    });
+            } else {
+                res = await this.upsert(data);
+                resolve(res); // transaction.commit();
+            }
+        });
     }
 
     async upsert(data) {
@@ -1035,13 +1078,13 @@ class Model {
         return Promise.resolve(forge);
     }
 
-    async _updateHasManyRelation(attr, ids, id) {
+    async _updateHasManyRelation(transaction, attr, ids, id) {
         var model = this._shelf.getModel(attr['model']);
         var via = attr['via'];
         var o = {};
         o[via] = id;
         for (var i of ids) {
-            await model.update(i, o);
+            await model.update(i, o, transaction);
         }
         return Promise.resolve();
     }

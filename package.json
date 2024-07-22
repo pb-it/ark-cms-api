@@ -1,6 +1,6 @@
 {
     "name": "ark-cms-api",
-    "version": "0.6.6-beta",
+    "version": "0.6.7-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -45,6 +45,7 @@
         "lint": "eslint src/js"
     },
     "dependencies": {
+        "add-dependencies": "^1.1.0",
         "bcrypt": "^5.1.1",
         "bookshelf": "^1.2.0",
         "cors": "^2.8.5",
@@ -56,12 +57,12 @@
         "express-session": "^1.18.0",
         "knex": "^3.1.0",
         "mysql": "^2.18.1",
-        "mysql2": "^3.9.8",
+        "mysql2": "^3.10.3",
         "unzipper": "^0.11.6"
     },
     "devDependencies": {
         "dotenv": "^16.4.5",
-        "eslint": "^9.3.0",
+        "eslint": "^9.7.0",
         "jest": "^29.7.0"
     }
 }

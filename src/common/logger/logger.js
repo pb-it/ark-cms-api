@@ -61,9 +61,7 @@ class Logger {
                         message += ' - ' + err.response.url;
                 } else
                     msg += 'An unexpected error has occurred';
-            } else if (err.isAxiosError && err.response && err.response.status) //axios
-                msg = "[axios] download failed with error: " + err.response.status + " - " + err.response.statusText;
-            else if (err.code && err.sqlMessage) //SQL/knex error
+            } else if (err.code && err.sqlMessage) //SQL/knex error
                 msg = "[knex] " + err.code;
             else if (err.name && err.message) // Error/CustomError/TypeError
                 msg = err.name + ": " + err.message;

@@ -17,6 +17,7 @@ afterAll(async () => {
 });
 
 describe("Root Suite", function () {
+    require('./clear.test.js');
     require('./common.test.js');
     require('./datatypes.test.js');
     require('./relations.test.js');
