@@ -64,6 +64,18 @@ function getFileExtensionFromUrl(url) {
     return ext;
 }
 
+function isImage(url) {
+    var ext = getFileExtensionFromUrl(url).toLowerCase();
+    return (ext === "png" || ext === "jpg" || ext === "jpeg" ||
+        ext === "tiff" || ext === "tif" || ext === "ico" ||
+        ext === "gif" || ext === "webp" || ext === "svg" || ext === "avif");
+}
+
+function isVideo(url) {
+    var ext = getFileExtensionFromUrl(url).toLowerCase();
+    return (ext === "mp4" || ext === "avi" || ext === "webm" || ext === "mkv" || ext === "vid");
+}
+
 /**
  * encode for HTML / prevent interpretation of tags: '<meta>' -> '&lt;meta;&gt;'
  * @param {*} text 
@@ -93,4 +105,4 @@ function addSlashes(str) {
     return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
 }
 
-module.exports = { sleep, exec, getAllPropertyNames, flatten, getFileExtensionFromUrl, encodeText, replaceApostrophe, replaceLineBreak, replaceTab, addSlashes };
+module.exports = { sleep, exec, getAllPropertyNames, flatten, getFileExtensionFromUrl, isImage, isVideo, encodeText, replaceApostrophe, replaceLineBreak, replaceTab, addSlashes };
