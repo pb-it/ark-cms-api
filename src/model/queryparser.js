@@ -1,5 +1,7 @@
 const inflection = require('inflection');
 
+const ValidationError = require('../common/validation-error');
+
 const OPERATOR_IDENT = '$';
 const OPERATORS = ['null', 'in', 'nin', 'contains', 'ncontains', 'eq', 'neq', 'regex', 'nregex'];
 const OPERATORS_NUMBER = ['lt', 'gt', 'lte', 'gte'];
@@ -260,13 +262,17 @@ class QueryParser {
                     fn = this._queryRelation(relAttr, operator, operator2, val);
             } else {
                 var dataType;
-                if ((propName === 'created_at' || propName === 'updated_at') && def['options']['timestamps'])
-                    dataType = 'timestamp';
                 for (var attribute of def['attributes']) {
                     if (attribute['name'] == propName) {
                         dataType = attribute['dataType'];
                         break;
                     }
+                }
+                if (!dataType) {
+                    if (propName === 'id' && def['options']['increments'])
+                        dataType = 'integer';
+                    else if ((propName === 'created_at' || propName === 'updated_at') && def['options']['timestamps'])
+                        dataType = 'timestamp';
                 }
                 if (dataType === 'timestamp' || dataType === 'datetime') {
                     if (value.endsWith('Z')) // MySQL ignores 'Z' and would convert value to UTC with timezone provided by connection 
@@ -518,20 +524,30 @@ class QueryParser {
                         qb.where(prop, 'is not', null);
                     break;
                 case 'in':
-                    qb.where(function () {
-                        if (Array.isArray(value))
-                            this.where(prop, 'is not', null).where(prop, 'in', value);
-                        else
-                            this.where(prop, 'is not', null).where(prop, 'in', value.split(','));
-                    });
+                    var arr;
+                    if (Array.isArray(value))
+                        arr = value;
+                    else
+                        arr = value.split(',');
+                    if (dataType !== 'integer' || arr.every(str => Number.isInteger(Number.parseInt(str, 10))))
+                        qb.where(function () {
+                            this.where(prop, 'is not', null).where(prop, 'in', arr);
+                        });
+                    else
+                        throw new ValidationError('Unprocessable Entity');
                     break;
                 case 'nin':
-                    qb.where(function () {
-                        if (Array.isArray(value))
-                            this.where(prop, 'is', null).orWhere(prop, 'not in', value);
-                        else
-                            this.where(prop, 'is', null).orWhere(prop, 'not in', value.split(','));
-                    });
+                    var arr;
+                    if (Array.isArray(value))
+                        arr = value;
+                    else
+                        arr = value.split(',');
+                    if (dataType !== 'integer' || arr.every(str => Number.isInteger(Number.parseInt(str, 10))))
+                        qb.where(function () {
+                            this.where(prop, 'is', null).orWhere(prop, 'not in', arr);
+                        });
+                    else
+                        throw new ValidationError('Unprocessable Entity');
                     break;
                 case 'contains':
                     qb.where(function () {

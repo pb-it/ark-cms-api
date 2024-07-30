@@ -1422,7 +1422,7 @@ module.exports = test;` +
                         } else if (error.message && error.message === "EmptyResponse")
                             res.status(404).send(error.message);
                         else
-                            res.status(500).send(msg);
+                            res.status(500).send(msg); // Internal Server Error
                     }
                 } finally {
                     if (!res.headersSent)
