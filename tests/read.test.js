@@ -27,6 +27,15 @@ test('#read', async function () {
     data = await apiHelper.getData(urlRead);
     expect(data['id']).toEqual(1);
 
+    urlRead = apiUrl + "/stars/null";
+    var err;
+    try {
+        data = await apiHelper.getData(urlRead);
+    } catch (error) {
+        err = error;
+    }
+    expect(err['message']).toEqual('422: Unprocessable Entity - ' + urlRead);
+
     urlRead = apiUrl + "/stars/count";
     data = await apiHelper.getData(urlRead);
     expect(data).toEqual(7);

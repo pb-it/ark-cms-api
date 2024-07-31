@@ -799,6 +799,40 @@ class Controller {
         }
         return Promise.resolve();
     }
+
+    async createDatabaseBackup(file, password) {
+        const settings = this._databaseSettings;
+        if (settings && settings['client'].startsWith('mysql')) {
+            var cmd;
+            if (process.platform === 'linux')
+                cmd = 'mysqldump';
+            else if (process.platform === 'win32')
+                cmd = 'mysqldump.exe';
+            else
+                throw new Error(`Unsupported Platform: '${process.platform}'`);
+            var bRemote;
+            if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
+                bRemote = true;
+                cmd += ' --host=' + settings['connection']['host'];
+            }
+            if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
+                cmd += ' --port=' + settings['connection']['port'];
+            if (bRemote)
+                cmd += ' --protocol=tcp';
+            cmd += ' --verbose --user=' + settings['connection']['user'];
+            var password;
+            if (!password)
+                password = settings['connection']['password'];
+            if (password)
+                cmd += ' --password=' + password;
+            cmd += ` --single-transaction=TRUE --skip-lock-tables --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 --databases cms > ${file}`;
+            // --column-statistics=0 --skip-triggers
+            Logger.info("[App] Creating database dump to '" + file + "'");
+            await common.exec(cmd);
+        } else
+            throw new Error('By now backup/restore API is only supports MySQL databases!');
+        return Promise.resolve();
+    }
 }
 
 module.exports = Controller;

@@ -281,6 +281,10 @@ module.exports = test;`};
         return Promise.resolve();
     }
 
+    getTestConfig() {
+        return this._config;
+    }
+
     getController() {
         return this._controller;
     }

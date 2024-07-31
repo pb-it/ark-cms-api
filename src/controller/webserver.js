@@ -752,44 +752,20 @@ class WebServer {
                 var bSent;
                 try {
                     const settings = this._controller.getDatabaseSettings();
-                    if (settings && settings['client'].startsWith('mysql')) {
+                    if (settings) {
                         var file;
                         file = this._controller.getTmpDir() + "/" + settings['connection']['database'] + "_" + createDateTimeString() + ".sql";
-                        var cmd;
-                        if (process.platform === 'linux')
-                            cmd = 'mysqldump';
-                        else if (process.platform === 'win32')
-                            cmd = 'mysqldump.exe';
-                        else
-                            throw new Error(`Unsupported Platform: '${process.platform}'`);
-                        var bRemote;
-                        if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
-                            bRemote = true;
-                            cmd += ' --host=' + settings['connection']['host'];
-                        }
-                        if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
-                            cmd += ' --port=' + settings['connection']['port'];
-                        if (bRemote)
-                            cmd += ' --protocol=tcp';
-                        cmd += ' --verbose --user=' + settings['connection']['user'];
                         var password;
                         if (req.query['password'])
                             password = req.query['password'];
-                        else
-                            password = settings['connection']['password'];
-                        if (password)
-                            cmd += ' --password=' + password;
-                        cmd += ` --single-transaction=TRUE --skip-lock-tables --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 --databases cms > ${file}`;
-                        // --column-statistics=0 --skip-triggers
-                        Logger.info("[App] Creating database dump to '" + file + "'");
-                        await common.exec(cmd);
-                        if (file) {
+                        await this._controller.createDatabaseBackup(file, password);
+                        if (file && fs.existsSync(file)) {
                             res.download(file);
                             bSent = true;
                         } else
                             throw new Error('An unexpected error has occurred');
                     } else
-                        throw new Error('By now backup/restore API is only supports MySQL databases!');
+                        throw new Error('Database configuration not found');
                 } catch (error) {
                     Logger.parseError(error);
                     if (error) {

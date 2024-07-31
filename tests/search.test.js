@@ -28,6 +28,15 @@ test('#basic', async function () {
     idArr = data.map(function (x) { return x['id'] });
     expect(idArr.sort().join(',')).toEqual('1,3,5');
 
+    urlSearch = apiUrl + "/stars?id_in=3,null";
+    var err;
+    try {
+        data = await apiHelper.getData(urlSearch);
+    } catch (error) {
+        err = error;
+    }
+    expect(err['message']).toEqual('422: Unprocessable Entity - ' + urlSearch);
+
     urlSearch = apiUrl + "/stars?id_in=3,[object%20Object]";
     var err;
     try {
