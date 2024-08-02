@@ -983,7 +983,7 @@ class Model {
                                                 if (fileName) {
                                                     tmpFilePath = path.join(tmpDir, path.basename(fileName));
                                                     if (fs.existsSync(tmpFilePath))
-                                                        throw new Error("File already exists!");
+                                                        throw new Error("File '" + tmpFilePath + "' already exists!");
                                                 } else
                                                     throw new Error("Missing file name!");
                                                 base64.createFile(tmpFilePath, data[str]['base64']);
