@@ -30,7 +30,9 @@
             "storage": "base64"
         }
     ],
-    "extensions": {
-        "client": "var checkAction = {\n    'name': 'Check',\n    'fn': async function (data) {\n        var url = data.url;\n        if (url) {\n            var surl;\n            if (url.startsWith(\"http://\")) {\n                surl = url.substring(7);\n            } else if (url.startsWith(\"https://\")) {\n                surl = url.substring(8);\n            } else {\n                surl = url;\n            }\n\n            if (surl.startsWith(\"9gag.com/gag/\")) {\n                var id = surl.substring(13, 21);\n                data.thumbnail = { url: \"https://img-9gag-fun.9cache.com/photo/\" + id + \"_700b.jpg\" };\n            }\n        }\n        return Promise.resolve(data);\n    }\n};\nthis._crudDialogActions.push(checkAction);"
+    "_sys": {
+        "modules": {
+            "client": "var checkAction = {\n    'name': 'Check',\n    'fn': async function (data) {\n        var url = data.url;\n        if (url) {\n            var surl;\n            if (url.startsWith(\"http://\")) {\n                surl = url.substring(7);\n            } else if (url.startsWith(\"https://\")) {\n                surl = url.substring(8);\n            } else {\n                surl = url;\n            }\n\n            if (surl.startsWith(\"9gag.com/gag/\")) {\n                var id = surl.substring(13, 21);\n                data.thumbnail = { url: \"https://img-9gag-fun.9cache.com/photo/\" + id + \"_700b.jpg\" };\n            }\n        }\n        return Promise.resolve(data);\n    }\n};\nthis._crudDialogActions.push(checkAction);"
+        }
     }
 }

@@ -1,3 +1,5 @@
+const semver = require('semver');
+
 const Logger = require('../common/logger/logger.js');
 const AppVersion = require('../common/app-version.js');
 const Model = require('../model/model.js');
@@ -62,22 +64,84 @@ class MigrationController {
                     break;
                 default:
             }
+            if (semver.valid(sCurrentVersion)) {
+                if (semver.lt(sCurrentVersion, '0.7.0-beta')) {
+                    const states = definition['states'];
+                    if (states) {
+                        if (definition['_sys'])
+                            definition['_sys']['states'] = states;
+                        else
+                            definition['_sys'] = { 'states': states };
+                        delete definition['states'];
+                    }
+                    const filters = definition['filters'];
+                    if (filters) {
+                        if (definition['_sys'])
+                            definition['_sys']['filters'] = filters;
+                        else
+                            definition['_sys'] = { 'filters': filters };
+                        delete definition['filters'];
+                    }
+                    const extensions = definition['extensions'];
+                    if (extensions) {
+                        const modules = {};
+                        if (extensions['server']) {
+                            modules['server'] = extensions['server'];
+                            delete extensions['server'];
+                        }
+                        if (extensions['client']) {
+                            modules['client'] = extensions['client'];
+                            delete extensions['client'];
+                        }
+                        if (Object.keys(modules).length > 0) {
+                            if (definition['_sys'])
+                                definition['_sys']['modules'] = modules;
+                            else
+                                definition['_sys'] = { 'modules': modules };
+                        }
+                        /*if (Object.keys(extensions).length > 0)
+                            definition['_ext'] = extensions;
+                        delete definition['extensions'];*/
+                        if (Object.keys(extensions).length == 0)
+                            delete definition['extensions'];
+                    }
+                    const oFetch = definition['oFullFetch'];
+                    if (oFetch) {
+                        if (oFetch['paging']) {
+                            oFetch['iBatchSize'] = oFetch['paging']
+                            delete oFetch['paging']
+                        }
+                        if (definition['defaults'])
+                            definition['defaults']['fetch'] = oFetch;
+                        else
+                            definition['defaults'] = { 'fetch': oFetch };
+                        delete definition['oFullFetch'];
+                    }
+                    delete definition['id'];
+                }
+            }
         }
         return definition;
     }
 
     static compatible(oldVersion, newVersion) {
-        return (oldVersion.major === newVersion.major && oldVersion.minor === newVersion.minor && oldVersion.patch <= newVersion.patch);
+        var bCompatible = false;
+        if (oldVersion.major === newVersion.major) {
+            if (oldVersion.minor === newVersion.minor) {
+                if (oldVersion.patch <= newVersion.patch)
+                    bCompatible = true;
+            } else if (oldVersion.minor === 6 && newVersion.minor === 7)
+                bCompatible = true;
+        }
+        return bCompatible;
     }
 
     _controller;
     _shelf;
-    _models;
 
     constructor(controller) {
         this._controller = controller;
         this._shelf = this._controller.getShelf();
-        this._models = this._shelf.getModel();
     }
 
     async migrateDatabase(bForce) {
@@ -266,8 +330,9 @@ class MigrationController {
                 var regVersion = new AppVersion(sRegVersion);
                 if (MigrationController.compatible(regVersion, appVersion) || bForce) {
                     var definition;
-                    if (this._models) {
-                        for (var m of this._models) {
+                    const models = this._shelf.getModel();
+                    if (models && models.length > 0) {
+                        for (var m of models) {
                             definition = m.getDefinition();
                             MigrationController.updateModelDefinition(definition, regVersion, appVersion);
                             await this._shelf.upsertModel(undefined, definition);

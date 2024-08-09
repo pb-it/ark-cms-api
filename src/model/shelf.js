@@ -38,8 +38,10 @@ class Shelf {
                     "details": "title"
                 }
             },
-            "extensions": {
-                "client": "function init() {\n   this._prepareDataAction = function (data) {\n      if (data['definition'])\n         data['name'] = data['definition']['name'];\n      return data;\n   }\n}\n\nexport { init };"
+            "_sys": {
+                "modules": {
+                    "client": "function init() {\n   this._prepareDataAction = function (data) {\n      if (data['definition'])\n         data['name'] = data['definition']['name'];\n      return data;\n   }\n}\n\nexport { init };"
+                }
             }
         }
         var mModel = new Model(this, null, definition);
@@ -55,6 +57,11 @@ class Shelf {
                 "options": {
                     "increments": true,
                     "timestamps": false
+                },
+                "defaults": {
+                    "fetch": {
+                        "bConfirmation": true
+                    }
                 },
                 "attributes": [
                     {
@@ -99,10 +106,11 @@ class Shelf {
                         "hidden": true
                     }
                 ],
-                "extensions": {
-                    "client": "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['method'])\n         str += data['method'] + \": \";\n      if (data['model'])\n         str += data['model'];\n      if (data['record_id'])\n         str += \"(\" + data['record_id'] + \")\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };"
-                },
-                "bConfirmFullFetch": true
+                "_sys": {
+                    "modules": {
+                        "client": "function init() {\n   this._prepareDataAction = function (data) {\n      var str = \"\";\n      if (data['method'])\n         str += data['method'] + \": \";\n      if (data['model'])\n         str += data['model'];\n      if (data['record_id'])\n         str += \"(\" + data['record_id'] + \")\";\n      data['title'] = str;\n      return data;\n   }\n}\n\nexport { init };"
+                    }
+                }
             }
             mChange = await this.upsertModel(null, definition);
         }

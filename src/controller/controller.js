@@ -713,10 +713,16 @@ class Controller {
                                 var definition;
                                 if (str === 'states') {
                                     definition = model.getDefinition();
-                                    definition['states'] = req.body;
+                                    if (definition['_sys'])
+                                        definition['_sys']['states'] = req.body;
+                                    else
+                                        definition['_sys'] = { 'states': req.body };
                                 } else if (str === 'filters') {
                                     definition = model.getDefinition();
-                                    definition['filters'] = req.body;
+                                    if (definition['_sys'])
+                                        definition['_sys']['filters'] = req.body;
+                                    else
+                                        definition['_sys'] = { 'filters': req.body };
                                 } else if (str === 'defaults') {
                                     str = arr.shift();
                                     if (str === "view") {

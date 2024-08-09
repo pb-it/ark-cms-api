@@ -57,7 +57,7 @@ class Model {
     _relationNames;
     _book;
 
-    _extension;
+    _module;
     _preCreateHook;
     _postCreateHook;
     _preUpdateHook;
@@ -83,26 +83,26 @@ class Model {
     async initModel() {
         Logger.info("Init model '" + this._name + "'");
         this._relationNames = [];
-        if (this._definition['extensions']) {
-            var extension = this._definition['extensions']['server'];
-            if (extension) {
-                this._extension = _eval(extension, true);
-                if (this._extension.init)
-                    await this._extension.init.bind(this)();
-                if (this._extension.preCreateHook)
-                    this.setPreCreateHook(this._extension.preCreateHook);
-                if (this._extension.postCreateHook)
-                    this.setPostCreateHook(this._extension.postCreateHook);
-                if (this._extension.preUpdateHook)
-                    this.setPreUpdateHook(this._extension.preUpdateHook);
-                if (this._extension.postUpdateHook)
-                    this.setPostUpdateHook(this._extension.postUpdateHook);
-                if (this._extension.preDeleteHook)
-                    this.setPreDeleteHook(this._extension.preDeleteHook);
-                if (this._extension.postDeleteHook)
-                    this.setPostDeleteHook(this._extension.postDeleteHook);
-                if (this._extension.postReadHook)
-                    this.setPostReadHook(this._extension.postReadHook);
+        if (this._definition['_sys'] && this._definition['_sys']['modules']) {
+            const module = this._definition['_sys']['modules']['server'];
+            if (module) {
+                this._module = _eval(module, true);
+                if (this._module.init)
+                    await this._module.init.bind(this)();
+                if (this._module.preCreateHook)
+                    this.setPreCreateHook(this._module.preCreateHook);
+                if (this._module.postCreateHook)
+                    this.setPostCreateHook(this._module.postCreateHook);
+                if (this._module.preUpdateHook)
+                    this.setPreUpdateHook(this._module.preUpdateHook);
+                if (this._module.postUpdateHook)
+                    this.setPostUpdateHook(this._module.postUpdateHook);
+                if (this._module.preDeleteHook)
+                    this.setPreDeleteHook(this._module.preDeleteHook);
+                if (this._module.postDeleteHook)
+                    this.setPostDeleteHook(this._module.postDeleteHook);
+                if (this._module.postReadHook)
+                    this.setPostReadHook(this._module.postReadHook);
             }
         }
         await this.initTables();
@@ -214,7 +214,6 @@ class Model {
                     }
                 }
             }
-
         }
     }
 
