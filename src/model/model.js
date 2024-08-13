@@ -211,10 +211,53 @@ class Model {
                             if (attribute.length && attribute.length != maxLength)
                                 table.string(attribute.name, attribute.length).alter();
                             break;
+                        case "datetime":
+                            var current = tableInfo[attribute['name']]['defaultValue'];
+                            var defaultValue = attribute['defaultValue'];
+                            var value;
+                            if (defaultValue === 'CURRENT_TIMESTAMP')
+                                value = this._shelf.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION);
+                            else
+                                value = defaultValue;
+                            if (defaultValue) {
+                                if (!current)
+                                    table.datetime(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                else {
+                                    if (defaultValue === 'CURRENT_TIMESTAMP') {
+                                        if (!current.startsWith('CURRENT_TIMESTAMP'))
+                                            table.datetime(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                    } else if (current != defaultValue)
+                                        table.datetime(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                }
+                            } else if (current)
+                                table.datetime(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(null).alter();
+                            break;
+                        case "timestamp":
+                            var current = tableInfo[attribute['name']]['defaultValue'];
+                            var defaultValue = attribute['defaultValue'];
+                            var value;
+                            if (defaultValue === 'CURRENT_TIMESTAMP')
+                                value = this._shelf.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION);
+                            else
+                                value = defaultValue;
+                            if (defaultValue) {
+                                if (!current)
+                                    table.timestamp(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                else {
+                                    if (defaultValue === 'CURRENT_TIMESTAMP') {
+                                        if (!current.startsWith('CURRENT_TIMESTAMP'))
+                                            table.timestamp(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                    } else if (current != defaultValue)
+                                        table.timestamp(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(value).alter();
+                                }
+                            } else if (current)
+                                table.timestamp(attribute.name, { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(null).alter();
+                            break;
                     }
                 }
             }
         }
+        return Promise.resolve();
     }
 
     _addColumn(table, attribute) {
