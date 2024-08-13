@@ -708,17 +708,16 @@ class Controller {
                         }
                         if (model) {
                             name = model.getName();
+                            var definition;
                             str = arr.shift();
                             if (str) {
-                                var definition;
+                                definition = model.getDefinition();
                                 if (str === 'states') {
-                                    definition = model.getDefinition();
                                     if (definition['_sys'])
                                         definition['_sys']['states'] = req.body;
                                     else
                                         definition['_sys'] = { 'states': req.body };
                                 } else if (str === 'filters') {
-                                    definition = model.getDefinition();
                                     if (definition['_sys'])
                                         definition['_sys']['filters'] = req.body;
                                     else
@@ -726,32 +725,25 @@ class Controller {
                                 } else if (str === 'defaults') {
                                     str = arr.shift();
                                     if (str === "view") {
-                                        definition = model.getDefinition();
-                                        var defaults = definition['defaults'];
-                                        if (!defaults) {
-                                            defaults = {};
-                                            definition['defaults'] = defaults;
-                                        }
-                                        defaults['view'] = req.body;
+                                        if (definition['defaults'])
+                                            definition['defaults']['view'] = req.body;
+                                        else
+                                            definition['defaults'] = { 'view': req.body };
                                     } else if (str === "sort") {
-                                        definition = model.getDefinition();
-                                        var defaults = definition['defaults'];
-                                        if (!defaults) {
-                                            defaults = {};
-                                            definition['defaults'] = defaults;
-                                        }
-                                        defaults['sort'] = req.body['sort'];
+                                        if (definition['defaults'])
+                                            definition['defaults']['sort'] = req.body;
+                                        else
+                                            definition['defaults'] = { 'sort': req.body };
                                     }
                                 }
-                                if (definition) {
-                                    model = await this._shelf.upsertModel(id, definition);
-                                    if (definition['attributes'])
-                                        await model.initModel();
-                                    await this._protocol(req, null, req.method, '_model', id, req.body);
-                                    Logger.info("[App] ✔ Updated model '" + name + "'");
-                                    bDone = true;
-                                }
-                            }
+                            } else
+                                definition = req.body;
+                            model = await this._shelf.upsertModel(id, definition);
+                            if (definition['attributes'])
+                                await model.initModel();
+                            await this._protocol(req, null, req.method, '_model', id, req.body);
+                            Logger.info("[App] ✔ Updated model '" + name + "'");
+                            bDone = true;
                         } else
                             throw new ValidationError("Invalid model ID");
                     } else
