@@ -280,7 +280,7 @@ class AuthController {
                 "model": "_user"
             });
             mChange = await shelf.upsertModel(mChange.getId(), definition);
-            await mChange.initModel();
+            await mChange.initModel(true);
         }
 
         return Promise.resolve();

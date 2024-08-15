@@ -80,34 +80,70 @@ class Model {
             this._tableName = this._definition.name;
     }
 
-    async initModel() {
-        Logger.info("Init model '" + this._name + "'");
-        this._relationNames = [];
-        if (this._definition['_sys'] && this._definition['_sys']['modules']) {
-            const module = this._definition['_sys']['modules']['server'];
-            if (module) {
-                this._module = _eval(module, true);
-                if (this._module.init)
-                    await this._module.init.bind(this)();
-                if (this._module.preCreateHook)
-                    this.setPreCreateHook(this._module.preCreateHook);
-                if (this._module.postCreateHook)
-                    this.setPostCreateHook(this._module.postCreateHook);
-                if (this._module.preUpdateHook)
-                    this.setPreUpdateHook(this._module.preUpdateHook);
-                if (this._module.postUpdateHook)
-                    this.setPostUpdateHook(this._module.postUpdateHook);
-                if (this._module.preDeleteHook)
-                    this.setPreDeleteHook(this._module.preDeleteHook);
-                if (this._module.postDeleteHook)
-                    this.setPostDeleteHook(this._module.postDeleteHook);
-                if (this._module.postReadHook)
-                    this.setPostReadHook(this._module.postReadHook);
+    async initModel(bForce) {
+        if (!this._bInitDone || bForce) {
+            Logger.info("Init model '" + this._name + "'");
+            this._relationNames = [];
+            if (this._definition['_sys'] && this._definition['_sys']['modules']) {
+                const module = this._definition['_sys']['modules']['server'];
+                if (module) {
+                    this._module = _eval(module, true);
+                    if (this._module.init)
+                        await this._module.init.bind(this)();
+                    if (this._module.preCreateHook)
+                        this.setPreCreateHook(this._module.preCreateHook);
+                    if (this._module.postCreateHook)
+                        this.setPostCreateHook(this._module.postCreateHook);
+                    if (this._module.preUpdateHook)
+                        this.setPreUpdateHook(this._module.preUpdateHook);
+                    if (this._module.postUpdateHook)
+                        this.setPostUpdateHook(this._module.postUpdateHook);
+                    if (this._module.preDeleteHook)
+                        this.setPreDeleteHook(this._module.preDeleteHook);
+                    if (this._module.postDeleteHook)
+                        this.setPostDeleteHook(this._module.postDeleteHook);
+                    if (this._module.postReadHook)
+                        this.setPostReadHook(this._module.postReadHook);
+                }
+            }
+            await this.initTables();
+            this.createBook();
+            this._bInitDone = true;
+        }
+        return Promise.resolve();
+    }
+
+    async initCustomDataTypes() {
+        var dt;
+        const dtc = controller.getDataTypeController();
+        for (var attribute of this._definition['attributes']) {
+            switch (attribute['dataType']) {
+                case 'boolean':
+                case 'integer':
+                case 'decimal':
+                case 'double':
+                case 'string':
+                case 'text':
+                case 'url':
+                case 'json':
+                case 'date':
+                case 'time':
+                case 'datetime':
+                case 'timestamp':
+                case 'enumeration':
+                case 'list':
+                case 'relation':
+                case 'file':
+                    break;
+                default:
+                    dt = dtc.getDataType(attribute['dataType']);
+                    if (dt) {
+                        if (typeof dt.init === 'function')
+                            await dt.init(this, attribute);
+                    } else
+                        console.log(attribute['dataType']);
             }
         }
-        await this.initTables();
-        this.createBook();
-        this._bInitDone = true;
         return Promise.resolve();
     }
 
@@ -171,7 +207,9 @@ class Model {
         if (bJunctions) {
             if (this._definition.attributes) {
                 const junctions = this._definition.attributes.filter(function (attribute) {
-                    return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+                    if (attribute['baseDataType'])
+                        attribute = attribute['baseDataType'];
+                    return (attribute['dataType'] === "relation" && attribute['multiple'] && !attribute['via']);
                 });
                 for (var junction of junctions) {
                     try {
@@ -192,6 +230,8 @@ class Model {
 
     _addColumns(table, tableInfo, attributes) {
         for (let attribute of attributes) {
+            if (attribute['baseDataType'])
+                attribute = attribute['baseDataType'];
             if (attribute['dataType'] === "relation") {
                 if (this._relationNames)
                     this._relationNames.push(attribute['name']);
@@ -261,6 +301,8 @@ class Model {
     }
 
     _addColumn(table, attribute) {
+        if (attribute['baseDataType'])
+            attribute = attribute['baseDataType'];
         switch (attribute['dataType']) {
             case "boolean":
                 var column = table.boolean(attribute.name);
@@ -462,9 +504,10 @@ class Model {
             default:
                 const dtc = controller.getDataTypeController();
                 const dt = dtc.getDataType(attribute['dataType']);
-                if (dt && dt.add)
-                    dt.add(this, table, attribute);
-                else
+                if (dt) {
+                    if (typeof dt.add === 'function')
+                        dt.add(this, table, attribute);
+                } else
                     throw new Error("[model: '" + this._name + "', attribute: '" + attribute.name + "'] unknown datatype '" + attribute['dataType'] + "'");
         }
         Logger.info("Added column '" + attribute.name + "' to table '" + this._tableName + "'");
@@ -556,7 +599,7 @@ class Model {
 
         if (this._definition.attributes) {
             for (let attribute of this._definition.attributes) {
-                if (attribute['dataType'] === "relation") {
+                if (attribute['dataType'] === "relation" || this._relationNames.indexOf(attribute.name) !== -1) {
                     if (attribute.via) {
                         obj[attribute.name] = function () {
                             var book;
@@ -615,6 +658,7 @@ class Model {
             obj['tableName'] = this._definition.name;
         if (this._definition.options && this._definition.options.timestamps)
             obj['hasTimestamps'] = true;
+        //this._book = this._shelf.getBookshelf().model(this._name, obj);
         this._book = this._shelf.getBookshelf().Model.extend(obj);
     }
 
@@ -984,6 +1028,8 @@ class Model {
         for (var str in data) {
             attr = this._definition.attributes.filter(function (x) { return x['name'] === str })[0];
             if (attr) {
+                if (attr['baseDataType'])
+                    attr = attr['baseDataType'];
                 if (attr['dataType'] !== 'relation' || !attr['multiple']) {
                     if (!attr.hasOwnProperty('persistent') || attr.persistent == true) {
                         if (attr['dataType'] === 'json' || attr['dataType'] === 'list') {
@@ -1159,6 +1205,8 @@ class Model {
             await this._preDeleteHook(res);
 
         for (var attribute of this._definition.attributes) {
+            if (attribute['baseDataType'])
+                attribute = attribute['baseDataType'];
             if (attribute['dataType'] === "relation") {
                 if (attribute['via']) {
                     var related = obj.related(attribute['name']);
@@ -1188,6 +1236,8 @@ class Model {
                 if (model.getName() != this._name) {
                     def = model.getDefinition();
                     for (var attr of def['attributes']) {
+                        if (attr['baseDataType'])
+                            attr = attr['baseDataType'];
                         if (attr['dataType'] === 'relation' && attr['model'] === this._name && !attr['via']) {
                             if (attr['multiple']) {
                                 var tableName = model.getJunctionTableName(attr);

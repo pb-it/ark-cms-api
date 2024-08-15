@@ -145,6 +145,8 @@ class Controller {
             this._extensionController = new ExtensionController(this);
             await this._extensionController.initExtensionController();
 
+            await this._dataTypeController.initAllModels();
+
             if (this._info['state'] === 'openRestartRequest')
                 ;// this.restart(); // restart request direct after starting possible? how to prevent boot loop
             else if (this._info['state'] === 'starting')
@@ -658,7 +660,7 @@ class Controller {
                             throw new ValidationError("An update of the major or minor release version may result in faulty models! Force only after studying changelog!");
                     }
                     var model = await this._shelf.upsertModel(undefined, definition);
-                    await model.initModel();
+                    await model.initModel(true);
                     id = model.getId();
                     var user;
                     if (this._authController && req.session)
@@ -740,7 +742,7 @@ class Controller {
                                 definition = req.body;
                             model = await this._shelf.upsertModel(id, definition);
                             if (definition['attributes'])
-                                await model.initModel();
+                                await model.initModel(true);
                             await this._protocol(req, null, req.method, '_model', id, req.body);
                             Logger.info("[App] ✔ Updated model '" + name + "'");
                             bDone = true;

@@ -1,6 +1,6 @@
 {
     "name": "ark-cms-api",
-    "version": "0.7.0-beta",
+    "version": "0.7.1-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -64,7 +64,7 @@
     },
     "devDependencies": {
         "dotenv": "^16.4.5",
-        "eslint": "^9.8.0",
+        "eslint": "^9.9.0",
         "jest": "^29.7.0"
     }
 }

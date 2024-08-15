@@ -26,6 +26,17 @@ class DataTypeController {
         }
         return res;
     }
+
+    async initAllModels() {
+        const models = controller.getShelf().getModel();
+        if (models) {
+            for (var m of models) {
+                if (m.initDone())
+                    m.initCustomDataTypes();
+            }
+        }
+        return Promise.resolve();
+    }
 }
 
 module.exports = DataTypeController;

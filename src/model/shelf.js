@@ -231,7 +231,9 @@ class Shelf {
             if (bDeleteData) {
                 const def = model.getDefinition();
                 const junctions = def['attributes'].filter(function (attribute) {
-                    return ((attribute['dataType'] === "relation") && !attribute.via && attribute.multiple);
+                    if (attribute['baseDataType'])
+                        attribute = attribute['baseDataType'];
+                    return (attribute['dataType'] === "relation" && attribute['multiple'] && !attribute['via']);
                 });
                 for (var j of junctions) {
                     await this._deleteJunctionTable(def, j);
