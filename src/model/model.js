@@ -1116,8 +1116,23 @@ class Model {
                                                 if (old && old[str] && old[str] != fileName) {
                                                     var oldFile = path.join(localPath, old[str]);
                                                     var newFile = path.join(localPath, fileName);
-                                                    if (fs.existsSync(oldFile) && !fs.existsSync(newFile))
-                                                        fs.renameSync(oldFile, newFile);
+                                                    if (fs.existsSync(oldFile)) {
+                                                        if (!fs.existsSync(newFile) || data[str]['force']) {
+                                                            try {
+                                                                fs.renameSync(oldFile, newFile);
+                                                            } catch (error) {
+                                                                if (error['code'] && error['code'] === 'EXDEV') {
+                                                                    if (data[str]['force'])
+                                                                        fs.copyFileSync(oldFile, newFile);
+                                                                    else
+                                                                        fs.copyFileSync(oldFile, newFile, fs.constants.COPYFILE_EXCL);
+                                                                    fs.unlinkSync(oldFile);
+                                                                } else
+                                                                    throw error;
+                                                            }
+                                                        } else
+                                                            throw new Error("File '" + newFile + "' already exists");
+                                                    }
                                                 }
                                             } else {
                                                 if (old && old[str] && data[str]['delete']) {
