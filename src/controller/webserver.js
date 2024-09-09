@@ -21,6 +21,13 @@ const { AuthError } = require('./auth-controller');
 const { ExtensionError } = require('./extension-controller');
 const AppVersion = require('../common/app-version');
 
+function setCorsHeaders(req, res, next) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    //res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE');
+    //res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    next();
+}
+
 function createDateTimeString() {
     const date = new Date(); //new Date().toUTCString(); //new Date().toLocaleTimeString()
     const seconds = `${date.getSeconds()}`.padStart(2, '0');
@@ -281,7 +288,9 @@ class WebServer {
                     else if (storage['path'].startsWith('.'))
                         root = path.join(this._controller.getAppRoot(), storage['path']);
                     if (root && fs.existsSync(root)) {
-                        this._app.get(storage['url'] + '/*', function (req, res, next) {
+                        //const corsOptions = { origin: '*' };
+                        //this._app.options(storage['url'] + '/*', cors(corsOptions));
+                        this._app.get(storage['url'] + '/*', setCorsHeaders, function (req, res, next) {
                             var status;
                             if (!storage['public'] && this._controller.getAuthController()) {
                                 if (!req.session.user)
