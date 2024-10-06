@@ -34,6 +34,7 @@ class Shelf {
             ],
             "defaults": {
                 "title": "name",
+                "sort": "name:asc",
                 "view": {
                     "details": "title"
                 }
