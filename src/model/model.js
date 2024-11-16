@@ -825,17 +825,9 @@ class Model {
         var res;
         if (this._bInitDone && this._book) {
             var book;
-            var field;
-            if (query) {
-                if (query.hasOwnProperty('$field')) {
-                    if (Array.isArray(query['$field']))
-                        field = query['$field'];
-                    else
-                        field = query['$field'].split(',');
-                    delete query['$field'];
-                }
+            if (query)
                 book = await this.where(query);
-            } else
+            else
                 book = this._book;
 
             if (this._definition.options.increments)
@@ -1174,9 +1166,14 @@ class Model {
                             }
                         } else {
                             dt = dtc.getDataType(attr['dataType']);
-                            if (dt && dt.createForge)
-                                await dt.createForge(attr, data, old, forge);
-                            else
+                            if (dt && dt.createForge) {
+                                if (dt.createForge.length == 5)
+                                    await dt.createForge(this, attr, data, old, forge);
+                                else if (dt.createForge.length == 4)
+                                    await dt.createForge(attr, data, old, forge);
+                                else
+                                    throw new Error('Method Signature Mismatch');
+                            } else
                                 forge[str] = data[str];
                         }
                     }
