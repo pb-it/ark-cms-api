@@ -45,21 +45,20 @@ function flatten(obj) {
  * @param {*} url 
  * @returns 
  */
-function getFileExtensionFromUrl(url) {
+function getFileExtensionFromUrl(url, bToLowerCase = true) {
     var ext;
     if (url) {
         var index = url.indexOf('?');
-        if (index >= 0) {
+        if (index >= 0)
             url = url.substring(0, index);
-        }
         index = url.lastIndexOf('/');
-        if (index >= 0) {
+        if (index >= 0)
             url = url.substring(index + 1);
-        }
         index = url.lastIndexOf('.');
-        if (index >= 0) {
+        if (index >= 0)
             ext = url.substring(index + 1);
-        }
+        if (ext && bToLowerCase)
+            ext = ext.toLowerCase();
     }
     return ext;
 }
@@ -72,8 +71,8 @@ function isImage(url) {
 }
 
 function isVideo(url) {
-    var ext = getFileExtensionFromUrl(url).toLowerCase();
-    return (ext === "mp4" || ext === "avi" || ext === "webm" || ext === "mkv" || ext === "vid");
+    const ext = getFileExtensionFromUrl(url);
+    return ext && (ext === "mp4" || ext === "avi" || ext === "webm" || ext === "mkv" || ext === "vid");
 }
 
 /**
