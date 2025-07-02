@@ -318,10 +318,41 @@ class Model {
                 break;
             case "integer":
                 var column;
-                if (attribute.length)
-                    column = table.integer(attribute.name, attribute.length);
-                else
-                    column = table.integer(attribute.name);
+                if (controller.getDatabaseSettings()['client'].startsWith('mysql')) {
+                    if (!attribute.type || attribute.type === 'INT') {
+                        if (attribute.length)
+                            column = table.integer(attribute.name, attribute.length);
+                        else
+                            column = table.integer(attribute.name);
+                    } else if (attribute.type === 'TINYINT') {
+                        if (attribute.length)
+                            column = table.tinyint(attribute.name, attribute.length);
+                        else
+                            column = table.tinyint(attribute.name);
+                    } else if (attribute.type === 'SMALLINT') {
+                        if (attribute.length)
+                            column = table.smallint(attribute.name, attribute.length);
+                        else
+                            column = table.smallint(attribute.name);
+                    } else if (attribute.type === 'MEDIUMINT') {
+                        if (attribute.length)
+                            column = table.mediumint(attribute.name, attribute.length);
+                        else
+                            column = table.mediumint(attribute.name);
+                    } else if (attribute.type === 'BIGINT') {
+                        if (attribute.length)
+                            column = table.bigint(attribute.name, attribute.length);
+                        else
+                            column = table.bigint(attribute.name);
+                    } else {
+                        column = table.specificType(attribute.name, attribute.type);
+                    }
+                } else {
+                    if (attribute.length)
+                        column = table.integer(attribute.name, attribute.length);
+                    else
+                        column = table.integer(attribute.name);
+                }
                 if (attribute.primary)
                     column.primary();
                 if (attribute.unsigned)
