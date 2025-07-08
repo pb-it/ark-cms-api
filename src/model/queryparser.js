@@ -540,8 +540,10 @@ class QueryParser {
                     var arr;
                     if (Array.isArray(value))
                         arr = value;
-                    else
+                    else if (typeof value === 'string' || value instanceof String)
                         arr = value.split(',');
+                    else if (Number.isInteger(value))
+                        arr = [value];
                     if (dataType !== 'integer' || arr.every(str => Number.isInteger(Number.parseInt(str, 10))))
                         qb.where(function () {
                             this.where(prop, 'is', null).orWhere(prop, 'not in', arr);
