@@ -124,7 +124,7 @@ class DatabaseController {
                 password = this._settings['connection']['password'];
             if (password)
                 cmd += ' --password=' + password;
-            cmd += '< ' + file['path'];
+            cmd += '< ' + file;
             // --comments
             Logger.info("[App] Restoring Database");
             await common.exec(cmd);

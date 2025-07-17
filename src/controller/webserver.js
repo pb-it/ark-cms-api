@@ -845,7 +845,7 @@ class WebServer {
                             file = req.files['file'];
                         if (file && file['path']) {
                             if (file['type'] === 'application/sql' || file['type'] === 'application/octet-stream') {
-                                await dbc.restoreDatabaseBackup(file, req.query['password']);
+                                await dbc.restoreDatabaseBackup(file['path'], req.query['password']);
                                 fs.unlinkSync(file['path']);
                                 response = 'Restored';
                                 controller.setRestartRequest();
