@@ -299,28 +299,24 @@ class AuthController {
 
     async checkAuthentication(username, password) {
         var user;
-        try {
-            var res = await this._userModel.readAll({ 'username': username }, false);
-            if (res && res.length == 1) {
-                var parts = res[0]['password'].split(':');
-                var salt;
-                var hash;
-                if (parts.length == 1)
-                    hash = parts[0];
-                else if (parts.length == 2) {
-                    salt = parts[0];
-                    hash = parts[1];
-                }
-                if (hash == AuthController.hashPassword(password, salt)) {
-                    var id = res[0]['id'];
-                    user = { 'username': username };
-                    user['id'] = id;
-                    user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
-                    await this._userModel.update(id, { 'last_login_at': this._controller.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
-                }
+        var res = await this._userModel.readAll({ 'username': username }, false);
+        if (res && res.length == 1) {
+            var parts = res[0]['password'].split(':');
+            var salt;
+            var hash;
+            if (parts.length == 1)
+                hash = parts[0];
+            else if (parts.length == 2) {
+                salt = parts[0];
+                hash = parts[1];
             }
-        } catch (error) {
-            Logger.parseError(error);
+            if (hash == AuthController.hashPassword(password, salt)) {
+                var id = res[0]['id'];
+                user = { 'username': username };
+                user['id'] = id;
+                user['roles'] = res[0]['roles'].map(function (x) { return x['role'] });
+                await this._userModel.update(id, { 'last_login_at': this._controller.getDatabaseController().getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
+            }
         }
         return Promise.resolve(user);
     }
@@ -354,7 +350,7 @@ class AuthController {
         var bDone = false;
         user = await this.checkAuthentication(user, current_password);
         if (user && user['id']) {
-            await this._userModel.update(user['id'], { 'password': new_password, 'last_password_change_at': this._controller.getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
+            await this._userModel.update(user['id'], { 'password': new_password, 'last_password_change_at': this._controller.getDatabaseController().getKnex().fn.now(DEFAULT_TIMESTAMP_PRECISION) });
             bDone = true;
         } else
             throw new AuthError('Invalid Credentials!');

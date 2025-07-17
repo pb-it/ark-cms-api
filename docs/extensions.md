@@ -87,7 +87,7 @@ module.exports.init = async function () {
 
     var attributes = this._definition['attributes'];
     var attr = ...
-    var path = controller.getPathForFile(attr);
+    var path = controller.getFileStorageController().getPathForFile(attr);
 
     return Promise.resolve();
 }

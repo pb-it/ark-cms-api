@@ -18,7 +18,7 @@ itif(process.env.REMOTE !== 'true')('basic auth', async function () {
     const apiUrl = testHelper.getApiUrl();
 
     const serverConfig = controller.getServerConfig();
-    const databaseConfig = controller.getDatabaseConfig();
+    const databaseConfig = controller.getDatabaseController().getDatabaseConfig();
     if (!serverConfig['auth']) {
         await controller.shutdown();
         const sConfig = { ...serverConfig };

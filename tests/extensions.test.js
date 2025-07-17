@@ -53,7 +53,7 @@ itif(process.env.REMOTE === 'true')('youtube', async function () {
         delete require.cache[p];
 
     const serverConfig = controller.getServerConfig();
-    const databaseConfig = controller.getDatabaseConfig();
+    const databaseConfig = controller.getDatabaseController().getDatabaseConfig();
     await controller.shutdown();
     await controller.setup(serverConfig, databaseConfig);
     await testHelper.init(controller);*/

@@ -276,10 +276,11 @@ class WebServer {
     }
 
     _addCdnRoutes() {
-        if (this._config['fileStorage']) {
+        const entries = this._controller.getFileStorageController().getEntries();
+        if (entries) {
             var root;
             var filePath;
-            for (var storage of this._config['fileStorage']) {
+            for (var storage of entries) {
                 if (storage['url'] && storage['path']) {
                     root = null;
                     filePath = null;
@@ -635,26 +636,34 @@ class WebServer {
             return Promise.resolve();
         }.bind(this));
         authRouter.post('/login', express.urlencoded({ extended: false }), async function (req, res, next) {
-            var username = req.body.user;
-            var password = req.body.pass;
-            var user;
-            if (username && password)
-                user = await this._controller.getAuthController().checkAuthentication(username, password);
-            if (user) {
-                req.session.regenerate(function (err) {
-                    if (err)
-                        return next(err);
-                    req.session.user = user;
-                    req.session.save(function (err) {
+            try {
+                var username = req.body.user;
+                var password = req.body.pass;
+                var user;
+                if (username && password)
+                    user = await this._controller.getAuthController().checkAuthentication(username, password);
+                if (user) {
+                    req.session.regenerate(function (err) {
                         if (err)
                             return next(err);
-                        res.redirect('/');
+                        req.session.user = user;
+                        req.session.save(function (err) {
+                            if (err)
+                                return next(err);
+                            res.redirect('/');
+                        });
                     });
-                });
-            } else {
-                var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/login.ejs'), { 'error': 'Login failed!' });
-                res.writeHead(401, { 'Content-Type': 'text/html;charset=utf-8' });
-                res.end(result);
+                } else {
+                    var result = await renderFile(path.join(this._controller.getAppRoot(), './views/auth/login.ejs'), { 'error': 'Login failed!' });
+                    res.writeHead(401, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(result);
+                }
+            } catch (error) {
+                Logger.parseError(error);
+                if (!res.headersSent) {
+                    res.status(500);
+                    res.send("Login failed");
+                }
             }
             return Promise.resolve();
         }.bind(this));
@@ -760,14 +769,12 @@ class WebServer {
             else {
                 var bSent;
                 try {
-                    const settings = this._controller.getDatabaseSettings();
+                    const dbc = this._controller.getDatabaseController();
+                    const settings = dbc.getDatabaseSettings();
                     if (settings) {
                         var file;
                         file = this._controller.getTmpDir() + "/" + settings['connection']['database'] + "_" + createDateTimeString() + ".sql";
-                        var password;
-                        if (req.query['password'])
-                            password = req.query['password'];
-                        await this._controller.createDatabaseBackup(file, password);
+                        await dbc.createDatabaseBackup(file, req.query['password']);
                         if (file && fs.existsSync(file)) {
                             res.download(file);
                             bSent = true;
@@ -805,7 +812,7 @@ class WebServer {
             if (status)
                 res.sendStatus(status);
             else {
-                const settings = this._controller.getDatabaseSettings();
+                const settings = this._controller.getDatabaseController().getDatabaseSettings();
                 if ((process.platform === 'linux' || process.platform === 'win32') && settings && settings['client'].startsWith('mysql')) {
                     const form = '<form action="/sys/tools/db/restore" enctype="multipart/form-data" method="post">' +
                         'File:<br><input type="file" name="file" accept="application/sql"/><br>' + // accept="application/zip"
@@ -830,43 +837,18 @@ class WebServer {
             else {
                 try {
                     var response;
-                    const settings = this._controller.getDatabaseSettings();
+                    const dbc = this._controller.getDatabaseController();
+                    const settings = dbc.getDatabaseSettings();
                     if (settings && settings['client'].startsWith('mysql')) {
                         var file;
                         if (req.files)
                             file = req.files['file'];
                         if (file && file['path']) {
                             if (file['type'] === 'application/sql' || file['type'] === 'application/octet-stream') {
-                                var cmd;
-                                if (process.platform === 'linux')
-                                    cmd = 'mysql';
-                                else if (process.platform === 'win32')
-                                    cmd = 'mysql.exe';
-                                else
-                                    throw new Error(`Unsupported Platform: '${process.platform}'`);
-                                var bRemote;
-                                if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
-                                    bRemote = true;
-                                    cmd += ' --host=' + settings['connection']['host'];
-                                }
-                                if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
-                                    cmd += ' --port=' + settings['connection']['port'];
-                                if (bRemote)
-                                    cmd += ' --protocol=tcp';
-                                cmd += ' --verbose --user=' + settings['connection']['user'];
-                                var password;
-                                if (req.query['password'])
-                                    password = req.query['password'];
-                                else
-                                    password = settings['connection']['password'];
-                                if (password)
-                                    cmd += ' --password=' + password;
-                                cmd += '< ' + file['path'];
-                                // --comments
-                                Logger.info("[App] Restoring Database");
-                                await common.exec(cmd);
+                                await dbc.restoreDatabaseBackup(file, req.query['password']);
                                 fs.unlinkSync(file['path']);
                                 response = 'Restored';
+                                controller.setRestartRequest();
                             } else
                                 throw new Error(`Unprocessable File Type: '${file['type']}'`);
                         } else

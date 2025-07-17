@@ -158,7 +158,7 @@ class Model {
                         table.increments('id');
                     if (this._definition.options.timestamps) {
                         // https://knexjs.org/guide/schema-builder.html#timestamps
-                        if (controller.getDatabaseSettings()['client'].startsWith('mysql')) {
+                        if (controller.getDatabaseController().getDatabaseSettings()['client'].startsWith('mysql')) {
                             //table.specificType('created_at', 'TIMESTAMP(3)').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP(3)')); // 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
                             table.timestamp('created_at', { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(knex.fn.now(DEFAULT_TIMESTAMP_PRECISION));
                             table.timestamp('updated_at', { precision: DEFAULT_TIMESTAMP_PRECISION }).defaultTo(knex.fn.now(DEFAULT_TIMESTAMP_PRECISION));
@@ -318,7 +318,7 @@ class Model {
                 break;
             case "integer":
                 var column;
-                if (controller.getDatabaseSettings()['client'].startsWith('mysql')) {
+                if (controller.getDatabaseController().getDatabaseSettings()['client'].startsWith('mysql')) {
                     if (!attribute.type || attribute.type === 'INT') {
                         if (attribute.length)
                             column = table.integer(attribute.name, attribute.length);
@@ -1082,7 +1082,7 @@ class Model {
                                     else if (data[str]['url'] && data[str]['url'].startsWith("http"))
                                         throw new Error('NotImplementedException'); //TODO:
                                 } else if (attr['storage'] == 'filesystem') {
-                                    var localPath = controller.getPathForFile(attr);
+                                    var localPath = controller.getFileStorageController().getPathForFile(attr);
                                     if (localPath) {
                                         var tmpDir = await controller.getTmpDir();
                                         var tmpFilePath;
@@ -1309,7 +1309,7 @@ class Model {
                 switch (attribute['dataType']) {
                     case 'file':
                         if (attribute['storage'] == 'filesystem') {
-                            localPath = controller.getPathForFile(attribute);
+                            localPath = controller.getFileStorageController().getPathForFile(attribute);
                             if (localPath) {
                                 file = path.join(localPath, value);
                                 if (fs.existsSync(file))

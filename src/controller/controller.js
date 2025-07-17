@@ -6,6 +6,8 @@ const fs = require('fs');
 
 const common = require('../common/common');
 const Logger = require('../common/logger/logger');
+const FileStorageController = require('./file-storage-controller');
+const DatabaseController = require('./database-controller');
 const ValidationError = require('../common/validation-error');
 const VcsEnum = require('../common/vcs-enum');
 const AppVersion = require('../common/app-version');
@@ -28,12 +30,9 @@ class Controller {
     _vcs;
 
     _serverConfig;
-    _databaseConfig;
-    _databaseSettings;
 
     _bIsRunning;
 
-    _knex;
     _shelf;
     _webserver;
 
@@ -41,6 +40,7 @@ class Controller {
     _registry;
     _tmpDir;
 
+    _databaseController;
     _versionController;
     _dependencyController;
     _extensionController;
@@ -54,7 +54,6 @@ class Controller {
 
     async setup(serverConfig, databaseConfig) {
         this._serverConfig = serverConfig;
-        this._databaseConfig = databaseConfig;
 
         //console.log(v8.getHeapStatistics());
         Logger.info("[node] Heap size limit: " + (v8.getHeapStatistics().heap_size_limit / (1024 * 1024))) + " MB";
@@ -69,54 +68,28 @@ class Controller {
         if (this._vcs)
             this._info['vcs'] = this._vcs;
 
-        if (this._serverConfig['fileStorage'])
-            this._info['cdn'] = this._serverConfig['fileStorage'].map(function (x) { return { 'url': x['url'] } });
-
         try {
-            var defaultConnection = this._databaseConfig['defaultConnection'];
-            if (defaultConnection && this._databaseConfig['connections'] && this._databaseConfig['connections'][defaultConnection])
-                this._databaseSettings = this._databaseConfig['connections'][defaultConnection]['settings'];
-            else
-                throw new Error('Faulty database configuration!');
-            this._info['db'] = { 'client': this._databaseSettings['client'] };
+            this._databaseController = new DatabaseController();
+            await this._databaseController.init(databaseConfig, this._serverConfig['debug'] && this._serverConfig['debug']['knex']);
 
-            const connection = this._databaseSettings['connection'];
-            if (this._databaseSettings['client'].startsWith('mysql') && !connection['dateStrings'] && !connection['typeCast']) {
-                Logger.info("[knex] Appling type casting function for 'DATE'");
-                connection['typeCast'] = function (field, next) {
-                    if (field.type === 'DATE')
-                        return field.string();
-                    else
-                        return next();
-                }
-            }
-            this._knex = require('knex')(this._databaseSettings);
+            this._info['db'] = { 'client': this._databaseController.getDatabaseClientName() };
 
-            if (this._serverConfig['debug'] && this._serverConfig['debug']['knex']) {
-                this._knex.on('query', function (queryData) {
-                    console.log(queryData);
-                });
-            }
+            const knex = this._databaseController.getKnex();
 
-            try {
-                await this._knex.raw('select 1+1 as result');
-                Logger.info("[knex] ✔ Successfully connected to " + this._databaseSettings['client'] + " on " + this._databaseSettings['connection']['host']);
-            } catch (error) {
-                if (process.env.NODE_ENV !== 'test') {
-                    Logger.parseError(error, "[knex] ER_ACCESS_DENIED_ERROR");
-                    process.exit(1);
-                } else
-                    throw error;
-            }
-
-            this._logger = new Logger(this._knex);
+            this._logger = new Logger(knex);
             await this._logger.initLogger();
 
-            this._shelf = new Shelf(this._knex);
+            this._shelf = new Shelf(knex);
             await this._shelf.initShelf();
 
-            this._registry = new Registry(this._knex);
+            this._registry = new Registry(knex);
             await this._registry.initRegistry();
+
+            this._fileStorageController = new FileStorageController(this);
+            await this._fileStorageController.init(this._serverConfig['fileStorage']);
+            var tmp = this._fileStorageController.getEntries();
+            if (tmp)
+                this._info['cdn'] = tmp.map(function (x) { return { 'url': x['url'] } });
 
             this._webclientController = new WebClientController();
 
@@ -233,26 +206,12 @@ class Controller {
         return this._serverConfig;
     }
 
-    getDatabaseConfig() {
-        return this._databaseConfig;
+    getFileStorageController() {
+        return this._fileStorageController;
     }
 
-    getDatabaseSettings() {
-        return this._databaseSettings;
-    }
-
-    getFileStorage(name) {
-        var res;
-        if (name) {
-            if (this._serverConfig['fileStorage'])
-                res = this._serverConfig['fileStorage'].filter(function (x) { return x['name'] === name });
-        } else
-            res = this._serverConfig['fileStorage'];
-        return res;
-    }
-
-    getKnex() {
-        return this._knex;
+    getDatabaseController() {
+        return this._databaseController;
     }
 
     getShelf() {
@@ -305,33 +264,6 @@ class Controller {
         return this._tmpDir;
     }
 
-    getPathForFile(attr) {
-        var localPath;
-        if (this._serverConfig['fileStorage']) {
-            var p;
-            for (var c of this._serverConfig['fileStorage']) {
-                if (c['url'] === attr['cdn']) {
-                    p = c['path'];
-                    break;
-                }
-            }
-            if (p) {
-                if (p.startsWith('.'))
-                    localPath = path.join(this._appRoot, p);
-                else {
-                    if (process.platform === 'linux') {
-                        if (p.startsWith('/'))
-                            localPath = p;
-                        else if (p.startsWith('~'))
-                            localPath = p.replace('~', process.env.HOME);
-                    } else
-                        localPath = p;
-                }
-            }
-        }
-        return localPath;
-    }
-
     async update(version, bReset, bRemove) {
         var response;
         Logger.info("[App] Processing update request..");
@@ -379,8 +311,11 @@ class Controller {
     async shutdown() {
         if (this._webserver)
             await this._webserver.teardown();
-        if (this._knex)
-            this._knex.destroy();
+        if (this._databaseController) {
+            const knex = this._databaseController.getKnex();
+            if (knex)
+                knex.destroy();
+        }
         this._bIsRunning = false;
         return Promise.resolve();
     }
@@ -797,40 +732,6 @@ class Controller {
                 change['timestamp'] = timestamp;
             await this._shelf.getModel('_change').create(change);
         }
-        return Promise.resolve();
-    }
-
-    async createDatabaseBackup(file, password) {
-        const settings = this._databaseSettings;
-        if (settings && settings['client'].startsWith('mysql')) {
-            var cmd;
-            if (process.platform === 'linux')
-                cmd = 'mysqldump';
-            else if (process.platform === 'win32')
-                cmd = 'mysqldump.exe';
-            else
-                throw new Error(`Unsupported Platform: '${process.platform}'`);
-            var bRemote;
-            if (settings['connection']['host'] !== 'localhost' && settings['connection']['host'] !== '127.0.0.1') {
-                bRemote = true;
-                cmd += ' --host=' + settings['connection']['host'];
-            }
-            if (settings['connection'].hasOwnProperty('port') && settings['connection']['port'] !== '3306')
-                cmd += ' --port=' + settings['connection']['port'];
-            if (bRemote)
-                cmd += ' --protocol=tcp';
-            cmd += ' --verbose --user=' + settings['connection']['user'];
-            var password;
-            if (!password)
-                password = settings['connection']['password'];
-            if (password)
-                cmd += ' --password=' + password;
-            cmd += ` --single-transaction=TRUE --skip-lock-tables --add-drop-database --opt --skip-set-charset --default-character-set=utf8mb4 --databases cms > ${file}`;
-            // --column-statistics=0 --skip-triggers
-            Logger.info("[App] Creating database dump to '" + file + "'");
-            await common.exec(cmd);
-        } else
-            throw new Error('By now backup/restore API is only supports MySQL databases!');
         return Promise.resolve();
     }
 }

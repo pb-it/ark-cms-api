@@ -153,7 +153,7 @@ class MigrationController {
                 Logger.info("[MigrationController] ✔ Current application version '" + sAppVersion + "' equals registry entry of database");
             else {
                 Logger.info("[MigrationController] ✘ Current application version '" + sAppVersion + "' does not equal registry entry of database - starting migration");
-                var knex = this._controller.getKnex();
+                var knex = this._controller.getDatabaseController().getKnex();
                 switch (sRegVersion) {
                     case '0.1.0-beta':
                     case '0.1.1-beta':

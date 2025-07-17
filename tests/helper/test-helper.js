@@ -111,7 +111,7 @@ class TestHelper {
             const controller = testHelper.getController();
             if (controller) {
                 const serverConfig = controller.getServerConfig();
-                const databaseConfig = controller.getDatabaseConfig();
+                const databaseConfig = controller.getDatabaseController().getDatabaseConfig();
                 await controller.shutdown();
                 await controller.setup(serverConfig, databaseConfig);
                 await testHelper.init(controller);
@@ -124,23 +124,9 @@ class TestHelper {
         var res;
         try {
             const data = {
-                'cmd': `const path = require('path');
-const appRoot = controller.getAppRoot();
-const Logger = require(path.join(appRoot, './src/common/logger/logger.js'));
-
-async function test() {
-   var res;
-   var schema = ${schema};
-   if (!schema)
-      schema = controller.getDatabaseSettings()['connection']['database'];
-   Logger.info("Clearing database '" + schema + "'");
-   const knex = controller.getKnex();
-   var rs = await knex.raw("DROP DATABASE " + schema + ";");
-   rs = await knex.raw("CREATE DATABASE " + schema + ";");
-   return Promise.resolve('OK');
-};
-module.exports = test;`};
-
+                'cmd': `module.exports = async function() {
+   return controller.getDatabaseController().clearSchema(${schema});
+};`};
             const host = testHelper.getHost();
             const url = host + '/sys/tools/dev/eval?_format=text';
             const webclient = testHelper.getWebclient();
@@ -238,9 +224,9 @@ module.exports = test;`};
         }
         this._webclient = this._controller.getWebClientController().getWebClient();
 
-        const cdnConfig = this._controller.getFileStorage();
-        if (cdnConfig) {
-            var cdns = cdnConfig.filter(function (x) {
+        var tmp = this._controller.getFileStorageController().getEntries();
+        if (tmp) {
+            var cdns = tmp.filter(function (x) {
                 return x['url'] === '/cdn'; //TODO: get correct cdn from attribute
             });
             if (cdns.length == 1)
