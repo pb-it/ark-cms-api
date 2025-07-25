@@ -59,6 +59,9 @@ test('#json', async function () {
 
     expect(res).toEqual(data);
 
+    tmp = await apiHelper.getData(url);
+    expect(tmp.length).toEqual(2);
+
     tmp = {
         'json': '[1,2'
     }
@@ -70,6 +73,34 @@ test('#json', async function () {
     }
     expect(res['status']).toEqual(500);
     expect(res['body']).toEqual('[knex] ER_INVALID_JSON_TEXT');
+
+    tmp = await apiHelper.getData(url);
+    expect(tmp.length).toEqual(2);
+
+    return Promise.resolve();
+});
+
+test('#empty json', async function () {
+    const webclient = testHelper.getWebclient();
+    const apiUrl = testHelper.getApiUrl();
+    const apiHelper = testHelper.getApiHelper();
+
+    var tmp = {
+        'json': '[1,2]'
+    }
+    var url = apiUrl + "/misc";
+    res = await webclient.post(url, tmp);
+    expect(JSON.stringify(res['json'])).toEqual('[1,2]');
+
+    tmp = {
+        'json': null
+    }
+    url = apiUrl + "/misc/" + res['id'];
+    res = await webclient.put(url, tmp);
+    expect(res['json']).toEqual(null);
+
+    res = await apiHelper.getData(url);
+    expect(res['json']).toEqual(null);
 
     return Promise.resolve();
 });

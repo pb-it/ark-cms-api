@@ -78,6 +78,10 @@ class ExtensionController {
                     {
                         "name": "client-extension",
                         "dataType": "text"
+                    },
+                    {
+                        "name": "configuration",
+                        "dataType": "json"
                     }
                 ],
                 "defaults": {

@@ -10,6 +10,7 @@ var database = {
                     user: 'root',
                     password: '',
                     database: 'cms',
+                    //multipleStatements: true,
                     //timezone: 'Z',
                     //dateStrings: true,
                     charset: 'utf8mb4'

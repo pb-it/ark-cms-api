@@ -327,6 +327,32 @@ class MigrationController {
                     default:
                 }
 
+                if (semver.valid(sRegVersion)) {
+                    if (semver.lt(sRegVersion, '0.7.7-beta')) {
+                        var mUser = this._shelf.getModel('_user');
+                        if (mUser) {
+                            var def = mUser.getDefinition();
+                            def['attributes'].push({
+                                'name': 'settings',
+                                'dataType': 'json'
+                            });
+                            await this._shelf.upsertModel(mUser.getId(), def);
+                            await mUser.initModel();
+                        }
+                        var mExtensions = this._shelf.getModel('_extension');
+                        if (mExtensions) {
+                            var def = mExtensions.getDefinition();
+                            def['attributes'].push({
+                                'name': 'configuration',
+                                'dataType': 'json'
+                            });
+                            await this._shelf.upsertModel(mExtensions.getId(), def);
+                            await mExtensions.initModel();
+                        } else
+                            throw new Error('Database corrupt!');
+                    }
+                }
+
                 var regVersion = new AppVersion(sRegVersion);
                 if (MigrationController.compatible(regVersion, appVersion) || bForce) {
                     var definition;

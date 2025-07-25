@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.7.7-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.7-beta) (2025-07-25)
+
+Minor changes
+
+
 ## [0.7.6-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.6-beta) (2025-07-17)
 
 * Added DatabaseController and FileStorageController

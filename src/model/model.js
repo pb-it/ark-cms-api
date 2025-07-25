@@ -922,6 +922,11 @@ class Model {
                             resolve(res); // transaction.commit();
                         }.bind(this))
                             .catch(error => {
+                                /*console.log('error');
+                                if (!transaction.isCompleted()) {
+                                    transaction.rollback();
+                                    console.log('rollback');
+                                }*/
                                 reject(error);
                             });
                     } else {
@@ -1062,7 +1067,8 @@ class Model {
                                     forge[str] = value;
                                 else if (typeof value === 'object')
                                     forge[str] = JSON.stringify(value);
-                            }
+                            } else
+                                forge[str] = null;
                         } else if (attr['dataType'] === 'timestamp' || attr['dataType'] === 'datetime') {
                             var value = data[str];
                             if (value && (typeof value === 'string' || value instanceof String) && value.endsWith('Z'))

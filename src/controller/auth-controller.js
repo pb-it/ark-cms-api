@@ -84,6 +84,10 @@ class AuthController {
                     {
                         "name": "last_password_change_at",
                         "dataType": "timestamp"
+                    },
+                    {
+                        "name": "settings",
+                        "dataType": "json"
                     }
                 ],
                 "defaults": {
