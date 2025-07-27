@@ -87,9 +87,6 @@ class Controller {
 
             this._fileStorageController = new FileStorageController(this);
             await this._fileStorageController.init(this._serverConfig['fileStorage']);
-            var tmp = this._fileStorageController.getEntries();
-            if (tmp)
-                this._info['cdn'] = tmp.map(function (x) { return { 'url': x['url'] } });
 
             this._webclientController = new WebClientController();
 

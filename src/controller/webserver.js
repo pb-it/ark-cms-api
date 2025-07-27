@@ -278,39 +278,40 @@ class WebServer {
     _addCdnRoutes() {
         const entries = this._controller.getFileStorageController().getEntries();
         if (entries) {
-            var root;
-            var filePath;
             for (var storage of entries) {
-                if (storage['url'] && storage['path']) {
-                    root = null;
-                    filePath = null;
-                    if (storage['path'].startsWith('/'))
-                        root = storage['path'];
-                    else if (storage['path'].startsWith('.'))
-                        root = path.join(this._controller.getAppRoot(), storage['path']);
-                    if (root && fs.existsSync(root)) {
-                        //const corsOptions = { origin: '*' };
-                        //this._app.options(storage['url'] + '/*', cors(corsOptions));
-                        this._app.get(storage['url'] + '/*', setCorsHeaders, function (req, res, next) {
-                            var status;
-                            if (!storage['public'] && this._controller.getAuthController()) {
-                                if (!req.session.user)
-                                    status = 401; //Unauthorized
-                            }
-                            if (status)
-                                res.sendStatus(status);
-                            else {
-                                filePath = path.join(root, req.path.substring(storage['url'].length));
-                                if (fs.existsSync(filePath))
-                                    res.sendFile(filePath);
-                                else
-                                    next();
-                            }
-                        }.bind(this));
-                    } else
-                        Logger.error("[App] ✘ File Storage '" + storage['path'] + "' not found");
-                }
+                this.addStorageRoute(storage);
             }
+        }
+    }
+
+    addStorageRoute(storage) {
+        if (storage['url'] && storage['path']) {
+            var root;
+            if (storage['path'].startsWith('/'))
+                root = storage['path'];
+            else if (storage['path'].startsWith('.'))
+                root = path.join(this._controller.getAppRoot(), storage['path']);
+            if (root && fs.existsSync(root)) {
+                //const corsOptions = { origin: '*' };
+                //this._app.options(storage['url'] + '/*', cors(corsOptions));
+                this._app.get(storage['url'] + '/*', setCorsHeaders, function (req, res, next) {
+                    var status;
+                    if (!storage['public'] && this._controller.getAuthController()) {
+                        if (!req.session.user)
+                            status = 401; //Unauthorized
+                    }
+                    if (status)
+                        res.sendStatus(status);
+                    else {
+                        var filePath = path.join(root, req.path.substring(storage['url'].length));
+                        if (fs.existsSync(filePath))
+                            res.sendFile(filePath);
+                        else
+                            next();
+                    }
+                }.bind(this));
+            } else
+                Logger.error("[App] ✘ File Storage '" + storage['path'] + "' not found");
         }
     }
 

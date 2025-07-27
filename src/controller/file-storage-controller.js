@@ -23,7 +23,19 @@ class FileStorageController {
             } else
                 this._entries = fileStorage;
         }
+        const info = this._controller.getInfo();
+        info['cdn'] = this._entries.map(function (x) { return { 'url': x['url'] } });
         return Promise.resolve();
+    }
+
+    addEntry(entry) {
+        if (this._entries)
+            this._entries.push(entry);
+        else
+            this._entries = [entry];
+        controller.getWebServer().addStorageRoute(entry);
+        const info = this._controller.getInfo();
+        info['cdn'] = this._entries.map(function (x) { return { 'url': x['url'] } });
     }
 
     getEntries() {
