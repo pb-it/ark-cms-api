@@ -70,6 +70,8 @@ class WebServer {
     _app;
     _svr;
 
+    _apiRouter;
+
     _routes;
     _extRoutes;
 
@@ -229,14 +231,22 @@ class WebServer {
     }
 
     addCustomDataRoute(route) {
-        if (route['regex'] && route['fn']) {
-            this.deleteCustomDataRoute(route);
-            this._routes.push(route);
+        if (route['fn']) {
+            if (route['path'] || route['regex']) {
+                this.deleteCustomDataRoute(route);
+                if (route['path'])
+                    this._apiRouter.use('/data' + route['path'], route['fn']);
+                this._routes.push(route);
+            }
         }
     }
 
     deleteCustomDataRoute(route) {
-        if (route['regex']) {
+        if (route['path']) {
+            this._routes = this._routes.filter(function (x) {
+                return (x['path'] !== route['path']);
+            });
+        } else if (route['regex']) {
             this._routes = this._routes.filter(function (x) {
                 return (x['regex'] !== route['regex']);
             });
@@ -248,16 +258,22 @@ class WebServer {
     }
 
     addExtensionRoute(route) {
-        if (route['regex'] && route['fn']) {
-            this.deleteExtensionRoute(route);
-            this._extRoutes.push(route);
+        if (route['fn']) {
+            if (route['path'] || route['regex']) {
+                this.deleteExtensionRoute(route);
+                if (route['path'])
+                    this._apiRouter.use('/ext' + route['path'], route['fn']);
+                this._extRoutes.push(route);
+            }
         }
     }
 
     deleteExtensionRoute(route) {
-        if (route['regex']) {
+        if (route['path'] || route['regex']) {
             const index = this._extRoutes.findIndex(function (x) {
-                return (x === route || x['regex'] === route['regex']);
+                return (x === route ||
+                    (x['path'] && x['path'] === route['path']) ||
+                    (x['regex'] && x['regex'] === route['regex']));
             });
             if (index != -1)
                 this._extRoutes.splice(index, 1);
@@ -1311,12 +1327,12 @@ module.exports = test;` +
     }
 
     _addApiRoutes() {
-        const apiRouter = express.Router();
+        this._apiRouter = express.Router();
 
-        this._addDataRoute(apiRouter);
-        this._addExtensionRoute(apiRouter);
+        this._addDataRoute(this._apiRouter);
+        this._addExtensionRoute(this._apiRouter);
 
-        this._app.use('/api', apiRouter);
+        this._app.use('/api', this._apiRouter);
     }
 
     _addDataRoute(router) {
@@ -1402,19 +1418,27 @@ module.exports = test;` +
     }
 
     _addExtensionRoute(router) {
+        if (this._extRoutes && this._extRoutes.length > 0) {
+            for (var route of this._extRoutes) {
+                if (route['path'] && route['fn'])
+                    router.use('/ext' + route['path'], route['fn']);
+            }
+        }
         router.use('/ext', async function (req, res, next) {
             var bSent = false;
             var r;
             for (var route of this._extRoutes) {
-                if (route['regex'] && route['fn']) {
-                    var match = new RegExp(route['regex'], 'ig').exec(req.path);
-                    if (match) {
-                        if (!req.locals)
-                            req.locals = { 'match': match };
-                        else
-                            req.locals['match'] = match;
-                        r = route;
-                        break;
+                if (route['fn']) {
+                    if (route['regex']) {
+                        var match = new RegExp(route['regex'], 'ig').exec(req.path);
+                        if (match) {
+                            if (!req.locals)
+                                req.locals = { 'match': match };
+                            else
+                                req.locals['match'] = match;
+                            r = route;
+                            break;
+                        }
                     }
                 }
             }
@@ -1429,8 +1453,6 @@ module.exports = test;` +
                 bSent = true;
             } else
                 next(); // res.send('Unknown extension');
-            if (!bSent && !res.headersSent)
-                next();
             return Promise.resolve();
         }.bind(this));
     }
