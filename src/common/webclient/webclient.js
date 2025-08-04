@@ -36,7 +36,7 @@ class WebClient {
         throw new Error("Abstract method!");
     }
 
-    async download(url, file) {
+    async download(url, file, options) {
         throw new Error("Abstract method!");
     }
 }

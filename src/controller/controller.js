@@ -47,6 +47,7 @@ class Controller {
     _migrationsController;
     _authController;
     _webclientController;
+    _downloader;
 
     constructor() {
         this._appRoot = path.join(__dirname, "../../"); //ends with backslash(linux)
@@ -225,6 +226,17 @@ class Controller {
 
     getWebClientController() {
         return this._webclientController;
+    }
+
+    getDownloader() {
+        if (this._downloader)
+            return this._downloader;
+        else
+            return this._webclientController.getWebClient();
+    }
+
+    setDownloader(downloader) {
+        this._downloader = downloader;
     }
 
     getVersionController() {

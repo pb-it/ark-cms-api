@@ -143,7 +143,7 @@ class FetchWebClient extends WebClient {
         return Promise.resolve(res);
     }
 
-    async download(url, file) {
+    async download(url, file, options) {
         log('DOWNLOAD: ' + url);
         var res;
         var name;
@@ -153,7 +153,7 @@ class FetchWebClient extends WebClient {
         else
             name = file;
 
-        const response = await fetch(url);
+        const response = await fetch(url, options);
         if (response.ok) {
             const buffer = await response.buffer();
             await writeFile(file, buffer);

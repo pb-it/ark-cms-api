@@ -1113,7 +1113,7 @@ class Model {
                                                         tmpFilePath = path.join(tmpDir, path.basename(fileName));
                                                     else
                                                         throw new Error("Missing file name!");
-                                                    tmp = await controller.getWebClientController().getWebClient().download(data[str]['url'], tmpFilePath);
+                                                    tmp = await controller.getDownloader().download(data[str]['url'], tmpFilePath);
                                                     tmpFilePath = path.join(tmpDir, tmp);
                                                 }
                                             } else
