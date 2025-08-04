@@ -2,8 +2,13 @@ const debug = require('debug');
 const log = debug('app:webclient');
 const path = require('path');
 const { writeFile } = require('fs').promises;
+const https = require('https');
 //const fetch = require('node-fetch');
 const fetch = require('cross-fetch');
+
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false
+});
 
 const WebClient = require(path.join(__dirname, './webclient.js'));
 const Logger = require(path.join(__dirname, '../logger/logger.js'));
@@ -41,48 +46,74 @@ class FetchWebClient extends WebClient {
             Logger.info('[webclient] options:\n' + str);
         }
         var res;
+        var opt;
         var bMeta;
-        if (options && options.hasOwnProperty('meta')) {
-            bMeta = options['meta'];
-            delete options['meta'];
+        if (options) {
+            opt = { ...options };
+            if (opt.hasOwnProperty('meta')) {
+                bMeta = opt['meta'];
+                delete opt['meta'];
+            }
+            if (opt.hasOwnProperty('rejectUnauthorized')) {
+                if (opt['rejectUnauthorized'] === false)
+                    opt['agent'] = httpsAgent;
+                delete opt['rejectUnauthorized'];
+            }
+            var formData;
+            if (opt.hasOwnProperty('formdata')) {
+                formData = new FormData();
+                for (const name in opt['formdata']) {
+                    formData.append(name, opt['formdata'][name]);
+                }
+                delete opt['formdata'];
+            }
+            if (formData)
+                opt['body'] = new URLSearchParams(formData);
+        }
+        if (data) {
+            if (opt)
+                opt['body'] = data;
+            else
+                opt = { 'body': data };
         }
         var response;
         switch (method) {
             case 'GET':
-                response = await fetch(url, options);
+                response = await fetch(url, opt);
                 break;
             case 'POST':
             case 'PUT':
-                if (!options)
-                    options = {};
-                options['method'] = method;
+                if (!opt)
+                    opt = {};
+                opt['method'] = method;
                 if (data) {
-                    if (!options['headers']) {
+                    if (!opt['headers']) {
                         /*if (data instanceof FormData)
-                            options['headers'] = {
+                            opt['headers'] = {
                                 'Content-Type': 'multipart/form-data'
                             };*/
                         if (!(data instanceof FormData) && typeof data === 'object')
-                            options['headers'] = {
+                            opt['headers'] = {
                                 'Content-Type': 'application/json'
                             };
                     }
                     if (typeof data === 'string' || data instanceof String || data instanceof FormData)
-                        options['body'] = data;
+                        opt['body'] = data;
                     else
-                        options['body'] = JSON.stringify(data);
+                        opt['body'] = JSON.stringify(data);
                 }
-                response = await fetch(url, options);
+                response = await fetch(url, opt);
                 break;
             case 'DELETE':
-                if (!options)
-                    options = {};
-                options['method'] = method;
-                response = await fetch(url, options);
+                if (!opt)
+                    opt = {};
+                opt['method'] = method;
+                response = await fetch(url, opt);
                 break;
             default:
                 throw new Error('Unsupported method \'' + method + '\'');
         }
+        var res;
         if (response) {
             if (bMeta)
                 res = await FetchWebClient._parseResponse(response);
@@ -153,7 +184,16 @@ class FetchWebClient extends WebClient {
         else
             name = file;
 
-        const response = await fetch(url, options);
+        var opt;
+        if (options) {
+            opt = { ...options };
+            if (opt.hasOwnProperty('rejectUnauthorized')) {
+                if (opt['rejectUnauthorized'] === false)
+                    opt['agent'] = httpsAgent;
+                delete opt['rejectUnauthorized'];
+            }
+        }
+        const response = await fetch(url, opt);
         if (response.ok) {
             const buffer = await response.buffer();
             await writeFile(file, buffer);
