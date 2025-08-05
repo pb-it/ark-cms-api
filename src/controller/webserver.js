@@ -22,7 +22,11 @@ const { ExtensionError } = require('./extension-controller');
 const AppVersion = require('../common/app-version');
 
 function setCorsHeaders(req, res, next) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.get('origin');
+    if (origin)
+        res.setHeader('Access-Control-Allow-Origin', origin); //CORS: The value of the 'Access-Control-Allow-Origin' header in the response must not be the wildcard '*' when the request's credentials mode is 'include'.
+    else
+        res.setHeader('Access-Control-Allow-Origin', '*');
     //res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE');
     //res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     next();
