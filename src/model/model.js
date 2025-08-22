@@ -1217,6 +1217,8 @@ class Model {
                 }
             } else if (str === 'id' && this._definition.options.increments) {
                 forge[str] = data[str];
+            } else if ((str === 'created_at' || str === 'updated_at') && this._definition.options.timestamps) {
+                forge[str] = data[str];
             } else
                 throw new Error("Undefined Attribute '" + str + "'");
         }
