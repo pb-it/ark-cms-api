@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.7.9-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.9-beta) (2025-10-09)
+
+Bug fixes:
+* Deleting relation to item via foreign property
+
+
 ## [0.7.8-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.8-beta) (2025-08-04)
 
 Minor changes

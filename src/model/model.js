@@ -908,7 +908,7 @@ class Model {
                                             if (coll.relatedData.type === 'hasMany') { //relation via
                                                 var attr = this._definition.attributes.filter(function (x) { return x.name === str })[0];
                                                 if (attr)
-                                                    await this._updateHasManyRelation(transaction, attr, data[str], id);
+                                                    await this._updateHasManyRelation(transaction, attr, null, data[str], id);
                                             } else {
                                                 await coll.attach(data[str], { transacting: transaction });
                                             }
@@ -1007,9 +1007,12 @@ class Model {
                                     if (!data[str])
                                         data[str] = [];
                                     if (Array.isArray(data[str])) {
-                                        if (attr['via']) // coll.relatedData.type === 'hasMany'
-                                            await this._updateHasManyRelation(transaction, attr, data[str], id);
-                                        else {
+                                        if (attr['via']) { // coll.relatedData.type === 'hasMany'
+                                            var oldList;
+                                            if (current[str] && current[str].length > 0)
+                                                oldList = current[str].map(x => x['id']);
+                                            await this._updateHasManyRelation(transaction, attr, oldList, data[str], id);
+                                        } else {
                                             var coll = obj[str]();
                                             await coll.detach(null, { transacting: transaction });
                                             await coll.attach(data[str], { transacting: transaction });
@@ -1225,13 +1228,26 @@ class Model {
         return Promise.resolve(forge);
     }
 
-    async _updateHasManyRelation(transaction, attr, ids, id) {
+    async _updateHasManyRelation(transaction, attr, oldList, newList, id) {
         var model = this._shelf.getModel(attr['model']);
         var via = attr['via'];
         var o = {};
-        o[via] = id;
-        for (var i of ids) {
-            await model.update(i, o, transaction);
+        if (oldList) {
+            const add = newList.filter(value => !oldList.includes(value));
+            o[via] = id;
+            for (var i of add) {
+                await model.update(i, o, transaction);
+            }
+            const remove = oldList.filter(value => !newList.includes(value));
+            o[via] = null;
+            for (var i of remove) {
+                await model.update(i, o, transaction);
+            }
+        } else {
+            o[via] = id;
+            for (var i of newList) {
+                await model.update(i, o, transaction);
+            }
         }
         return Promise.resolve();
     }
