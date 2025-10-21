@@ -577,10 +577,12 @@ class WebServer {
                 } else
                     status = 401; //Unauthorized
             }
+            if (this._controller.checkShutdownPrevented())
+                status = 503; //Service Unavailable
             if (status)
                 res.sendStatus(status);
             else {
-                res.send("Restarting..");
+                res.send("Restart initiated...");
                 this._controller.restart();
             }
         }.bind(this));

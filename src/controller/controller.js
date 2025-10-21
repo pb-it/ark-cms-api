@@ -32,6 +32,7 @@ class Controller {
     _serverConfig;
 
     _bIsRunning;
+    _shudownPrevention;
 
     _shelf;
     _webserver;
@@ -267,6 +268,10 @@ class Controller {
         return this._info['state'];
     }
 
+    setTmpDir(dir) {
+        this._tmpDir = dir;
+    }
+
     getTmpDir() {
         if (!this._tmpDir)
             this._tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-'));
@@ -333,28 +338,57 @@ class Controller {
         return this._bIsRunning;
     }
 
-    async restart() {
-        Logger.info("[App] Restarting..");
-        this._info['state'] = 'restarting';
-        if (!this._serverConfig['processManager']) {
-            process.on("exit", function () {
-                require("child_process").spawn(process.argv.shift(), process.argv, {
-                    cwd: process.cwd(),
-                    detached: true,
-                    stdio: "inherit"
-                });
-            });
-        }
-        try {
-            await this.shutdown();
-        } catch (err) {
-            console.log(err);
-            if (err)
-                Logger.parse(err);
+    addShutdownPrevention(func) {
+        if (typeof func === 'function') {
+            if (this._shudownPrevention)
+                this._shudownPrevention.push(func);
             else
-                Logger.error("[App] ✘ An error occurred while shutting down");
+                this._shudownPrevention = [func];
+        } else
+            throw Error('Type mismatch');
+    }
+
+    checkShutdownPrevented() {
+        var bPrevented = false;
+        if (this._shudownPrevention) {
+            for (var func of this._shudownPrevention) {
+                bPrevented = func();
+                if (bPrevented)
+                    break;
+            }
         }
-        process.exit();
+        return bPrevented;
+    }
+
+    async restart() {
+        var bOk = !this.checkShutdownPrevented();
+        if (bOk) {
+            Logger.info("[App] Restarting...");
+            this._info['state'] = 'restarting';
+            if (!this._serverConfig['processManager']) {
+                process.on("exit", function () {
+                    require("child_process").spawn(process.argv.shift(), process.argv, {
+                        cwd: process.cwd(),
+                        detached: true,
+                        stdio: "inherit"
+                    });
+                });
+            }
+            try {
+                await this.shutdown();
+            } catch (err) {
+                console.log(err);
+                if (err)
+                    Logger.parse(err);
+                else
+                    Logger.error("[App] ✘ An error occurred while shutting down");
+                bOk = false;
+            }
+            if (bOk)
+                process.exit();
+        } else
+            Logger.info("[App] Restart prohibited... Please try again later!");
+        return Promise.resolve(bOk);
     }
 
     /**

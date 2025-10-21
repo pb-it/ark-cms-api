@@ -83,6 +83,10 @@ test('movie_db', async function () {
     res = data[0];
     expect(res['studio']['id']).toEqual(studioId);
 
+    //update(remove) via relation
+    res = await webclient.put(urlStudios + "/" + studioId, { 'movies': [] });
+    expect(res['movies'].length).toEqual(0);
+
     //update
     await webclient.put(urlMovies + "/" + movieId, { 'stars': [starId] });
 
