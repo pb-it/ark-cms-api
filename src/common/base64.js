@@ -31,3 +31,7 @@ module.exports.createFile = function (filePath, data) {
             throw new Error("File already exists");
     }
 }
+
+module.exports.encodeText = function (text, mime = 'text/plain') {
+    return 'data:' + mime + ';base64,' + btoa(unescape(encodeURIComponent(text)));
+}
