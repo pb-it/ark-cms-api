@@ -878,23 +878,23 @@ class Model {
      * @param {*} data 
      * @returns object
      */
-    async create(data) {
+    async create(data, options) {
         var res;
 
         if (this._preCreateHook)
             data = await this._preCreateHook(data);
 
-        res = await this._create(data);
+        res = await this._create(data, options);
         return Promise.resolve(res);
     }
 
-    _create(data) {
+    _create(data, options) {
         return this._shelf.getBookshelf().transaction(async (transaction) => {
             return new Promise(async (resolve, reject) => {
                 try {
                     var res;
                     if (this._definition.options.increments) {
-                        var forge = await this._createForge(data);
+                        var forge = await this._createForge(data, null, options);
                         this._book.forge(forge).save(null, { transacting: transaction, method: 'insert' }).then(async function (obj) {
                             var res;
                             var id = obj['id'];
@@ -940,7 +940,7 @@ class Model {
         });
     }
 
-    async update(id, data, transaction) {
+    async update(id, data, transaction, options) {
         var res;
 
         var current;
@@ -970,21 +970,21 @@ class Model {
             data = await this._preUpdateHook(current, data);
 
         if (transaction)
-            res = await this._update(transaction, id, current, data);
+            res = await this._update(transaction, id, current, data, options);
         else {
             res = await this._shelf.getBookshelf().transaction(async (transaction) => {
-                return this._update(transaction, id, current, data);
+                return this._update(transaction, id, current, data, options);
             });
         }
         return Promise.resolve(res);
     }
 
-    _update(transaction, id, current, data) {
+    _update(transaction, id, current, data, options) {
         return new Promise(async (resolve, reject) => {
             try {
                 var res;
                 if (this._definition.options.increments) {
-                    var forge = await this._createForge(data, current);
+                    var forge = await this._createForge(data, current, options);
 
                     if (id) {
                         if (!forge['id'])
@@ -1050,7 +1050,7 @@ class Model {
         return Promise.resolve(res);
     }
 
-    async _createForge(data, old) {
+    async _createForge(data, old, options) {
         const forge = {};
         const dtc = controller.getDataTypeController();
         var dt;
@@ -1207,7 +1207,9 @@ class Model {
                         } else {
                             dt = dtc.getDataType(attr['dataType']);
                             if (dt && dt.createForge) {
-                                if (dt.createForge.length == 5)
+                                if (dt.createForge.length == 6)
+                                    await dt.createForge(this, attr, data, old, forge, options);
+                                else if (dt.createForge.length == 5)
                                     await dt.createForge(this, attr, data, old, forge);
                                 else if (dt.createForge.length == 4)
                                     await dt.createForge(attr, data, old, forge);

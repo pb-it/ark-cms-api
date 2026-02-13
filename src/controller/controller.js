@@ -524,7 +524,7 @@ class Controller {
                         var timestamp; // new Date(); req.headers["Date"]; this._knex.fn.now(DEFAULT_TIMESTAMP_PRECISION);
                         switch (req.method) {
                             case "POST":
-                                data = await model.create(req.body);
+                                data = await model.create(req.body, options);
                                 id = data['id'];
                                 if (data['created_at'])
                                     timestamp = data['created_at'];
@@ -539,7 +539,8 @@ class Controller {
                                     data['data'] = await model.readAll(req.query);
                                 break;
                             case "PUT":
-                                data = await model.update(id, req.body);
+                                var options = req.query;
+                                data = await model.update(id, req.body, null, options);
                                 if (data['updated_at'])
                                     timestamp = data['updated_at'];
                                 break;

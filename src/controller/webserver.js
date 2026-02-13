@@ -1201,8 +1201,8 @@ module.exports = test;` +
                     if (file && fs.existsSync(p)) {
                         var text = fs.readFileSync(p, 'utf8');
                         response = '<form action="/sys/tools/dev/edit" method="post">' +
-                            'File:<br><input name="file" value="' + file + '"></input><br>' +
-                            'Text:<br><textarea name="text" rows="10" cols="50">' +
+                            'File:<br><input name="file" value="' + file + '" size="80"></input><br>' +
+                            'Text:<br><textarea name="text" rows="30" cols="80">' +
                             text.replace(/[\u00A0-\u9999<>\&]/g, function (i) {
                                 return '&#' + i.charCodeAt(0) + ';';
                             }) +
@@ -1213,7 +1213,7 @@ module.exports = test;` +
                         else
                             response = '';
                         response += '<form action="/sys/tools/dev/edit" method="get">' +
-                            'File:<br><input name="file"></input><br>' +
+                            'File:<br><input name="file" size="80"></input><br>' +
                             '<input type="submit" value="Open"></form>'
                     }
                     res.send(response);
