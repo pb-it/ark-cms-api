@@ -52,6 +52,7 @@ class QueryParser {
     _bOr;
     _joins;
     _leftJoins;
+    _viaJoins;
 
     constructor(model) {
         this._model = model;
@@ -60,6 +61,7 @@ class QueryParser {
         this._bOr = false;
         this._joins = [];
         this._leftJoins = [];
+        this._viaJoins = [];
     }
 
     async executeQuery(query) {
@@ -185,6 +187,15 @@ class QueryParser {
                 });
             }
         }
+        if (this._viaJoins.length > 0) {
+            var tableName = this._model._tableName;
+            for (let a of this._viaJoins) {
+                this._book = await this._book.query(function (qb) {
+                    qb.leftJoin(a.substring(0, a.indexOf('.')), tableName + '.id', a);
+                    //console.log(qb.toSQL());
+                });
+            }
+        }
         return Promise.resolve(this._book);
     }
 
@@ -239,7 +250,7 @@ class QueryParser {
                     break;
                 }
             }
-            if (relAttr && relAttr['multiple']) {
+            if (relAttr && (relAttr['multiple'] || relAttr['via'])) {
                 var val;
                 if (operator == 'null' || operator == 'count')
                     val = value;
@@ -312,10 +323,12 @@ class QueryParser {
             const id = tableName + '.id';
             const fid = relModelTable + '.' + relAttr['via'];
 
+            if (this._viaJoins.indexOf(fid) == -1)
+                this._viaJoins.push(fid);
+
             fn = function (qb) {
                 switch (operation) {
                     case 'null':
-                        qb.leftJoin(relModelTable, id, fid);
                         if (value === '' || value === 'true')
                             qb.where(fid, 'is', null);
                         else
@@ -373,7 +386,6 @@ class QueryParser {
                         }
                         break;
                     case 'any': // containsAny / includesSome
-                        qb.join(relModelTable, id, fid);
                         if (Array.isArray(value))
                             qb.whereIn(relModelTable + '.id', value);
                         else
@@ -386,7 +398,6 @@ class QueryParser {
                             qb.whereRaw('?? NOT IN (SELECT ?? FROM ?? WHERE ?? = ? )', [tableName + '.id', fid, relModelTable, relModelTable + '.id', value]);
                         break;
                     case 'every': // containsAll / includesEvery
-                        qb.join(relModelTable, id, fid);
                         if (Array.isArray(value)) {
                             qb.whereIn(relModelTable + '.id', value)
                                 .groupBy(id)

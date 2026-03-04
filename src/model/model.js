@@ -1061,7 +1061,7 @@ class Model {
             if (attr) {
                 if (attr['baseDataType'])
                     attr = attr['baseDataType'];
-                if (attr['dataType'] !== 'relation' || !attr['multiple']) {
+                if (attr['dataType'] !== 'relation' || (!attr['multiple'] && !attr['via'])) {
                     if (!attr.hasOwnProperty('persistent') || attr.persistent == true) {
                         if (attr['dataType'] === 'json' || attr['dataType'] === 'list') {
                             var value = data[str];
