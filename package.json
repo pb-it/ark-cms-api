@@ -1,6 +1,6 @@
 {
     "name": "ark-cms-api",
-    "version": "0.7.12-beta",
+    "version": "0.7.13-beta",
     "description": "Headless CMS",
     "keywords": [
         "CMS",
@@ -32,6 +32,7 @@
         "forever": "forever -o ./logs/common.log -e ./logs/common.log index.js && tail -f ./logs/common.log",
         "test": "jest --config ./tests/config/jest.config.js -i ./root.test.js",
         "test2": "jest --setupFiles ./tests/config/setup-env2.js -i ./tests/root.test.js --forceExit",
+        "test:clear": "jest tests/clear.test.js",
         "test:setup": "jest tests/setup.test.js",
         "test:datatypes": "jest tests/datatypes.test.js",
         "test:common": "jest tests/common.test.js",
@@ -53,18 +54,18 @@
         "cross-fetch": "^4.1.0",
         "ejs": "^3.1.10",
         "eval": "^0.1.8",
-        "express": "^4.22.1",
+        "express": "^4.22.2",
         "express-form-data": "^3.0.1",
         "express-session": "^1.19.0",
-        "knex": "^3.1.0",
+        "knex": "^3.3.0",
         "mysql": "^2.18.1",
-        "mysql2": "^3.18.2",
-        "semver": "^7.7.4",
+        "mysql2": "^3.23.3",
+        "semver": "^7.8.5",
         "unzipper": "^0.11.6"
     },
     "devDependencies": {
         "dotenv": "^16.6.1",
-        "eslint": "^9.39.3",
+        "eslint": "^9.39.5",
         "jest": "^29.7.0"
     }
 }

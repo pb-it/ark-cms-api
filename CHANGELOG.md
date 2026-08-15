@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [0.7.13-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.13-beta) (2026-08-15)
+
+Minor changes
+
+
 ## [0.7.12-beta](https://github.com/pb-it/ark-cms-api/releases/tag/0.7.12-beta) (2026-02-13)
 
 Minor changes

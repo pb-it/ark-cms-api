@@ -273,8 +273,10 @@ class Controller {
     }
 
     getTmpDir() {
-        if (!this._tmpDir)
+        if (!this._tmpDir) {
             this._tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-'));
+            Logger.info("[App] Created temporary folder '" + this._tmpDir + "'");
+        }
         return this._tmpDir;
     }
 

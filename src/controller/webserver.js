@@ -323,7 +323,7 @@ class WebServer {
                     if (status)
                         res.sendStatus(status);
                     else {
-                        var filePath = path.join(root, req.path.substring(storage['url'].length));
+                        var filePath = path.join(root, decodeURI(req.path.substring(storage['url'].length)));
                         if (fs.existsSync(filePath))
                             res.sendFile(filePath);
                         else
